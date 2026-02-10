@@ -1,0 +1,34 @@
+# Version control
+.git
+.gitignore
+
+# GitHub configuration
+.github
+
+# Documentation
+docs/
+*.md
+
+# Linter and release configs
+.golangci.yml
+.goreleaser.yml
+
+# Vendor directory (we use go mod download in Docker)
+vendor/
+
+# Temporary and build artifacts
+tmp/
+*.exe
+adb
+coverage.out
+coverage.html
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Kiro specs
+.kiro/

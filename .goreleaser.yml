@@ -1,0 +1,95 @@
+version: 2
+
+builds:
+  - main: ./cmd/adb/
+    binary: adb
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - name_template: "adb_{{.Version}}_{{.Os}}_{{.Arch}}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - docs/**/*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge"
+      - "^merge"
+      - "^docs:"
+      - "^ci:"
+      - "^chore:"
+      - "^test:"
+  groups:
+    - title: Features
+      regexp: '^feat[:\(]'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix[:\(]'
+      order: 1
+    - title: Refactoring
+      regexp: '^refactor[:\(]'
+      order: 2
+    - title: Performance
+      regexp: '^perf[:\(]'
+      order: 3
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: drapaimern
+    name: ai-dev-brain
+  draft: false
+  # Detect pre-release from tag (e.g. v1.0.0-beta.1)
+  prerelease: auto
+  header: |
+    ## Installation
+
+    **Homebrew (macOS/Linux):**
+    ```bash
+    # Download from release assets
+    curl -sSfL https://github.com/drapaimern/ai-dev-brain/releases/download/v{{.Version}}/adb_{{.Version}}_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m).tar.gz | tar xz
+    sudo mv adb /usr/local/bin/
+    ```
+
+    **Windows (PowerShell):**
+    ```powershell
+    # Download the zip from release assets and extract
+    ```
+
+    **Verify checksums:**
+    ```bash
+    sha256sum -c checksums.txt
+    ```
+
+snapshot:
+  name_template: "next"
+
+sboms:
+  - artifacts: archive
+    # syft generates Software Bill of Materials for supply chain security
+    cmd: syft

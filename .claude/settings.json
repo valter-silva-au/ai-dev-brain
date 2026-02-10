@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go fmt:*)",
+      "Bash(go run ./cmd/adb:*)",
+      "Bash(go mod:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(make:*)",
+      "Bash(git:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(goreleaser:*)",
+      "Bash(govulncheck:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo:*)",
+      "Bash(curl|wget:* | bash)"
+    ]
+  }
+}

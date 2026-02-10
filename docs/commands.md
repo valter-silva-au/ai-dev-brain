@@ -1,0 +1,878 @@
+# CLI Command Reference
+
+Complete reference for all `adb` commands. Each command includes its synopsis,
+description, arguments, flags, and usage examples.
+
+## Command Overview
+
+```mermaid
+graph LR
+    subgraph "Task Creation"
+        feat["adb feat"]
+        bug["adb bug"]
+        spike["adb spike"]
+        refactor["adb refactor"]
+    end
+
+    subgraph "Task Lifecycle"
+        resume["adb resume"]
+        archive["adb archive"]
+        unarchive["adb unarchive"]
+    end
+
+    subgraph "Task Management"
+        status["adb status"]
+        priority["adb priority"]
+        update["adb update"]
+        syncctx["adb sync-context"]
+    end
+
+    subgraph "External Tools"
+        exec["adb exec"]
+        run["adb run"]
+    end
+```
+
+---
+
+## Global Usage
+
+```
+adb [command] [flags]
+```
+
+AI Dev Brain (adb) is a developer productivity system that wraps AI coding
+assistants with persistent context management, task lifecycle automation,
+and knowledge accumulation.
+
+It provides CLI commands for managing tasks, bootstrapping worktrees,
+tracking communications, and maintaining organizational knowledge.
+
+### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--help`, `-h` | Show help for any command |
+
+---
+
+## Task Creation Commands
+
+The four task creation commands -- `feat`, `bug`, `spike`, and `refactor` --
+share identical flags and behavior. They differ only in the task type assigned
+to the created task.
+
+### adb feat
+
+Create a new feature task.
+
+**Synopsis**
+
+```
+adb feat <branch-name> [flags]
+```
+
+**Description**
+
+Create a new `feat` task with the given branch name. This bootstraps a ticket
+folder, creates a git worktree, initializes context files, and registers the
+task in the backlog. The new task starts in `backlog` status with the default
+priority from configuration (P2 unless overridden).
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `branch-name` | Yes | The git branch name for this task. Also used as the task title. |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--repo` | string | `""` | Repository path (e.g. `github.com/org/repo`) |
+| `--priority` | string | `""` | Task priority: `P0`, `P1`, `P2`, or `P3` |
+| `--owner` | string | `""` | Task owner (e.g. `@username`) |
+| `--tags` | string | `nil` | Comma-separated tags for the task |
+
+**Output**
+
+On success, prints the created task details including ID, type, branch,
+repository (if specified), worktree path, and ticket path.
+
+**Examples**
+
+```bash
+# Create a feature task with default settings
+adb feat add-user-authentication
+
+# Create a feature task in a specific repo with priority
+adb feat api-rate-limiting --repo github.com/acme/backend --priority P1
+
+# Create a tagged feature task with an owner
+adb feat dark-mode-support --owner @alice --tags ui,frontend,theme
+```
+
+---
+
+### adb bug
+
+Create a new bug fix task.
+
+**Synopsis**
+
+```
+adb bug <branch-name> [flags]
+```
+
+**Description**
+
+Create a new `bug` task with the given branch name. Identical in behavior to
+`adb feat` except the task type is set to `bug`. This bootstraps a ticket
+folder, creates a git worktree, initializes context files, and registers the
+task in the backlog.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `branch-name` | Yes | The git branch name for this task. |
+
+**Flags**
+
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+
+**Examples**
+
+```bash
+# Create a bug task
+adb bug fix-login-timeout
+
+# Create a high-priority bug with repo
+adb bug null-pointer-in-parser --repo github.com/acme/compiler --priority P0
+
+# Create a tagged bug task
+adb bug memory-leak-ws-handler --tags backend,performance
+```
+
+---
+
+### adb spike
+
+Create a new spike (research/investigation) task.
+
+**Synopsis**
+
+```
+adb spike <branch-name> [flags]
+```
+
+**Description**
+
+Create a new `spike` task with the given branch name. Use this for
+time-boxed research or prototyping work. Identical in behavior to
+`adb feat` except the task type is set to `spike`.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `branch-name` | Yes | The git branch name for this task. |
+
+**Flags**
+
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+
+**Examples**
+
+```bash
+# Research a new database option
+adb spike evaluate-cockroachdb
+
+# Prototype with tags
+adb spike grpc-vs-rest-perf --tags architecture,api --priority P2
+
+# Spike in a specific repo
+adb spike redis-caching-strategy --repo github.com/acme/platform
+```
+
+---
+
+### adb refactor
+
+Create a new refactoring task.
+
+**Synopsis**
+
+```
+adb refactor <branch-name> [flags]
+```
+
+**Description**
+
+Create a new `refactor` task with the given branch name. Use this for
+code restructuring, cleanup, or technical debt work. Identical in behavior
+to `adb feat` except the task type is set to `refactor`.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `branch-name` | Yes | The git branch name for this task. |
+
+**Flags**
+
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+
+**Examples**
+
+```bash
+# Refactor a module
+adb refactor extract-auth-middleware
+
+# Refactor with priority and owner
+adb refactor normalize-error-handling --priority P1 --owner @bob
+
+# Refactor with tags
+adb refactor migrate-to-slog --tags logging,stdlib
+```
+
+---
+
+## Task Lifecycle Commands
+
+### adb resume
+
+Resume working on an existing task.
+
+**Synopsis**
+
+```
+adb resume <task-id>
+```
+
+**Description**
+
+Resume working on a previously created task. This loads the task's context,
+restores the working environment, and promotes the task to `in_progress`
+status if it was in `backlog`. Tasks in any other status retain their current
+status.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes | The task identifier (e.g. `TASK-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints the resumed task details: ID, type, status, branch, worktree path
+(if present), and ticket path.
+
+**Examples**
+
+```bash
+# Resume a task by ID
+adb resume TASK-00042
+
+# Resume a backlog task (promotes to in_progress)
+adb resume TASK-00003
+
+# Resume an already in-progress task (no status change)
+adb resume TASK-00015
+```
+
+---
+
+### adb archive
+
+Archive a completed task.
+
+**Synopsis**
+
+```
+adb archive <task-id> [flags]
+```
+
+**Description**
+
+Archive a task, generating a handoff document that captures learnings,
+decisions, and open items for future reference. The handoff document is
+written to `tickets/<task-id>/handoff.md` and the task status changes to
+`archived`.
+
+By default, archiving fails for tasks in active statuses (`in_progress` or
+`blocked`). Use `--force` to override this safety check.
+
+The pre-archive status is saved so that `adb unarchive` can restore the
+task to its previous state.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes | The task identifier (e.g. `TASK-00042`) |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--force` | bool | `false` | Force archive a task that is still in active status (`in_progress`, `blocked`) |
+
+**Output**
+
+Prints the archive summary including task ID, summary text, completed work
+items, open items, and learnings extracted from the task's notes and context
+files.
+
+**Errors**
+
+- Archiving a task that is already archived returns an error.
+- Archiving an `in_progress` or `blocked` task without `--force` returns an error.
+
+**Examples**
+
+```bash
+# Archive a completed task
+adb archive TASK-00042
+
+# Force-archive a task that is still in progress
+adb archive TASK-00015 --force
+
+# Archive a task in review status (no --force needed)
+adb archive TASK-00031
+```
+
+---
+
+### adb unarchive
+
+Restore an archived task to a resumable state.
+
+**Synopsis**
+
+```
+adb unarchive <task-id>
+```
+
+**Description**
+
+Restore a previously archived task. The task is returned to its pre-archive
+status (the status it had before `adb archive` was called), allowing work
+to continue where it left off. If the pre-archive status cannot be
+determined, the task defaults to `backlog`.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes | The task identifier (e.g. `TASK-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints the restored task details: ID, type, status (restored), branch,
+worktree path (if present), and ticket path.
+
+**Errors**
+
+- Unarchiving a task that is not archived returns an error.
+
+**Examples**
+
+```bash
+# Restore an archived task
+adb unarchive TASK-00042
+
+# After unarchive, resume the task to continue working
+adb unarchive TASK-00015
+adb resume TASK-00015
+```
+
+---
+
+## Task Management Commands
+
+### adb status
+
+Display tasks grouped by status.
+
+**Synopsis**
+
+```
+adb status [flags]
+```
+
+**Description**
+
+Display all tasks organized by their lifecycle status. Tasks are grouped
+in lifecycle order: `in_progress`, `blocked`, `review`, `backlog`, `done`,
+`archived`. Each group shows a table with columns: ID, Priority, Type,
+and Branch.
+
+Optionally filter to a single status using `--filter`.
+
+**Arguments**
+
+None (takes no positional arguments).
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--filter` | string | `""` | Filter by a single status. Valid values: `backlog`, `in_progress`, `blocked`, `review`, `done`, `archived` |
+
+**Output**
+
+A table per status group, formatted as:
+
+```
+== IN_PROGRESS (2) ==
+  ID           PRI  TYPE       BRANCH
+  ----         ---  ----       ------
+  TASK-00042   P0   feat       add-user-auth
+  TASK-00015   P1   bug        fix-login-timeout
+```
+
+If no tasks are found, prints "No tasks found."
+
+**Examples**
+
+```bash
+# Show all tasks grouped by status
+adb status
+
+# Show only in-progress tasks
+adb status --filter in_progress
+
+# Show only backlog tasks
+adb status --filter backlog
+```
+
+---
+
+### adb priority
+
+Reorder task priorities.
+
+**Synopsis**
+
+```
+adb priority <task-id> [task-id...]
+```
+
+**Description**
+
+Reorder task priorities by specifying task IDs in priority order. The first
+task gets `P0` (highest priority), the second `P1`, the third `P2`, and all
+subsequent tasks get `P3`. This is a convenient way to reprioritize multiple
+tasks at once.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes (at least one) | One or more task IDs in desired priority order |
+
+**Priority Assignment**
+
+| Position | Priority |
+|----------|----------|
+| 1st | P0 (critical) |
+| 2nd | P1 (high) |
+| 3rd | P2 (medium) |
+| 4th+ | P3 (low) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints each task ID with its newly assigned priority.
+
+**Examples**
+
+```bash
+# Set a single task as top priority
+adb priority TASK-00003
+
+# Reorder three tasks
+adb priority TASK-00003 TASK-00001 TASK-00005
+# TASK-00003 -> P0, TASK-00001 -> P1, TASK-00005 -> P2
+
+# Reorder five tasks (4th and 5th both get P3)
+adb priority TASK-00010 TASK-00007 TASK-00003 TASK-00001 TASK-00008
+```
+
+---
+
+### adb update
+
+Generate stakeholder communication updates for a task.
+
+**Synopsis**
+
+```
+adb update <task-id>
+```
+
+**Description**
+
+Generate a plan of stakeholder communication updates based on the task's
+current context, recent progress, blockers, and communication history.
+
+This command **does not send any messages**. It only generates content for
+your review. You decide what to send and when.
+
+The generated plan may include:
+
+- **Planned Messages**: Suggested updates to send, including recipient,
+  channel, priority, subject, reason, and body text.
+- **Information Needed**: Questions to ask stakeholders, flagged as blocking
+  or non-blocking.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes | The task identifier (e.g. `TASK-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+If updates are needed, prints:
+
+```
+Update plan for TASK-00042 (generated 2025-01-15 10:30)
+
+== Planned Messages (2) ==
+
+[1] To: @pm-jane via slack [high]
+    Subject: Sprint blocker on auth migration
+    Reason: Task blocked for 2 days, PM should be aware
+    ---
+    The auth migration is blocked waiting on...
+
+== Information Needed (1) ==
+
+[1] From: @backend-team [BLOCKING]
+    Question: Which OAuth provider should we use?
+    Context: Need to finalize provider before...
+```
+
+If no updates are needed, prints "No updates needed for TASK-00042."
+
+**Examples**
+
+```bash
+# Generate updates for a task
+adb update TASK-00042
+
+# Generate updates for a blocked task
+adb update TASK-00015
+```
+
+---
+
+### adb sync-context
+
+Regenerate AI context files.
+
+**Synopsis**
+
+```
+adb sync-context
+```
+
+**Description**
+
+Regenerate the root-level AI context files (such as `CLAUDE.md` and
+`kiro.md`) by assembling current state from wiki content, ADRs, active
+tasks, glossary, and contacts.
+
+This ensures AI assistants have up-to-date project context when they read
+the context files at the start of a session.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+On success, prints "AI context files regenerated successfully."
+
+**Examples**
+
+```bash
+# Regenerate all AI context files
+adb sync-context
+
+# Typically run after making wiki or ADR changes
+adb sync-context
+```
+
+---
+
+## External Tool Commands
+
+### adb exec
+
+Execute an external CLI tool with alias resolution and task context.
+
+**Synopsis**
+
+```
+adb exec [cli] [args...]
+```
+
+**Description**
+
+Execute an external CLI tool, resolving configured aliases and injecting
+task environment variables when a task is active.
+
+With no arguments, lists all configured CLI aliases.
+
+**How it works:**
+
+1. **Alias resolution** -- The CLI name is checked against aliases defined
+   in `.taskconfig` under `cli_aliases`. If a match is found, the alias
+   expands to the configured command with any default arguments prepended.
+2. **Environment injection** -- If a task is currently active, the
+   following environment variables are injected into the subprocess:
+   `ADB_TASK_ID`, `ADB_BRANCH`, `ADB_WORKTREE_PATH`, `ADB_TICKET_PATH`.
+3. **Pipe support** -- If any argument is the pipe character (`|`), the
+   entire command is delegated to the system shell (`sh -c` on Linux/Mac,
+   `cmd /c` on Windows).
+4. **Failure logging** -- If the command exits with a non-zero code and a
+   task is active, the failure is logged to the task's `context.md` file.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `cli` | No | The CLI tool name or alias to execute. If omitted, lists aliases. |
+| `args...` | No | Arguments to pass to the CLI tool. |
+
+**Flags**
+
+Flag parsing is disabled for this command. All arguments after `exec` are
+passed through to the external tool. Use `--help` or `-h` as the first
+argument to see the command help.
+
+**Alias Configuration**
+
+Aliases are defined in `.taskconfig`:
+
+```yaml
+cli_aliases:
+  - name: cc
+    command: claude
+    default_args: ["--verbose"]
+  - name: k
+    command: kiro
+```
+
+**Output**
+
+- With no arguments: lists configured aliases in the format
+  `alias -> command [default_args]`.
+- With arguments: streams stdout and stderr from the executed tool.
+
+**Examples**
+
+```bash
+# List all configured CLI aliases
+adb exec
+
+# Run an aliased command (e.g., "cc" expands to "claude --verbose")
+adb exec cc chat "explain this function"
+
+# Run a non-aliased tool with task context injected
+adb exec gh pr create --title "Add auth" --body "Implements TASK-00042"
+
+# Use a pipe (delegates to system shell)
+adb exec grep -r "TODO" src | wc -l
+```
+
+**Related commands:** [`adb run`](#adb-run)
+
+---
+
+### adb run
+
+Execute a task from Taskfile.yaml.
+
+**Synopsis**
+
+```
+adb run [task] [args...]
+```
+
+**Description**
+
+Execute a named task from `Taskfile.yaml` in the current directory,
+injecting task environment variables when a task is active.
+
+Use `--list` to display all available Taskfile tasks without executing
+anything.
+
+The Taskfile runner discovers `Taskfile.yaml` in the current working
+directory, finds the named task, and executes its commands sequentially.
+Each command in the task definition is run through the CLI executor with
+alias resolution and environment injection.
+
+If any command in the task exits with a non-zero code, execution stops
+and the exit code is propagated.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task` | Yes (unless `--list`) | The name of the task to run from Taskfile.yaml |
+| `args...` | No | Arguments to pass to the task's commands |
+
+**Flags**
+
+Flag parsing is disabled for this command. The following flags are handled
+manually:
+
+| Flag | Description |
+|------|-------------|
+| `--list`, `-l` | List all available tasks from Taskfile.yaml |
+| `--help`, `-h` | Show command help |
+
+**Taskfile Format**
+
+```yaml
+version: "3"
+tasks:
+  test:
+    desc: Run the test suite
+    cmds:
+      - go test ./...
+  lint:
+    desc: Run linters
+    cmds:
+      - golangci-lint run
+    deps:
+      - test
+  build:
+    cmds:
+      - go build -o bin/adb ./cmd/adb
+```
+
+**Output**
+
+- With `--list`: lists tasks with descriptions in the format
+  `name                 description`.
+- With a task name: streams stdout and stderr from each command.
+
+**Errors**
+
+- If no task name is provided and `--list` is not used: prints
+  "task name required; use --list to see available tasks".
+- If `Taskfile.yaml` is not found: suggests creating one.
+- If the named task does not exist: lists available tasks.
+
+**Examples**
+
+```bash
+# List all available Taskfile tasks
+adb run --list
+
+# Run a specific task
+adb run test
+
+# Run a task with arguments
+adb run build --race
+
+# Run a task (environment variables are injected if a task is active)
+adb run deploy
+```
+
+**Related commands:** [`adb exec`](#adb-exec)
+
+---
+
+## Environment Variables
+
+When a task is active, `adb exec` and `adb run` inject the following
+environment variables into subprocesses:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ADB_TASK_ID` | The active task's identifier | `TASK-00042` |
+| `ADB_BRANCH` | The git branch associated with the task | `add-user-auth` |
+| `ADB_WORKTREE_PATH` | Absolute path to the task's git worktree | `/home/user/.adb/worktrees/TASK-00042` |
+| `ADB_TICKET_PATH` | Absolute path to the task's ticket directory | `/home/user/.adb/tickets/TASK-00042` |
+
+Additionally, the `ADB_HOME` environment variable can be set to override
+the default base directory where `adb` stores its data (tickets, backlog,
+wiki, etc.).
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ADB_HOME` | Root directory for all adb data | Platform-dependent (typically `~/.adb`) |
+
+---
+
+## Enumerations
+
+### Task Types
+
+| Value | Description | Command |
+|-------|-------------|---------|
+| `feat` | New feature work | `adb feat` |
+| `bug` | Bug fix | `adb bug` |
+| `spike` | Research or investigation | `adb spike` |
+| `refactor` | Code restructuring or cleanup | `adb refactor` |
+
+### Task Statuses
+
+Statuses are displayed in this lifecycle order by `adb status`:
+
+| Value | Description |
+|-------|-------------|
+| `in_progress` | Actively being worked on |
+| `blocked` | Waiting on an external dependency |
+| `review` | In code review |
+| `backlog` | Queued for future work |
+| `done` | Completed |
+| `archived` | Archived with handoff document |
+
+### Priorities
+
+| Value | Level |
+|-------|-------|
+| `P0` | Critical -- must be addressed immediately |
+| `P1` | High -- address in current sprint |
+| `P2` | Medium -- default priority |
+| `P3` | Low -- address when convenient |
+
+---
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Command completed successfully |
+| `1` | General error (invalid arguments, missing resources, operation failed) |
+| Non-zero (from `exec`/`run`) | Propagated from the external tool's exit code |
+
+When `adb exec` or `adb run` invokes an external tool that exits with a
+non-zero code, `adb` propagates that exit code directly. This allows
+scripts and CI pipelines to detect failures from the underlying tools.

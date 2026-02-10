@@ -1,0 +1,45 @@
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] [rapid] draw basePath: "/aaa"
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] [rapid] draw platform: 0
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] [rapid] draw org: "a-"
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] [rapid] draw repo: "a-"
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] [rapid] draw taskNum: 1
+# 2026/02/10 20:27:19.477409 [TestProperty13_RepositoryPathStructure] path "\\aaa\\repos\\github.com\\a-\\a-\\work\\TASK-00001" does not start with basePath "/aaa"
+# 
+v0.4.8#15998322437518698210
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

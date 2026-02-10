@@ -1,0 +1,34 @@
+name: Code Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Run tests with coverage
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+
+      # Upload coverage to Codecov.
+      # Requires CODECOV_TOKEN to be set in repository secrets.
+      # Generate a token at https://app.codecov.io/ for your repository.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

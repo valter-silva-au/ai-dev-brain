@@ -1,0 +1,25 @@
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+    - bodyclose
+    - exhaustive
+    - nilerr
+    - unparam
+
+issues:
+  # Exclude gosec findings in test files -- test code often has hardcoded
+  # values and insecure patterns that are intentional.
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam

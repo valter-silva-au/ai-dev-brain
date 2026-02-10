@@ -1,0 +1,36 @@
+name: Feature Request
+description: Suggest a new feature
+labels: [enhancement]
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A brief summary of the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe the problem or use case this feature would address.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How you think this could be implemented.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered.
+    validations:
+      required: false

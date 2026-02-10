@@ -7,21 +7,21 @@ This implementation plan breaks down the AI Dev Brain system into discrete codin
 ## Tasks
 
 - [ ] 1. Project Setup and Core Infrastructure
-  - [ ] 1.1 Initialize Go module and project structure
+  - [x] 1.1 Initialize Go module and project structure
     - Create go.mod with module path
     - Create directory structure: cmd/adb/, internal/cli/, internal/core/, internal/storage/, internal/integration/, pkg/models/
     - Add dependencies: github.com/spf13/cobra, github.com/spf13/viper, gopkg.in/yaml.v3, pgregory.net/rapid
     - Create cmd/adb/main.go entry point with root Cobra command
     - _Requirements: 15.1, 15.2_
 
-  - [ ] 1.2 Implement shared models and types
+  - [x] 1.2 Implement shared models and types
     - Create pkg/models/task.go with TaskType, TaskStatus, Priority constants and Task struct
     - Create pkg/models/config.go with GlobalConfig, RepoConfig, MergedConfig structs
     - Create pkg/models/communication.go with Communication, CommunicationTag types
     - Create pkg/models/knowledge.go with Decision, HandoffDocument, ExtractedKnowledge structs
     - _Requirements: 8.1, 14.1_
 
-  - [ ] 1.3 Implement Configuration Manager with Viper
+  - [x] 1.3 Implement Configuration Manager with Viper
     - Create internal/core/config.go with ConfigurationManager interface and viperConfigManager implementation
     - Implement LoadGlobalConfig() reading .taskconfig via Viper
     - Implement LoadRepoConfig() reading per-repo .taskrc files
@@ -29,7 +29,7 @@ This implementation plan breaks down the AI Dev Brain system into discrete codin
     - Implement ValidateConfig() with clear error messages
     - _Requirements: 15.1, 15.3, 15.4, 15.5_
 
-  - [ ] 1.4 Write property tests for Configuration Manager
+  - [x] 1.4 Write property tests for Configuration Manager
     - **Property 9: Configuration Precedence Merging**
     - **Property 10: Configuration Validation**
     - **Validates: Requirements 15.3, 15.4**

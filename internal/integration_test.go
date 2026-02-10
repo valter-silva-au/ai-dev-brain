@@ -1,0 +1,2001 @@
+package internal
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/drapaimern/ai-dev-brain/internal/core"
+	"github.com/drapaimern/ai-dev-brain/internal/integration"
+	"github.com/drapaimern/ai-dev-brain/internal/storage"
+	"github.com/drapaimern/ai-dev-brain/pkg/models"
+)
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+// newTestApp creates a fully wired App in a temporary directory.
+func newTestApp(t *testing.T) *App {
+	t.Helper()
+	dir := t.TempDir()
+	app, err := NewApp(dir)
+	if err != nil {
+		t.Fatalf("creating test app: %v", err)
+	}
+	return app
+}
+
+// newTestAppWithConfig creates a fully wired App with a custom .taskconfig.
+func newTestAppWithConfig(t *testing.T, configYAML string) *App {
+	t.Helper()
+	dir := t.TempDir()
+	if configYAML != "" {
+		if err := os.WriteFile(filepath.Join(dir, ".taskconfig"), []byte(configYAML), 0o644); err != nil {
+			t.Fatalf("writing .taskconfig: %v", err)
+		}
+	}
+	app, err := NewApp(dir)
+	if err != nil {
+		t.Fatalf("creating test app: %v", err)
+	}
+	return app
+}
+
+// =========================================================================
+// 1. End-to-end task lifecycle: Create -> Work -> Archive -> Unarchive -> Resume
+// =========================================================================
+
+func TestIntegration_TaskLifecycle_CreateResumeArchiveUnarchive(t *testing.T) {
+	app := newTestApp(t)
+
+	// --- Create a feat task ---
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "add-auth", "")
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+	if task.ID == "" {
+		t.Fatal("expected non-empty task ID")
+	}
+	if task.Type != models.TaskTypeFeat {
+		t.Fatalf("expected feat type, got %s", task.Type)
+	}
+	if task.Status != models.StatusBacklog {
+		t.Fatalf("expected backlog status on creation, got %s", task.Status)
+	}
+	taskID := task.ID
+
+	// Verify ticket directory was created with all expected files.
+	ticketDir := filepath.Join(app.BasePath, "tickets", taskID)
+	for _, name := range []string{"status.yaml", "notes.md", "design.md", "context.md"} {
+		p := filepath.Join(ticketDir, name)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Fatalf("%s not created: %s", name, p)
+		}
+	}
+
+	// Verify communications directory was created.
+	commsDir := filepath.Join(ticketDir, "communications")
+	info, err := os.Stat(commsDir)
+	if err != nil {
+		t.Fatalf("communications dir not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("communications should be a directory")
+	}
+
+	// Verify task appears in backlog.
+	allTasks, err := app.TaskMgr.GetAllTasks()
+	if err != nil {
+		t.Fatalf("getting all tasks: %v", err)
+	}
+	if len(allTasks) != 1 {
+		t.Fatalf("expected 1 task in backlog, got %d", len(allTasks))
+	}
+	if allTasks[0].ID != taskID {
+		t.Fatalf("expected task ID %s, got %s", taskID, allTasks[0].ID)
+	}
+
+	// --- Resume: backlog -> in_progress ---
+	resumed, err := app.TaskMgr.ResumeTask(taskID)
+	if err != nil {
+		t.Fatalf("resuming task: %v", err)
+	}
+	if resumed.Status != models.StatusInProgress {
+		t.Fatalf("expected in_progress status after resume, got %s", resumed.Status)
+	}
+
+	// Verify backlog also updated.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("loading backlog after resume: %v", err)
+	}
+	blEntry, err := app.BacklogMgr.GetTask(taskID)
+	if err != nil {
+		t.Fatalf("getting backlog entry after resume: %v", err)
+	}
+	if blEntry.Status != models.StatusInProgress {
+		t.Fatalf("backlog status after resume = %s, want in_progress", blEntry.Status)
+	}
+
+	// --- Archive: in_progress -> archived ---
+	handoff, err := app.TaskMgr.ArchiveTask(taskID)
+	if err != nil {
+		t.Fatalf("archiving task: %v", err)
+	}
+	if handoff.TaskID != taskID {
+		t.Fatalf("expected handoff task ID %s, got %s", taskID, handoff.TaskID)
+	}
+
+	// Verify handoff.md was created.
+	handoffPath := filepath.Join(ticketDir, "handoff.md")
+	handoffData, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatalf("reading handoff.md: %v", err)
+	}
+	if !strings.Contains(string(handoffData), taskID) {
+		t.Fatal("handoff.md should contain the task ID")
+	}
+	if !strings.Contains(string(handoffData), "Archived") {
+		t.Fatal("handoff.md should contain 'Archived'")
+	}
+
+	// Verify status is archived.
+	archived, err := app.TaskMgr.GetTask(taskID)
+	if err != nil {
+		t.Fatalf("getting archived task: %v", err)
+	}
+	if archived.Status != models.StatusArchived {
+		t.Fatalf("expected archived status, got %s", archived.Status)
+	}
+
+	// Verify .pre_archive_status was saved.
+	preArchivePath := filepath.Join(ticketDir, ".pre_archive_status")
+	preData, err := os.ReadFile(preArchivePath)
+	if err != nil {
+		t.Fatalf("reading .pre_archive_status: %v", err)
+	}
+	if strings.TrimSpace(string(preData)) != string(models.StatusInProgress) {
+		t.Fatalf("pre_archive_status = %q, want %q", string(preData), models.StatusInProgress)
+	}
+
+	// --- Unarchive: archived -> in_progress (restored) ---
+	unarchived, err := app.TaskMgr.UnarchiveTask(taskID)
+	if err != nil {
+		t.Fatalf("unarchiving task: %v", err)
+	}
+	if unarchived.Status != models.StatusInProgress {
+		t.Fatalf("expected in_progress after unarchive (restored), got %s", unarchived.Status)
+	}
+
+	// Verify .pre_archive_status was cleaned up.
+	if _, err := os.Stat(preArchivePath); !os.IsNotExist(err) {
+		t.Fatal("expected .pre_archive_status to be removed after unarchive")
+	}
+
+	// Verify backlog reflects restored status.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("loading backlog after unarchive: %v", err)
+	}
+	restored, err := app.BacklogMgr.GetTask(taskID)
+	if err != nil {
+		t.Fatalf("getting backlog entry after unarchive: %v", err)
+	}
+	if restored.Status != models.StatusInProgress {
+		t.Fatalf("backlog status after unarchive = %s, want in_progress", restored.Status)
+	}
+
+	// --- Resume again (no-op since already in_progress) ---
+	resumed2, err := app.TaskMgr.ResumeTask(taskID)
+	if err != nil {
+		t.Fatalf("resuming after unarchive: %v", err)
+	}
+	if resumed2.ID != taskID {
+		t.Fatalf("expected task ID %s, got %s", taskID, resumed2.ID)
+	}
+	if resumed2.Status != models.StatusInProgress {
+		t.Fatalf("expected in_progress after second resume, got %s", resumed2.Status)
+	}
+}
+
+// TestIntegration_ArchiveFromBacklogPreservesStatus verifies that archiving
+// a task directly from backlog status saves "backlog" as the pre-archive status.
+func TestIntegration_ArchiveFromBacklogPreservesStatus(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeBug, "fix-crash", "")
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Archive directly from backlog.
+	if _, err := app.TaskMgr.ArchiveTask(task.ID); err != nil {
+		t.Fatalf("archiving: %v", err)
+	}
+
+	// Unarchive should restore to backlog.
+	unarchived, err := app.TaskMgr.UnarchiveTask(task.ID)
+	if err != nil {
+		t.Fatalf("unarchiving: %v", err)
+	}
+	if unarchived.Status != models.StatusBacklog {
+		t.Errorf("status after unarchive = %s, want backlog", unarchived.Status)
+	}
+}
+
+// TestIntegration_DoubleArchiveReturnsError verifies idempotency guard.
+func TestIntegration_DoubleArchiveReturnsError(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "double-archive", "")
+	if _, err := app.TaskMgr.ArchiveTask(task.ID); err != nil {
+		t.Fatalf("first archive: %v", err)
+	}
+	if _, err := app.TaskMgr.ArchiveTask(task.ID); err == nil {
+		t.Error("expected error on second archive, got nil")
+	}
+}
+
+// TestIntegration_UnarchiveNonArchivedReturnsError tests the guard.
+func TestIntegration_UnarchiveNonArchivedReturnsError(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "not-archived", "")
+	if _, err := app.TaskMgr.UnarchiveTask(task.ID); err == nil {
+		t.Error("expected error when unarchiving a non-archived task")
+	}
+}
+
+// =========================================================================
+// 2. Multi-repo workflow: task structure and worktree path validation.
+// =========================================================================
+
+func TestIntegration_MultiRepoWorktreePathValidation(t *testing.T) {
+	app := newTestApp(t)
+
+	// CreateWorktree requires real git, so we test validation guards instead.
+	// The GitWorktreeManager rejects invalid configs.
+	_, err := app.WorktreeMgr.CreateWorktree(integration.WorktreeConfig{
+		RepoPath:   "",
+		BranchName: "feat/test",
+		TaskID:     "TASK-00001",
+	})
+	if err == nil {
+		t.Error("expected error for empty RepoPath")
+	}
+
+	_, err = app.WorktreeMgr.CreateWorktree(integration.WorktreeConfig{
+		RepoPath:   "github.com/org/repo",
+		BranchName: "",
+		TaskID:     "TASK-00001",
+	})
+	if err == nil {
+		t.Error("expected error for empty BranchName")
+	}
+
+	_, err = app.WorktreeMgr.CreateWorktree(integration.WorktreeConfig{
+		RepoPath:   "github.com/org/repo",
+		BranchName: "feat/test",
+		TaskID:     "",
+	})
+	if err == nil {
+		t.Error("expected error for empty TaskID")
+	}
+}
+
+func TestIntegration_TaskWithoutRepoHasNoWorktree(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeSpike, "investigate-api", "")
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	loaded, err := app.TaskMgr.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("getting task: %v", err)
+	}
+	if loaded.WorktreePath != "" {
+		t.Errorf("expected empty worktree path when no repo, got %q", loaded.WorktreePath)
+	}
+}
+
+// =========================================================================
+// 3. Offline/online transition: queue operations, verify sync.
+// =========================================================================
+
+func TestIntegration_OfflineQueueAndSync(t *testing.T) {
+	app := newTestApp(t)
+
+	// Initially empty queue: sync should be a no-op.
+	result, err := app.OfflineMgr.SyncPendingOperations()
+	if err != nil {
+		t.Fatalf("sync empty queue: %v", err)
+	}
+	if result.Synced != 0 || result.Failed != 0 {
+		t.Errorf("expected 0/0 on empty queue, got synced=%d failed=%d", result.Synced, result.Failed)
+	}
+
+	// Queue multiple operations.
+	ops := []integration.QueuedOperation{
+		{ID: "op-1", Type: "status_update", Payload: "in_progress", Timestamp: time.Now()},
+		{ID: "op-2", Type: "backlog_sync", Payload: map[string]string{"task": "TASK-00001"}, Timestamp: time.Now()},
+		{ID: "op-3", Type: "communication_log", Payload: "standup notes", Timestamp: time.Now()},
+	}
+	for _, op := range ops {
+		if err := app.OfflineMgr.QueueOperation(op); err != nil {
+			t.Fatalf("queueing %s: %v", op.ID, err)
+		}
+	}
+
+	// Verify queue file exists and has correct data.
+	queuePath := filepath.Join(app.BasePath, ".offline_queue.json")
+	queueData, err := os.ReadFile(queuePath)
+	if err != nil {
+		t.Fatalf("reading queue file: %v", err)
+	}
+	var queued []integration.QueuedOperation
+	if err := json.Unmarshal(queueData, &queued); err != nil {
+		t.Fatalf("parsing queue JSON: %v", err)
+	}
+	if len(queued) != 3 {
+		t.Errorf("expected 3 queued operations, got %d", len(queued))
+	}
+
+	// Sync: the default executeOperation is a no-op success.
+	result, err = app.OfflineMgr.SyncPendingOperations()
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if result.Synced != 3 {
+		t.Errorf("expected 3 synced, got %d", result.Synced)
+	}
+	if result.Failed != 0 {
+		t.Errorf("expected 0 failed, got %d", result.Failed)
+	}
+
+	// Queue file should be removed after full sync.
+	if _, err := os.Stat(queuePath); !os.IsNotExist(err) {
+		t.Error("expected queue file to be removed after full sync")
+	}
+}
+
+func TestIntegration_OfflineQueueMultipleRounds(t *testing.T) {
+	app := newTestApp(t)
+
+	// Round 1: queue and sync.
+	if err := app.OfflineMgr.QueueOperation(integration.QueuedOperation{
+		ID: "round1", Type: "test", Timestamp: time.Now(),
+	}); err != nil {
+		t.Fatalf("queue round 1: %v", err)
+	}
+	r1, _ := app.OfflineMgr.SyncPendingOperations()
+	if r1.Synced != 1 {
+		t.Errorf("round 1: expected 1 synced, got %d", r1.Synced)
+	}
+
+	// Round 2: queue and sync again.
+	if err := app.OfflineMgr.QueueOperation(integration.QueuedOperation{
+		ID: "round2", Type: "test", Timestamp: time.Now(),
+	}); err != nil {
+		t.Fatalf("queue round 2: %v", err)
+	}
+	r2, _ := app.OfflineMgr.SyncPendingOperations()
+	if r2.Synced != 1 {
+		t.Errorf("round 2: expected 1 synced, got %d", r2.Synced)
+	}
+}
+
+func TestIntegration_OfflineConnectivityCallback(t *testing.T) {
+	app := newTestApp(t)
+
+	callbackInvoked := false
+	app.OfflineMgr.OnConnectivityChange(func(online bool) {
+		callbackInvoked = true
+	})
+
+	// Callback is only invoked internally; registration alone should not trigger it.
+	if callbackInvoked {
+		t.Error("callback should not be invoked just by registering")
+	}
+}
+
+// =========================================================================
+// 4. Knowledge feedback loop: task comms/notes -> extract -> handoff -> ADR -> wiki
+// =========================================================================
+
+func TestIntegration_KnowledgeFeedback_FullLoop(t *testing.T) {
+	app := newTestApp(t)
+
+	// Create a task.
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "auth-feature", "")
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+	taskID := task.ID
+	ticketDir := filepath.Join(app.BasePath, "tickets", taskID)
+
+	// Enrich notes.md with learnings, gotchas, and wiki update hints.
+	notesContent := `# Feature Notes
+
+## Requirements
+- [ ] Support OAuth2
+
+## Learnings
+- REST is better for this use case than GraphQL
+- Pagination reduces load on the DB
+
+## Gotchas
+- Rate limiting resets at midnight UTC
+- Auth tokens expire silently
+
+## Wiki Updates
+- API design patterns
+- Rate limiting strategy
+`
+	if err := os.WriteFile(filepath.Join(ticketDir, "notes.md"), []byte(notesContent), 0o644); err != nil {
+		t.Fatalf("writing notes.md: %v", err)
+	}
+
+	// Enrich context.md with decisions and progress.
+	contextContent := `# Task Context: ` + taskID + `
+
+## Summary
+Redesigning the public API to use REST patterns
+
+## Current Focus
+Endpoint design
+
+## Recent Progress
+- Defined resource models
+- Created OpenAPI spec
+
+## Open Questions
+- [ ] Should we version the URL path?
+
+## Decisions Made
+- Use JSON:API format for responses
+- Implement cursor-based pagination
+
+## Blockers
+
+## Next Steps
+- [ ] Build prototype endpoints
+
+## Related Resources
+`
+	if err := os.WriteFile(filepath.Join(ticketDir, "context.md"), []byte(contextContent), 0o644); err != nil {
+		t.Fatalf("writing context.md: %v", err)
+	}
+
+	// Add a decision communication.
+	err = app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date:    time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		Source:  "slack",
+		Contact: "alice",
+		Topic:   "auth-approach",
+		Content: "Use OAuth2 with PKCE flow",
+		Tags:    []models.CommunicationTag{models.TagDecision},
+	})
+	if err != nil {
+		t.Fatalf("adding communication: %v", err)
+	}
+
+	// Add a requirement communication.
+	err = app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date:    time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		Source:  "email",
+		Contact: "bob",
+		Topic:   "security-req",
+		Content: "Must support MFA",
+		Tags:    []models.CommunicationTag{models.TagRequirement},
+	})
+	if err != nil {
+		t.Fatalf("adding requirement: %v", err)
+	}
+
+	// --- Extract knowledge ---
+	knowledge, err := app.KnowledgeX.ExtractFromTask(taskID)
+	if err != nil {
+		t.Fatalf("extracting knowledge: %v", err)
+	}
+	if knowledge.TaskID != taskID {
+		t.Errorf("knowledge.TaskID = %s, want %s", knowledge.TaskID, taskID)
+	}
+	if len(knowledge.Learnings) == 0 {
+		t.Error("expected learnings extracted from notes")
+	}
+	if len(knowledge.Gotchas) == 0 {
+		t.Error("expected gotchas extracted from notes")
+	}
+	if len(knowledge.Decisions) == 0 {
+		t.Error("expected decisions (from context and communications)")
+	}
+
+	// Verify communication-derived decision.
+	foundCommDecision := false
+	for _, d := range knowledge.Decisions {
+		if strings.Contains(d.Decision, "OAuth2") || strings.Contains(d.Decision, "PKCE") {
+			foundCommDecision = true
+			break
+		}
+	}
+	if !foundCommDecision {
+		t.Error("expected OAuth2/PKCE decision from communication")
+	}
+
+	// Verify wiki updates extracted from notes.
+	if len(knowledge.WikiUpdates) == 0 {
+		t.Error("expected wiki updates extracted")
+	}
+
+	// --- Generate handoff ---
+	handoff, err := app.KnowledgeX.GenerateHandoff(taskID)
+	if err != nil {
+		t.Fatalf("generating handoff: %v", err)
+	}
+	if handoff.TaskID != taskID {
+		t.Errorf("handoff.TaskID = %s, want %s", handoff.TaskID, taskID)
+	}
+
+	handoffPath := filepath.Join(ticketDir, "handoff.md")
+	handoffData, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatalf("reading handoff.md: %v", err)
+	}
+	handoffStr := string(handoffData)
+	if !strings.Contains(handoffStr, taskID) {
+		t.Error("handoff.md missing task ID")
+	}
+	if !strings.Contains(handoffStr, "Provenance") {
+		t.Error("handoff.md missing Provenance section")
+	}
+
+	// --- Create ADR ---
+	decision := models.Decision{
+		Title:        "Use JSON:API for responses",
+		Context:      "We need a standard API format across services",
+		Decision:     "Adopt JSON:API specification for all public endpoints",
+		Consequences: []string{"Clients must follow JSON:API parsing", "Better interop"},
+		Alternatives: []string{"Plain JSON", "GraphQL"},
+	}
+	adrPath, err := app.KnowledgeX.CreateADR(decision, taskID)
+	if err != nil {
+		t.Fatalf("creating ADR: %v", err)
+	}
+
+	// Verify ADR format and provenance.
+	adrData, err := os.ReadFile(adrPath)
+	if err != nil {
+		t.Fatalf("reading ADR: %v", err)
+	}
+	adrStr := string(adrData)
+	for _, want := range []string{"ADR-", "**Status:** Accepted", "**Source:** " + taskID,
+		"## Decision", "## Consequences", "## Alternatives Considered", "Plain JSON"} {
+		if !strings.Contains(adrStr, want) {
+			t.Errorf("ADR missing %q", want)
+		}
+	}
+
+	// --- Update wiki ---
+	if err := app.KnowledgeX.UpdateWiki(knowledge); err != nil {
+		t.Fatalf("updating wiki: %v", err)
+	}
+
+	wikiDir := filepath.Join(app.BasePath, "docs", "wiki")
+	wikiEntries, err := os.ReadDir(wikiDir)
+	if err != nil {
+		t.Fatalf("reading wiki dir: %v", err)
+	}
+	if len(wikiEntries) == 0 {
+		t.Error("expected wiki files after UpdateWiki")
+	}
+
+	// At least one wiki file should reference the task for provenance.
+	foundTaskRef := false
+	for _, entry := range wikiEntries {
+		data, _ := os.ReadFile(filepath.Join(wikiDir, entry.Name()))
+		if strings.Contains(string(data), taskID) {
+			foundTaskRef = true
+			break
+		}
+	}
+	if !foundTaskRef {
+		t.Error("wiki files should reference the source task ID")
+	}
+}
+
+// =========================================================================
+// 5. CLI execution within task context.
+// =========================================================================
+
+func TestIntegration_CLIExecutor_EnvInjection(t *testing.T) {
+	app := newTestApp(t)
+
+	taskCtx := &integration.TaskEnvContext{
+		TaskID:       "TASK-00042",
+		Branch:       "feat/add-auth",
+		WorktreePath: "/tmp/work/TASK-00042",
+		TicketPath:   "/tmp/tickets/TASK-00042",
+	}
+
+	baseEnv := []string{"PATH=/usr/bin", "HOME=/home/test"}
+	env := app.Executor.BuildEnv(baseEnv, taskCtx)
+
+	envMap := make(map[string]string)
+	for _, e := range env {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+
+	expected := map[string]string{
+		"ADB_TASK_ID":       "TASK-00042",
+		"ADB_BRANCH":        "feat/add-auth",
+		"ADB_WORKTREE_PATH": "/tmp/work/TASK-00042",
+		"ADB_TICKET_PATH":   "/tmp/tickets/TASK-00042",
+	}
+	for key, want := range expected {
+		if envMap[key] != want {
+			t.Errorf("%s = %q, want %q", key, envMap[key], want)
+		}
+	}
+
+	// Base env vars are preserved.
+	if envMap["HOME"] != "/home/test" {
+		t.Errorf("HOME not preserved, got %q", envMap["HOME"])
+	}
+}
+
+func TestIntegration_CLIExecutor_NilContextDoesNotInjectVars(t *testing.T) {
+	app := newTestApp(t)
+
+	baseEnv := []string{"PATH=/usr/bin"}
+	env := app.Executor.BuildEnv(baseEnv, nil)
+	for _, e := range env {
+		if strings.HasPrefix(e, "ADB_") {
+			t.Errorf("unexpected ADB_ var with nil context: %s", e)
+		}
+	}
+	if len(env) != len(baseEnv) {
+		t.Errorf("env length changed with nil context: %d -> %d", len(baseEnv), len(env))
+	}
+}
+
+func TestIntegration_CLIExecutor_AliasResolution(t *testing.T) {
+	app := newTestApp(t)
+
+	aliases := []integration.CLIAlias{
+		{Name: "build", Command: "go", DefaultArgs: []string{"build", "./..."}},
+		{Name: "lint", Command: "golangci-lint", DefaultArgs: []string{"run"}},
+		{Name: "deploy", Command: "kubectl"},
+	}
+
+	// Known alias with default args.
+	cmd, args, found := app.Executor.ResolveAlias("build", aliases)
+	if !found {
+		t.Fatal("expected 'build' alias to be found")
+	}
+	if cmd != "go" {
+		t.Errorf("command = %q, want go", cmd)
+	}
+	if len(args) != 2 || args[0] != "build" || args[1] != "./..." {
+		t.Errorf("args = %v, want [build ./...]", args)
+	}
+
+	// Known alias without default args.
+	cmd, args, found = app.Executor.ResolveAlias("deploy", aliases)
+	if !found {
+		t.Fatal("expected 'deploy' alias to be found")
+	}
+	if cmd != "kubectl" {
+		t.Errorf("command = %q, want kubectl", cmd)
+	}
+	if args != nil {
+		t.Errorf("expected nil default args, got %v", args)
+	}
+
+	// Unknown alias.
+	cmd, args, found = app.Executor.ResolveAlias("unknown", aliases)
+	if found {
+		t.Fatal("expected 'unknown' to NOT be found")
+	}
+	if cmd != "unknown" {
+		t.Errorf("unresolved command = %q, want unknown", cmd)
+	}
+	if args != nil {
+		t.Errorf("unresolved args should be nil, got %v", args)
+	}
+}
+
+func TestIntegration_CLIExecutor_ListAliases(t *testing.T) {
+	app := newTestApp(t)
+
+	aliases := []integration.CLIAlias{
+		{Name: "lint", Command: "golangci-lint", DefaultArgs: []string{"run"}},
+		{Name: "build", Command: "go"},
+	}
+	listed := app.Executor.ListAliases(aliases)
+	if len(listed) != 2 {
+		t.Fatalf("expected 2 aliases, got %d", len(listed))
+	}
+	if !strings.Contains(listed[0], "lint -> golangci-lint") {
+		t.Errorf("first alias = %q, expected lint -> golangci-lint", listed[0])
+	}
+	if !strings.Contains(listed[1], "build -> go") {
+		t.Errorf("second alias = %q, expected build -> go", listed[1])
+	}
+}
+
+func TestIntegration_CLIExecutor_LogFailure(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "log-failure-test", "")
+	ticketDir := filepath.Join(app.BasePath, "tickets", task.ID)
+
+	taskCtx := &integration.TaskEnvContext{
+		TaskID:     task.ID,
+		TicketPath: ticketDir,
+	}
+	failResult := &integration.CLIExecResult{
+		ExitCode: 1,
+		Stderr:   "compilation failed: missing import",
+	}
+
+	if err := app.Executor.LogFailure(taskCtx, "go", []string{"build", "."}, failResult); err != nil {
+		t.Fatalf("LogFailure: %v", err)
+	}
+
+	// Verify failure was appended to context.md.
+	contextPath := filepath.Join(ticketDir, "context.md")
+	data, err := os.ReadFile(contextPath)
+	if err != nil {
+		t.Fatalf("reading context.md: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "## CLI Failure") {
+		t.Error("context.md missing CLI Failure section")
+	}
+	if !strings.Contains(content, "Exit Code:** 1") {
+		t.Error("context.md missing exit code")
+	}
+	if !strings.Contains(content, "compilation failed") {
+		t.Error("context.md missing stderr content")
+	}
+}
+
+// =========================================================================
+// 6. Configuration precedence: .taskrc > .taskconfig > defaults
+// =========================================================================
+
+func TestIntegration_ConfigPrecedence_GlobalAndRepo(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write .taskconfig with global settings.
+	taskconfig := `defaults:
+  ai: kiro
+  priority: P2
+  owner: global-owner
+task_id:
+  prefix: PROJ
+  counter: 10
+screenshot:
+  hotkey: ctrl+shift+s
+cli_aliases:
+  - name: lint
+    command: golangci-lint
+    default_args:
+      - run
+`
+	if err := os.WriteFile(filepath.Join(dir, ".taskconfig"), []byte(taskconfig), 0o644); err != nil {
+		t.Fatalf("writing .taskconfig: %v", err)
+	}
+
+	// Create a repo with .taskrc.
+	repoDir := filepath.Join(dir, "myrepo")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("creating repo dir: %v", err)
+	}
+	taskrc := `build_command: "make build"
+test_command: "make test"
+default_reviewers:
+  - alice
+  - bob
+conventions:
+  - "Use conventional commits"
+  - "Branch naming: type/task-id-description"
+`
+	if err := os.WriteFile(filepath.Join(repoDir, ".taskrc"), []byte(taskrc), 0o644); err != nil {
+		t.Fatalf("writing .taskrc: %v", err)
+	}
+
+	cfgMgr := core.NewConfigurationManager(dir)
+
+	// --- Global config ---
+	global, err := cfgMgr.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if global.DefaultAI != "kiro" {
+		t.Errorf("DefaultAI = %q, want kiro", global.DefaultAI)
+	}
+	if global.TaskIDPrefix != "PROJ" {
+		t.Errorf("TaskIDPrefix = %q, want PROJ", global.TaskIDPrefix)
+	}
+	if global.DefaultPriority != models.P2 {
+		t.Errorf("DefaultPriority = %q, want P2", global.DefaultPriority)
+	}
+	if global.TaskIDCounter != 10 {
+		t.Errorf("TaskIDCounter = %d, want 10", global.TaskIDCounter)
+	}
+	if len(global.CLIAliases) != 1 || global.CLIAliases[0].Name != "lint" {
+		t.Errorf("CLIAliases parsing failed: %+v", global.CLIAliases)
+	}
+
+	// --- Repo config ---
+	repo, err := cfgMgr.LoadRepoConfig(repoDir)
+	if err != nil {
+		t.Fatalf("LoadRepoConfig: %v", err)
+	}
+	if repo == nil {
+		t.Fatal("expected non-nil repo config")
+	}
+	if repo.BuildCommand != "make build" {
+		t.Errorf("BuildCommand = %q, want 'make build'", repo.BuildCommand)
+	}
+	if repo.TestCommand != "make test" {
+		t.Errorf("TestCommand = %q, want 'make test'", repo.TestCommand)
+	}
+	if len(repo.DefaultReviewers) != 2 {
+		t.Errorf("expected 2 reviewers, got %d", len(repo.DefaultReviewers))
+	}
+	if len(repo.Conventions) != 2 {
+		t.Errorf("expected 2 conventions, got %d", len(repo.Conventions))
+	}
+
+	// --- Merged config: .taskrc > .taskconfig > defaults ---
+	merged, err := cfgMgr.GetMergedConfig(repoDir)
+	if err != nil {
+		t.Fatalf("GetMergedConfig: %v", err)
+	}
+	if merged.DefaultAI != "kiro" {
+		t.Errorf("merged.DefaultAI = %q, want kiro", merged.DefaultAI)
+	}
+	if merged.TaskIDPrefix != "PROJ" {
+		t.Errorf("merged.TaskIDPrefix = %q, want PROJ", merged.TaskIDPrefix)
+	}
+	if merged.Repo == nil {
+		t.Fatal("expected merged.Repo to be non-nil")
+	}
+	if merged.Repo.BuildCommand != "make build" {
+		t.Errorf("merged.Repo.BuildCommand = %q, want 'make build'", merged.Repo.BuildCommand)
+	}
+}
+
+func TestIntegration_ConfigDefaults_WhenNoConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgMgr := core.NewConfigurationManager(dir)
+
+	global, err := cfgMgr.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig: %v", err)
+	}
+	if global.DefaultAI != "kiro" {
+		t.Errorf("default DefaultAI = %q, want kiro", global.DefaultAI)
+	}
+	if global.TaskIDPrefix != "TASK" {
+		t.Errorf("default TaskIDPrefix = %q, want TASK", global.TaskIDPrefix)
+	}
+	if global.DefaultPriority != models.P2 {
+		t.Errorf("default DefaultPriority = %q, want P2", global.DefaultPriority)
+	}
+}
+
+func TestIntegration_ConfigMerge_WithoutRepoConfig(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, ".taskconfig"), []byte("defaults:\n  ai: claude\n"), 0o644)
+
+	cfgMgr := core.NewConfigurationManager(dir)
+	merged, err := cfgMgr.GetMergedConfig("")
+	if err != nil {
+		t.Fatalf("GetMergedConfig: %v", err)
+	}
+	if merged.Repo != nil {
+		t.Error("expected merged.Repo to be nil when repoPath is empty")
+	}
+	if merged.DefaultAI != "claude" {
+		t.Errorf("merged.DefaultAI = %q, want claude", merged.DefaultAI)
+	}
+}
+
+func TestIntegration_ConfigValidation(t *testing.T) {
+	dir := t.TempDir()
+	cfgMgr := core.NewConfigurationManager(dir)
+
+	// Valid config.
+	if err := cfgMgr.ValidateConfig(&models.GlobalConfig{
+		DefaultAI: "kiro", TaskIDPrefix: "TASK", DefaultPriority: models.P2,
+	}); err != nil {
+		t.Errorf("valid config rejected: %v", err)
+	}
+
+	// Invalid: empty prefix.
+	if err := cfgMgr.ValidateConfig(&models.GlobalConfig{
+		DefaultAI: "kiro", TaskIDPrefix: "",
+	}); err == nil {
+		t.Error("expected error for empty prefix")
+	}
+
+	// Invalid: nil config.
+	if err := cfgMgr.ValidateConfig(nil); err == nil {
+		t.Error("expected error for nil config")
+	}
+
+	// Invalid: bad task type in repo templates.
+	if err := cfgMgr.ValidateConfig(&models.RepoConfig{
+		Templates: map[models.TaskType]string{"invalid": "t.md"},
+	}); err == nil {
+		t.Error("expected error for invalid task type in templates")
+	}
+
+	// Valid merged config.
+	if err := cfgMgr.ValidateConfig(&models.MergedConfig{
+		GlobalConfig: models.GlobalConfig{DefaultAI: "kiro", TaskIDPrefix: "TASK"},
+	}); err != nil {
+		t.Errorf("valid merged config rejected: %v", err)
+	}
+}
+
+// =========================================================================
+// 7. Backlog filtering: multiple tasks, filter combinations.
+// =========================================================================
+
+func TestIntegration_BacklogFilter_StatusAndPriority(t *testing.T) {
+	app := newTestApp(t)
+
+	// Create tasks with different types.
+	task1, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-one", "")
+	task2, _ := app.TaskMgr.CreateTask(models.TaskTypeBug, "fix-bug", "")
+	task3, _ := app.TaskMgr.CreateTask(models.TaskTypeSpike, "investigate", "")
+
+	// Verify all start in backlog.
+	allTasks, _ := app.TaskMgr.GetAllTasks()
+	if len(allTasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(allTasks))
+	}
+
+	// Change statuses.
+	app.TaskMgr.ResumeTask(task1.ID)    // -> in_progress
+	app.TaskMgr.ArchiveTask(task2.ID)   // -> archived
+	// task3 stays in backlog
+
+	// Filter by in_progress.
+	ipTasks, err := app.TaskMgr.GetTasksByStatus(models.StatusInProgress)
+	if err != nil {
+		t.Fatalf("GetTasksByStatus(in_progress): %v", err)
+	}
+	if len(ipTasks) != 1 || ipTasks[0].ID != task1.ID {
+		t.Errorf("expected [%s] for in_progress, got %d tasks", task1.ID, len(ipTasks))
+	}
+
+	// Filter by archived.
+	archivedTasks, _ := app.TaskMgr.GetTasksByStatus(models.StatusArchived)
+	if len(archivedTasks) != 1 || archivedTasks[0].ID != task2.ID {
+		t.Errorf("expected [%s] for archived, got %d tasks", task2.ID, len(archivedTasks))
+	}
+
+	// Filter by backlog.
+	backlogTasks, _ := app.TaskMgr.GetTasksByStatus(models.StatusBacklog)
+	if len(backlogTasks) != 1 || backlogTasks[0].ID != task3.ID {
+		t.Errorf("expected [%s] for backlog, got %d tasks", task3.ID, len(backlogTasks))
+	}
+}
+
+func TestIntegration_BacklogFilter_Combinations(t *testing.T) {
+	app := newTestApp(t)
+
+	// Create 5 tasks with various properties.
+	t1, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "dashboard", "")
+	t2, _ := app.TaskMgr.CreateTask(models.TaskTypeBug, "login-fix", "")
+	t3, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "search", "")
+	t4, _ := app.TaskMgr.CreateTask(models.TaskTypeRefactor, "db-refactor", "")
+	t5, _ := app.TaskMgr.CreateTask(models.TaskTypeSpike, "cache-spike", "")
+
+	// Set up different properties via backlog.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("load backlog: %v", err)
+	}
+
+	// t1: backlog, P0, alice, [frontend]
+	app.BacklogMgr.UpdateTask(t1.ID, storage.BacklogEntry{Priority: models.P0, Owner: "alice", Tags: []string{"frontend"}})
+	// t2: backlog, P1, bob, [backend, urgent]
+	app.BacklogMgr.UpdateTask(t2.ID, storage.BacklogEntry{Priority: models.P1, Owner: "bob", Tags: []string{"backend", "urgent"}})
+	// t3: in_progress, P2, alice, [frontend, search]
+	app.BacklogMgr.UpdateTask(t3.ID, storage.BacklogEntry{Status: models.StatusInProgress, Priority: models.P2, Owner: "alice", Tags: []string{"frontend", "search"}})
+	// t4: backlog, P3, charlie, [backend]
+	app.BacklogMgr.UpdateTask(t4.ID, storage.BacklogEntry{Priority: models.P3, Owner: "charlie", Tags: []string{"backend"}})
+	// t5: blocked, P1, alice, [backend, cache]
+	app.BacklogMgr.UpdateTask(t5.ID, storage.BacklogEntry{Status: models.StatusBlocked, Priority: models.P1, Owner: "alice", Tags: []string{"backend", "cache"}})
+
+	if err := app.BacklogMgr.Save(); err != nil {
+		t.Fatalf("save backlog: %v", err)
+	}
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("reload backlog: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		filter  storage.BacklogFilter
+		wantLen int
+	}{
+		{"all tasks", storage.BacklogFilter{}, 5},
+		{"status=backlog", storage.BacklogFilter{Status: []models.TaskStatus{models.StatusBacklog}}, 3},
+		{"status=in_progress", storage.BacklogFilter{Status: []models.TaskStatus{models.StatusInProgress}}, 1},
+		{"status=backlog+blocked", storage.BacklogFilter{Status: []models.TaskStatus{models.StatusBacklog, models.StatusBlocked}}, 4},
+		{"priority=P1", storage.BacklogFilter{Priority: []models.Priority{models.P1}}, 2},
+		{"owner=alice", storage.BacklogFilter{Owner: "alice"}, 3},
+		{"owner=bob", storage.BacklogFilter{Owner: "bob"}, 1},
+		{"tag=frontend", storage.BacklogFilter{Tags: []string{"frontend"}}, 2},
+		{"tag=backend", storage.BacklogFilter{Tags: []string{"backend"}}, 3},
+		{"backlog+alice", storage.BacklogFilter{Status: []models.TaskStatus{models.StatusBacklog}, Owner: "alice"}, 1},
+		{"P1+backend", storage.BacklogFilter{Priority: []models.Priority{models.P1}, Tags: []string{"backend"}}, 2},
+		{"alice+frontend", storage.BacklogFilter{Owner: "alice", Tags: []string{"frontend"}}, 2},
+		{"owner=nobody", storage.BacklogFilter{Owner: "nobody"}, 0},
+		{"tag=nonexistent", storage.BacklogFilter{Tags: []string{"nonexistent"}}, 0},
+		{"backend+urgent (AND tags)", storage.BacklogFilter{Tags: []string{"backend", "urgent"}}, 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := app.BacklogMgr.FilterTasks(tc.filter)
+			if err != nil {
+				t.Fatalf("FilterTasks: %v", err)
+			}
+			if len(results) != tc.wantLen {
+				ids := make([]string, len(results))
+				for i, r := range results {
+					ids[i] = r.ID
+				}
+				t.Errorf("got %d results %v, want %d", len(results), ids, tc.wantLen)
+			}
+		})
+	}
+}
+
+// =========================================================================
+// Additional: Priority reordering
+// =========================================================================
+
+func TestIntegration_PriorityReordering(t *testing.T) {
+	app := newTestApp(t)
+
+	task1, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "low-pri", "")
+	task2, _ := app.TaskMgr.CreateTask(models.TaskTypeBug, "high-pri", "")
+	task3, _ := app.TaskMgr.CreateTask(models.TaskTypeSpike, "mid-pri", "")
+
+	// Reorder: task2 first (P0), task3 second (P1), task1 third (P2).
+	err := app.TaskMgr.ReorderPriorities([]string{task2.ID, task3.ID, task1.ID})
+	if err != nil {
+		t.Fatalf("reordering priorities: %v", err)
+	}
+
+	t2, _ := app.TaskMgr.GetTask(task2.ID)
+	t3, _ := app.TaskMgr.GetTask(task3.ID)
+	t1, _ := app.TaskMgr.GetTask(task1.ID)
+
+	if t2.Priority != models.P0 {
+		t.Errorf("task2 priority = %s, want P0", t2.Priority)
+	}
+	if t3.Priority != models.P1 {
+		t.Errorf("task3 priority = %s, want P1", t3.Priority)
+	}
+	if t1.Priority != models.P2 {
+		t.Errorf("task1 priority = %s, want P2", t1.Priority)
+	}
+}
+
+func TestIntegration_UpdateTaskPriority(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "pri-test", "")
+	if err := app.TaskMgr.UpdateTaskPriority(task.ID, models.P0); err != nil {
+		t.Fatalf("UpdateTaskPriority: %v", err)
+	}
+	got, _ := app.TaskMgr.GetTask(task.ID)
+	if got.Priority != models.P0 {
+		t.Errorf("priority = %s, want P0", got.Priority)
+	}
+}
+
+// =========================================================================
+// Additional: Status transitions
+// =========================================================================
+
+func TestIntegration_StatusTransitions(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "status-test", "")
+
+	statuses := []models.TaskStatus{
+		models.StatusInProgress,
+		models.StatusBlocked,
+		models.StatusReview,
+		models.StatusDone,
+	}
+
+	for _, status := range statuses {
+		if err := app.TaskMgr.UpdateTaskStatus(task.ID, status); err != nil {
+			t.Fatalf("UpdateTaskStatus(%s): %v", status, err)
+		}
+		got, _ := app.TaskMgr.GetTask(task.ID)
+		if got.Status != status {
+			t.Errorf("after UpdateTaskStatus(%s): got %s", status, got.Status)
+		}
+	}
+}
+
+// =========================================================================
+// Additional: Design document lifecycle
+// =========================================================================
+
+func TestIntegration_DesignDoc_BootstrapAndPopulate(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "new-api", "")
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+	taskID := task.ID
+
+	// Verify design.md was created during bootstrap.
+	designPath := filepath.Join(app.BasePath, "tickets", taskID, "design.md")
+	if _, err := os.Stat(designPath); os.IsNotExist(err) {
+		t.Fatal("design.md not created during bootstrap")
+	}
+
+	// Initialize with the full design doc format.
+	if err := app.DesignGen.InitializeDesignDoc(taskID); err != nil {
+		t.Fatalf("InitializeDesignDoc: %v", err)
+	}
+	data, _ := os.ReadFile(designPath)
+	if !strings.Contains(string(data), taskID) {
+		t.Error("design.md should contain task ID after initialization")
+	}
+
+	// Add communications for context population.
+	app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), Source: "meeting",
+		Contact: "charlie", Topic: "api-design",
+		Content: "REST over gRPC for external API",
+		Tags:    []models.CommunicationTag{models.TagRequirement},
+	})
+	app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), Source: "slack",
+		Contact: "dave", Topic: "tech-stack",
+		Content: "Use Go with Chi router",
+		Tags:    []models.CommunicationTag{models.TagDecision},
+	})
+
+	// Populate from context.
+	if err := app.DesignGen.PopulateFromContext(taskID); err != nil {
+		t.Fatalf("PopulateFromContext: %v", err)
+	}
+
+	doc, err := app.DesignGen.GetDesignDoc(taskID)
+	if err != nil {
+		t.Fatalf("GetDesignDoc: %v", err)
+	}
+	if len(doc.StakeholderRequirements) == 0 {
+		t.Error("expected stakeholder requirements populated")
+	}
+	if len(doc.TechnicalDecisions) == 0 {
+		t.Error("expected technical decisions extracted")
+	}
+
+	// Update a section.
+	if err := app.DesignGen.UpdateDesignDoc(taskID, core.DesignUpdate{
+		Section: "overview",
+		Content: "Build a REST API for the new-api feature using Go and Chi.",
+	}); err != nil {
+		t.Fatalf("UpdateDesignDoc: %v", err)
+	}
+
+	updated, _ := app.DesignGen.GetDesignDoc(taskID)
+	if updated.Overview != "Build a REST API for the new-api feature using Go and Chi." {
+		t.Errorf("overview = %q, want updated content", updated.Overview)
+	}
+}
+
+// =========================================================================
+// Additional: Update generation
+// =========================================================================
+
+func TestIntegration_UpdateGeneration(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "update-test", "")
+	taskID := task.ID
+
+	app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date: time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC), Source: "slack",
+		Contact: "manager", Topic: "status-check",
+		Content: "What is the status of this feature?",
+		Tags:    []models.CommunicationTag{models.TagQuestion},
+	})
+
+	plan, err := app.UpdateGen.GenerateUpdates(taskID)
+	if err != nil {
+		t.Fatalf("GenerateUpdates: %v", err)
+	}
+	if plan.TaskID != taskID {
+		t.Errorf("plan.TaskID = %s, want %s", plan.TaskID, taskID)
+	}
+	if plan.GeneratedAt.IsZero() {
+		t.Error("expected non-zero GeneratedAt")
+	}
+}
+
+// =========================================================================
+// Additional: Communication search
+// =========================================================================
+
+func TestIntegration_CommunicationSearch(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "search-test", "")
+	taskID := task.ID
+
+	app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date: time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC), Source: "slack",
+		Contact: "alice", Topic: "database-choice",
+		Content: "We should use PostgreSQL for the primary database",
+		Tags:    []models.CommunicationTag{models.TagDecision},
+	})
+	app.CommMgr.AddCommunication(taskID, models.Communication{
+		Date: time.Date(2026, 2, 6, 0, 0, 0, 0, time.UTC), Source: "email",
+		Contact: "bob", Topic: "timeline",
+		Content: "Need the feature by end of sprint",
+		Tags:    []models.CommunicationTag{models.TagActionItem},
+	})
+
+	// Search by content.
+	results, _ := app.CommMgr.SearchCommunications(taskID, "PostgreSQL")
+	if len(results) != 1 {
+		t.Errorf("expected 1 result for PostgreSQL, got %d", len(results))
+	}
+
+	// Search by contact.
+	results2, _ := app.CommMgr.SearchCommunications(taskID, "bob")
+	if len(results2) != 1 {
+		t.Errorf("expected 1 result for bob, got %d", len(results2))
+	}
+
+	// Get all.
+	all, _ := app.CommMgr.GetAllCommunications(taskID)
+	if len(all) != 2 {
+		t.Errorf("expected 2 communications, got %d", len(all))
+	}
+}
+
+// =========================================================================
+// Additional: AI context generation
+// =========================================================================
+
+func TestIntegration_AIContextGeneration(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-x", "")
+	app.TaskMgr.CreateTask(models.TaskTypeBug, "fix-y", "")
+
+	// Sync context to generate both files.
+	if err := app.AICtxGen.SyncContext(); err != nil {
+		t.Fatalf("SyncContext: %v", err)
+	}
+
+	// Verify CLAUDE.md.
+	claudePath := filepath.Join(app.BasePath, "CLAUDE.md")
+	claudeData, err := os.ReadFile(claudePath)
+	if err != nil {
+		t.Fatalf("reading CLAUDE.md: %v", err)
+	}
+	content := string(claudeData)
+	for _, section := range []string{
+		"## Project Overview",
+		"## Directory Structure",
+		"## Key Conventions",
+		"## Glossary",
+		"## Active Tasks",
+	} {
+		if !strings.Contains(content, section) {
+			t.Errorf("CLAUDE.md missing section %q", section)
+		}
+	}
+	if !strings.Contains(content, task.ID) {
+		t.Errorf("CLAUDE.md should contain active task ID %s", task.ID)
+	}
+
+	// Verify kiro.md.
+	kiroPath := filepath.Join(app.BasePath, "kiro.md")
+	if _, err := os.Stat(kiroPath); os.IsNotExist(err) {
+		t.Fatal("kiro.md not created")
+	}
+}
+
+func TestIntegration_AIContextGeneration_WithADR(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "auth-redesign", "")
+
+	// Create an ADR so the decisions summary has content.
+	app.KnowledgeX.CreateADR(models.Decision{
+		Title:    "Adopt OAuth2 with PKCE for authentication",
+		Context:  "Current auth system uses session cookies",
+		Decision: "All public-facing services use OAuth2 with PKCE flow",
+	}, task.ID)
+
+	_, err := app.AICtxGen.GenerateContextFile(core.AITypeClaude)
+	if err != nil {
+		t.Fatalf("GenerateContextFile: %v", err)
+	}
+
+	claudeData, _ := os.ReadFile(filepath.Join(app.BasePath, "CLAUDE.md"))
+	content := string(claudeData)
+	if !strings.Contains(content, "Active Decisions Summary") {
+		t.Error("CLAUDE.md missing decisions summary")
+	}
+	if !strings.Contains(content, "OAuth2") {
+		t.Error("CLAUDE.md should reference the OAuth2 ADR")
+	}
+}
+
+// =========================================================================
+// Additional: Conflict detection
+// =========================================================================
+
+func TestIntegration_ConflictDetection_WithADR(t *testing.T) {
+	app := newTestApp(t)
+
+	app.KnowledgeX.CreateADR(models.Decision{
+		Title:    "Use REST for API",
+		Context:  "External facing API needs broad client support",
+		Decision: "Use REST over gRPC for external API endpoints",
+	}, "TASK-00001")
+
+	conflicts, err := app.ConflictDt.CheckForConflicts(core.ConflictContext{
+		TaskID:          "TASK-00002",
+		ProposedChanges: "Use gRPC for all API endpoints",
+	})
+	if err != nil {
+		t.Fatalf("CheckForConflicts: %v", err)
+	}
+
+	// The integration path should work end-to-end without error.
+	_ = conflicts
+}
+
+func TestIntegration_ConflictDetection_NoConflicts(t *testing.T) {
+	app := newTestApp(t)
+
+	conflicts, err := app.ConflictDt.CheckForConflicts(core.ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "Add a new logging feature",
+	})
+	if err != nil {
+		t.Fatalf("CheckForConflicts: %v", err)
+	}
+	if len(conflicts) != 0 {
+		t.Errorf("expected 0 conflicts with empty docs, got %d", len(conflicts))
+	}
+}
+
+// =========================================================================
+// Additional: Context manager lifecycle
+// =========================================================================
+
+func TestIntegration_ContextManager_Lifecycle(t *testing.T) {
+	app := newTestApp(t)
+
+	taskID := "TASK-CTX-01"
+	ctx, err := app.ContextMgr.InitializeContext(taskID)
+	if err != nil {
+		t.Fatalf("InitializeContext: %v", err)
+	}
+	if ctx.TaskID != taskID {
+		t.Errorf("TaskID = %s, want %s", ctx.TaskID, taskID)
+	}
+
+	// Load.
+	loaded, err := app.ContextMgr.LoadContext(taskID)
+	if err != nil {
+		t.Fatalf("LoadContext: %v", err)
+	}
+	if !strings.Contains(loaded.Context, taskID) {
+		t.Error("loaded context should contain task ID")
+	}
+
+	// Update.
+	if err := app.ContextMgr.UpdateContext(taskID, map[string]interface{}{
+		"notes": "# Updated Notes\n\n- Important finding",
+	}); err != nil {
+		t.Fatalf("UpdateContext: %v", err)
+	}
+
+	// Persist and reload.
+	if err := app.ContextMgr.PersistContext(taskID); err != nil {
+		t.Fatalf("PersistContext: %v", err)
+	}
+	reloaded, _ := app.ContextMgr.LoadContext(taskID)
+	if !strings.Contains(reloaded.Notes, "Important finding") {
+		t.Error("persisted notes should contain the update")
+	}
+
+	// AI context.
+	aiCtx, _ := app.ContextMgr.GetContextForAI(taskID)
+	if aiCtx == nil {
+		t.Fatal("AI context should not be nil")
+	}
+}
+
+// =========================================================================
+// Additional: Backlog persistence round-trip
+// =========================================================================
+
+func TestIntegration_BacklogPersistence_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	mgr := storage.NewBacklogManager(dir)
+
+	mgr.Load()
+	entry := storage.BacklogEntry{
+		ID: "TASK-00001", Title: "Test task", Status: models.StatusBacklog,
+		Priority: models.P2, Owner: "alice", Repo: "github.com/org/repo",
+		Branch: "feat/test", Created: time.Now().Format(time.RFC3339),
+		Tags: []string{"test", "integration"},
+	}
+	mgr.AddTask(entry)
+	mgr.Save()
+
+	// Fresh manager: load from disk.
+	mgr2 := storage.NewBacklogManager(dir)
+	mgr2.Load()
+	loaded, err := mgr2.GetTask("TASK-00001")
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if loaded.Title != "Test task" {
+		t.Errorf("Title = %q, want 'Test task'", loaded.Title)
+	}
+	if loaded.Status != models.StatusBacklog {
+		t.Errorf("Status = %s, want backlog", loaded.Status)
+	}
+	if loaded.Owner != "alice" {
+		t.Errorf("Owner = %q, want alice", loaded.Owner)
+	}
+	if len(loaded.Tags) != 2 {
+		t.Errorf("Tags = %v, want [test integration]", loaded.Tags)
+	}
+}
+
+func TestIntegration_BacklogDuplicateRejected(t *testing.T) {
+	dir := t.TempDir()
+	mgr := storage.NewBacklogManager(dir)
+	mgr.Load()
+	mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "First"})
+	if err := mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "Dup"}); err == nil {
+		t.Error("expected error for duplicate task ID")
+	}
+}
+
+// =========================================================================
+// Additional: Template manager per task type
+// =========================================================================
+
+func TestIntegration_TemplateManager_AllTaskTypes(t *testing.T) {
+	dir := t.TempDir()
+	tmplMgr := core.NewTemplateManager(dir)
+
+	types := []struct {
+		typ        models.TaskType
+		notesKW    string
+		designKW   string
+	}{
+		{models.TaskTypeFeat, "Feature Notes", "Technical Design"},
+		{models.TaskTypeBug, "Bug Notes", "Root Cause"},
+		{models.TaskTypeSpike, "Spike Notes", "Investigation Scope"},
+		{models.TaskTypeRefactor, "Refactor Notes", "Current Architecture"},
+	}
+
+	for _, tt := range types {
+		t.Run(string(tt.typ), func(t *testing.T) {
+			ticketDir := filepath.Join(dir, "tickets", "test-"+string(tt.typ))
+			os.MkdirAll(ticketDir, 0o755)
+
+			if err := tmplMgr.ApplyTemplate(ticketDir, tt.typ); err != nil {
+				t.Fatalf("ApplyTemplate(%s): %v", tt.typ, err)
+			}
+
+			notesData, _ := os.ReadFile(filepath.Join(ticketDir, "notes.md"))
+			if !strings.Contains(string(notesData), tt.notesKW) {
+				t.Errorf("notes.md missing %q for type %s", tt.notesKW, tt.typ)
+			}
+
+			designData, _ := os.ReadFile(filepath.Join(ticketDir, "design.md"))
+			if !strings.Contains(string(designData), tt.designKW) {
+				t.Errorf("design.md missing %q for type %s", tt.designKW, tt.typ)
+			}
+		})
+	}
+}
+
+// =========================================================================
+// Additional: Task ID sequential generation
+// =========================================================================
+
+func TestIntegration_TaskIDSequentialGeneration(t *testing.T) {
+	dir := t.TempDir()
+	idGen := core.NewTaskIDGenerator(dir, "TASK")
+
+	expected := []string{"TASK-00001", "TASK-00002", "TASK-00003", "TASK-00004", "TASK-00005"}
+	for i, want := range expected {
+		id, err := idGen.GenerateTaskID()
+		if err != nil {
+			t.Fatalf("GenerateTaskID %d: %v", i, err)
+		}
+		if id != want {
+			t.Errorf("id[%d] = %s, want %s", i, id, want)
+		}
+	}
+}
+
+func TestIntegration_TaskIDCustomPrefix(t *testing.T) {
+	dir := t.TempDir()
+	idGen := core.NewTaskIDGenerator(dir, "PROJ")
+
+	id, err := idGen.GenerateTaskID()
+	if err != nil {
+		t.Fatalf("GenerateTaskID: %v", err)
+	}
+	if id != "PROJ-00001" {
+		t.Errorf("id = %s, want PROJ-00001", id)
+	}
+}
+
+// =========================================================================
+// Additional: Full App initialization
+// =========================================================================
+
+func TestIntegration_AppInitialization(t *testing.T) {
+	dir := t.TempDir()
+	app, err := NewApp(dir)
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+
+	components := []struct {
+		name string
+		ok   bool
+	}{
+		{"TaskMgr", app.TaskMgr != nil},
+		{"BacklogMgr", app.BacklogMgr != nil},
+		{"ContextMgr", app.ContextMgr != nil},
+		{"CommMgr", app.CommMgr != nil},
+		{"Bootstrap", app.Bootstrap != nil},
+		{"IDGen", app.IDGen != nil},
+		{"TmplMgr", app.TmplMgr != nil},
+		{"UpdateGen", app.UpdateGen != nil},
+		{"AICtxGen", app.AICtxGen != nil},
+		{"DesignGen", app.DesignGen != nil},
+		{"KnowledgeX", app.KnowledgeX != nil},
+		{"ConflictDt", app.ConflictDt != nil},
+		{"WorktreeMgr", app.WorktreeMgr != nil},
+		{"OfflineMgr", app.OfflineMgr != nil},
+		{"TabMgr", app.TabMgr != nil},
+		{"ScreenPipe", app.ScreenPipe != nil},
+		{"Executor", app.Executor != nil},
+		{"Runner", app.Runner != nil},
+	}
+	for _, c := range components {
+		if !c.ok {
+			t.Errorf("expected %s to be initialized (non-nil)", c.name)
+		}
+	}
+}
+
+func TestIntegration_AppInitialization_WithConfig(t *testing.T) {
+	app := newTestAppWithConfig(t, `defaults:
+  ai: claude
+  priority: P1
+task_id:
+  prefix: PRJ
+  counter: 0
+cli_aliases:
+  - name: build
+    command: go
+    default_args:
+      - build
+      - ./...
+`)
+
+	// Verify the app still initializes correctly with custom config.
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test", "")
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if !strings.HasPrefix(task.ID, "PRJ-") {
+		t.Errorf("expected PRJ- prefix, got %s", task.ID)
+	}
+}
+
+// =========================================================================
+// Additional: Full workflow - create, ADR, then AI context references it
+// =========================================================================
+
+func TestIntegration_FullWorkflow_ADRAndContextGen(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "auth-redesign", "")
+
+	adrDecision := models.Decision{
+		Title:    "Adopt OAuth2 with PKCE for authentication",
+		Context:  "Current auth uses session cookies, incompatible with SPAs",
+		Decision: "All public-facing services use OAuth2 with PKCE flow",
+	}
+	adrPath, _ := app.KnowledgeX.CreateADR(adrDecision, task.ID)
+	if _, err := os.Stat(adrPath); err != nil {
+		t.Fatalf("ADR not written: %v", err)
+	}
+
+	app.AICtxGen.GenerateContextFile(core.AITypeClaude)
+	claudeData, _ := os.ReadFile(filepath.Join(app.BasePath, "CLAUDE.md"))
+	content := string(claudeData)
+	if !strings.Contains(content, "OAuth2") {
+		t.Error("CLAUDE.md should reference the OAuth2 ADR")
+	}
+}
+
+// =========================================================================
+// Additional: Bootstrap directory structure verification
+// =========================================================================
+
+func TestIntegration_BootstrapDirectoryStructure(t *testing.T) {
+	app := newTestApp(t)
+
+	result, err := app.Bootstrap.Bootstrap(core.BootstrapConfig{
+		Type:  models.TaskTypeBug,
+		Title: "crash-on-startup",
+	})
+	if err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+
+	if !strings.HasPrefix(result.TaskID, "TASK-") {
+		t.Errorf("task ID = %s, expected TASK- prefix", result.TaskID)
+	}
+
+	// Verify all files.
+	for _, name := range []string{"status.yaml", "notes.md", "design.md", "context.md"} {
+		if _, err := os.Stat(filepath.Join(result.TicketPath, name)); err != nil {
+			t.Errorf("expected %s to exist: %v", name, err)
+		}
+	}
+
+	// Notes should have the bug template.
+	notesData, _ := os.ReadFile(filepath.Join(result.TicketPath, "notes.md"))
+	if !strings.Contains(string(notesData), "Bug Notes") {
+		t.Error("notes.md missing Bug Notes heading")
+	}
+	if !strings.Contains(string(notesData), "Steps to Reproduce") {
+		t.Error("notes.md missing Steps to Reproduce for bug template")
+	}
+}
+
+// =========================================================================
+// Additional: Resume already in_progress is a no-op
+// =========================================================================
+
+func TestIntegration_ResumeAlreadyInProgress(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "already-ip", "")
+
+	r1, _ := app.TaskMgr.ResumeTask(task.ID)
+	if r1.Status != models.StatusInProgress {
+		t.Fatalf("first resume: %s, want in_progress", r1.Status)
+	}
+
+	r2, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		t.Fatalf("second resume: %v", err)
+	}
+	if r2.Status != models.StatusInProgress {
+		t.Errorf("second resume: %s, want in_progress", r2.Status)
+	}
+}
+
+// =========================================================================
+// Edge Case 1: Empty backlog operations
+// =========================================================================
+
+func TestEdgeCase_EmptyBacklog_GetAllTasks(t *testing.T) {
+	app := newTestApp(t)
+
+	tasks, err := app.TaskMgr.GetAllTasks()
+	if err != nil {
+		t.Fatalf("GetAllTasks on empty backlog: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Errorf("expected 0 tasks, got %d", len(tasks))
+	}
+}
+
+func TestEdgeCase_EmptyBacklog_GetTasksByStatus(t *testing.T) {
+	app := newTestApp(t)
+
+	for _, status := range []models.TaskStatus{
+		models.StatusBacklog, models.StatusInProgress,
+		models.StatusArchived, models.StatusDone,
+	} {
+		tasks, err := app.TaskMgr.GetTasksByStatus(status)
+		if err != nil {
+			t.Fatalf("GetTasksByStatus(%s) on empty backlog: %v", status, err)
+		}
+		if len(tasks) != 0 {
+			t.Errorf("status %s: expected 0 tasks, got %d", status, len(tasks))
+		}
+	}
+}
+
+func TestEdgeCase_EmptyBacklog_ReorderPriorities(t *testing.T) {
+	app := newTestApp(t)
+
+	err := app.TaskMgr.ReorderPriorities([]string{"TASK-NONEXISTENT"})
+	if err == nil {
+		t.Error("expected error when reordering with nonexistent task IDs")
+	}
+}
+
+// =========================================================================
+// Edge Case 2: Special characters in branch names and content
+// =========================================================================
+
+func TestEdgeCase_SpecialCharsBranchName(t *testing.T) {
+	app := newTestApp(t)
+
+	// Branch names with special characters that should still work.
+	branches := []string{
+		"fix/issue-123",
+		"feat/my_feature",
+		"bugfix/CamelCase",
+		"spike/a-b-c-d-e",
+	}
+	for _, branch := range branches {
+		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, branch, "")
+		if err != nil {
+			t.Errorf("CreateTask(%q): %v", branch, err)
+			continue
+		}
+		if task.Branch != branch {
+			t.Errorf("branch = %q, want %q", task.Branch, branch)
+		}
+	}
+}
+
+// =========================================================================
+// Edge Case 3: Communication with special characters in content
+// =========================================================================
+
+func TestEdgeCase_CommunicationSpecialContent(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "special-comms", "")
+
+	// Content with markdown, code blocks, special chars.
+	specialContent := "## Decision\n\nUse `SELECT * FROM users WHERE id = $1`\n\n" +
+		"```go\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n```\n\n" +
+		"Special chars: <>&\"'!@#$%^*()\n\nUnicode: cafe\u0301"
+
+	err := app.CommMgr.AddCommunication(task.ID, models.Communication{
+		Date:    time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		Source:  "meeting",
+		Contact: "dev-team",
+		Topic:   "code-review",
+		Content: specialContent,
+		Tags:    []models.CommunicationTag{models.TagDecision},
+	})
+	if err != nil {
+		t.Fatalf("AddCommunication with special content: %v", err)
+	}
+
+	// Search should find it.
+	results, _ := app.CommMgr.SearchCommunications(task.ID, "SELECT")
+	if len(results) == 0 {
+		t.Error("expected to find communication with SQL content")
+	}
+}
+
+// =========================================================================
+// Edge Case 4: Corrupted YAML in backlog
+// =========================================================================
+
+func TestEdgeCase_CorruptedBacklogYAML(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write corrupted YAML.
+	backlogPath := filepath.Join(dir, "backlog.yaml")
+	os.WriteFile(backlogPath, []byte("this is not: valid:\nyaml: [[["), 0o644)
+
+	mgr := storage.NewBacklogManager(dir)
+	err := mgr.Load()
+	if err == nil {
+		t.Error("expected error when loading corrupted YAML")
+	}
+}
+
+// =========================================================================
+// Edge Case 5: Corrupted status.yaml for a task
+// =========================================================================
+
+func TestEdgeCase_CorruptedStatusYAML(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "corrupt-status", "")
+
+	// Corrupt the status.yaml file.
+	statusPath := filepath.Join(app.BasePath, "tickets", task.ID, "status.yaml")
+	os.WriteFile(statusPath, []byte("this: is: broken: yaml: [[["), 0o644)
+
+	// GetTask should fail gracefully.
+	_, err := app.TaskMgr.GetTask(task.ID)
+	if err == nil {
+		t.Error("expected error when reading corrupted status.yaml")
+	}
+}
+
+// =========================================================================
+// Edge Case 6: Missing ticket directory for resume
+// =========================================================================
+
+func TestEdgeCase_ResumeDeletedTicketDir(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "deleted-dir", "")
+
+	// Delete the ticket directory.
+	ticketDir := filepath.Join(app.BasePath, "tickets", task.ID)
+	os.RemoveAll(ticketDir)
+
+	_, err := app.TaskMgr.ResumeTask(task.ID)
+	if err == nil {
+		t.Error("expected error when resuming task with deleted ticket directory")
+	}
+}
+
+// =========================================================================
+// Edge Case 7: Many tasks - stress test
+// =========================================================================
+
+func TestEdgeCase_ManyTasks(t *testing.T) {
+	app := newTestApp(t)
+
+	const numTasks = 20
+	ids := make([]string, numTasks)
+	for i := 0; i < numTasks; i++ {
+		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, fmt.Sprintf("task-%03d", i), "")
+		if err != nil {
+			t.Fatalf("CreateTask %d: %v", i, err)
+		}
+		ids[i] = task.ID
+	}
+
+	// Verify all tasks exist.
+	all, err := app.TaskMgr.GetAllTasks()
+	if err != nil {
+		t.Fatalf("GetAllTasks: %v", err)
+	}
+	if len(all) != numTasks {
+		t.Errorf("expected %d tasks, got %d", numTasks, len(all))
+	}
+
+	// Verify IDs are unique.
+	seen := make(map[string]bool)
+	for _, id := range ids {
+		if seen[id] {
+			t.Errorf("duplicate task ID: %s", id)
+		}
+		seen[id] = true
+	}
+
+	// Reorder all priorities.
+	err = app.TaskMgr.ReorderPriorities(ids)
+	if err != nil {
+		t.Fatalf("ReorderPriorities with %d tasks: %v", numTasks, err)
+	}
+}
+
+// =========================================================================
+// Edge Case 8: Offline queue with invalid JSON
+// =========================================================================
+
+func TestEdgeCase_OfflineQueue_CorruptedJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write corrupted JSON to the queue file.
+	queuePath := filepath.Join(dir, ".offline_queue.json")
+	os.WriteFile(queuePath, []byte("not valid json{{{"), 0o644)
+
+	mgr := integration.NewOfflineManager(dir)
+	_, err := mgr.SyncPendingOperations()
+	if err == nil {
+		t.Error("expected error when syncing corrupted queue")
+	}
+}
+
+// =========================================================================
+// Edge Case 9: Context update on non-existent task
+// =========================================================================
+
+func TestEdgeCase_ContextUpdate_NonExistentTask(t *testing.T) {
+	app := newTestApp(t)
+
+	err := app.ContextMgr.UpdateContext("NON-EXISTENT-TASK", map[string]interface{}{
+		"notes": "some data",
+	})
+	if err == nil {
+		t.Error("expected error when updating context for non-existent task")
+	}
+}
+
+// =========================================================================
+// Edge Case 10: Archive task that has never been created via bootstrap
+// =========================================================================
+
+func TestEdgeCase_ArchiveNonExistentTask(t *testing.T) {
+	app := newTestApp(t)
+
+	_, err := app.TaskMgr.ArchiveTask("TASK-NONEXISTENT")
+	if err == nil {
+		t.Error("expected error when archiving non-existent task")
+	}
+}
+
+// =========================================================================
+// Edge Case 11: Concurrent-like sequential task creation (no goroutines)
+// =========================================================================
+
+func TestEdgeCase_SequentialRapidCreation(t *testing.T) {
+	app := newTestApp(t)
+
+	// Create tasks in rapid succession to stress ID generation.
+	for i := 0; i < 10; i++ {
+		_, err := app.TaskMgr.CreateTask(models.TaskTypeBug, fmt.Sprintf("rapid-%d", i), "")
+		if err != nil {
+			t.Fatalf("rapid creation %d: %v", i, err)
+		}
+	}
+
+	all, _ := app.TaskMgr.GetAllTasks()
+	if len(all) != 10 {
+		t.Errorf("expected 10 tasks, got %d", len(all))
+	}
+}
+
+// =========================================================================
+// Edge Case 12: Knowledge extraction from empty task
+// =========================================================================
+
+func TestEdgeCase_KnowledgeExtraction_EmptyTask(t *testing.T) {
+	app := newTestApp(t)
+
+	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "empty-task", "")
+
+	knowledge, err := app.KnowledgeX.ExtractFromTask(task.ID)
+	if err != nil {
+		t.Fatalf("ExtractFromTask on empty task: %v", err)
+	}
+	// Should not panic and should return valid (possibly empty) knowledge.
+	_ = knowledge
+}

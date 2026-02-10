@@ -1,0 +1,9 @@
+# Default owner for all files
+* @valter-silva-au
+
+# CI/CD changes need review
+.github/ @valter-silva-au
+
+# Dependency changes need review
+go.mod @valter-silva-au
+go.sum @valter-silva-au
