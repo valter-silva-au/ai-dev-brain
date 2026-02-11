@@ -43,5 +43,6 @@ Examples:
 }
 
 func init() {
+	priorityCmd.ValidArgsFunction = completeTaskIDs()
 	rootCmd.AddCommand(priorityCmd)
 }

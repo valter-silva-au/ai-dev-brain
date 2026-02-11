@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -37,5 +39,22 @@ pre-archive status, allowing work to continue where it left off.`,
 }
 
 func init() {
+	// Only show archived tasks for unarchive completion.
+	unarchiveCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if TaskMgr == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		tasks, err := TaskMgr.GetTasksByStatus(models.StatusArchived)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		var ids []string
+		for _, task := range tasks {
+			if toComplete == "" || strings.HasPrefix(task.ID, toComplete) {
+				ids = append(ids, task.ID+"\t"+string(task.Type)+": "+task.Branch)
+			}
+		}
+		return ids, cobra.ShellCompDirectiveNoFileComp
+	}
 	rootCmd.AddCommand(unarchiveCmd)
 }

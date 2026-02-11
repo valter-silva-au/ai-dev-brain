@@ -30,6 +30,7 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 		".claude/skills/sync", ".claude/skills/changelog",
 		".claude/agents",
 		"docs", "docs/wiki", "docs/decisions", "docs/runbooks",
+		".vscode",
 	}
 	for _, dir := range dirs {
 		info, err := os.Stat(filepath.Join(base, dir))
@@ -63,6 +64,7 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 		".claude/skills/sync/SKILL.md",
 		".claude/skills/changelog/SKILL.md",
 		".claude/agents/code-reviewer.md",
+		".vscode/settings.json",
 		"docs/stakeholders.md",
 		"docs/contacts.md",
 		"docs/glossary.md",
@@ -347,12 +349,14 @@ func TestInit_ResultSummary(t *testing.T) {
 	//              .claude/rules + .claude/skills/commit + .claude/skills/task-status +
 	//              .claude/skills/push + .claude/skills/pr + .claude/skills/review +
 	//              .claude/skills/sync + .claude/skills/changelog +
-	//              .claude/agents + docs + docs/wiki + docs/decisions + docs/runbooks = 18
+	//              .claude/agents + docs + docs/wiki + docs/decisions + docs/runbooks +
+	//              .vscode = 19
 	// Files: .taskconfig + .task_counter + .gitignore + backlog.yaml + CLAUDE.md +
 	//        4 READMEs + settings.json + workspace.md + 7 SKILLs + agent +
-	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 23
+	//        .vscode/settings.json +
+	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 24
 	// Git: .git = 1
-	totalExpected := 42
+	totalExpected := 44
 	totalGot := len(result.Created) + len(result.Skipped)
 	if totalGot != totalExpected {
 		t.Errorf("expected %d total items, got %d (created=%d, skipped=%d)",
@@ -469,6 +473,29 @@ func TestInit_ClaudeCodeConfiguration(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "name: code-reviewer") {
 		t.Error("code-reviewer agent should have name frontmatter")
+	}
+}
+
+func TestInit_VSCodeSettings(t *testing.T) {
+	base := t.TempDir()
+	pi := NewProjectInitializer()
+
+	_, err := pi.Init(InitConfig{
+		BasePath: base,
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(base, ".vscode", "settings.json"))
+	if err != nil {
+		t.Fatalf("failed to read .vscode/settings.json: %v", err)
+	}
+	content := string(data)
+
+	// Should configure terminal tab title to use OSC sequence.
+	if !strings.Contains(content, "${sequence}") {
+		t.Error(".vscode/settings.json should configure terminal.integrated.tabs.title with ${sequence}")
 	}
 }
 

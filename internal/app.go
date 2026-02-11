@@ -103,6 +103,7 @@ func NewApp(basePath string) (*App, error) {
 	app.ProjectInit = core.NewProjectInitializer()
 
 	// --- Wire CLI package-level variables ---
+	cli.BasePath = basePath
 	cli.TaskMgr = app.TaskMgr
 	cli.UpdateGen = app.UpdateGen
 	cli.AICtxGen = app.AICtxGen

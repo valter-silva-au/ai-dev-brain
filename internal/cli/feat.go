@@ -2,6 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
@@ -11,6 +14,10 @@ import (
 // TaskMgr is the TaskManager used by task lifecycle commands.
 // Set during application wiring (Task #43).
 var TaskMgr core.TaskManager
+
+// BasePath is the resolved base path for the adb workspace.
+// Set during application wiring.
+var BasePath string
 
 // taskCreateFlags holds the optional flags shared by feat/bug/spike/refactor commands.
 type taskCreateFlags struct {
@@ -39,8 +46,16 @@ files, and registers the task in the backlog.`, taskType),
 			}
 
 			branchName := args[0]
+			repoPath := flags.repo
 
-			task, err := TaskMgr.CreateTask(taskType, branchName, flags.repo)
+			// Auto-detect git repository from cwd when --repo is not provided.
+			if repoPath == "" {
+				if detected := detectGitRoot(); detected != "" {
+					repoPath = detected
+				}
+			}
+
+			task, err := TaskMgr.CreateTask(taskType, branchName, repoPath)
 			if err != nil {
 				return fmt.Errorf("creating %s task: %w", taskType, err)
 			}
@@ -56,6 +71,11 @@ files, and registers the task in the backlog.`, taskType),
 			}
 			fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
+			// Post-create workflow: rename terminal tab and launch Claude Code.
+			if task.WorktreePath != "" {
+				launchWorkflow(task.ID, task.Branch, task.WorktreePath)
+			}
+
 			return nil
 		},
 	}
@@ -69,8 +89,92 @@ files, and registers the task in the backlog.`, taskType),
 }
 
 func init() {
-	rootCmd.AddCommand(newTaskCommand(models.TaskTypeFeat))
-	rootCmd.AddCommand(newTaskCommand(models.TaskTypeBug))
-	rootCmd.AddCommand(newTaskCommand(models.TaskTypeSpike))
-	rootCmd.AddCommand(newTaskCommand(models.TaskTypeRefactor))
+	for _, tt := range []models.TaskType{models.TaskTypeFeat, models.TaskTypeBug, models.TaskTypeSpike, models.TaskTypeRefactor} {
+		cmd := newTaskCommand(tt)
+		registerTaskCommandCompletions(cmd)
+		rootCmd.AddCommand(cmd)
+	}
+}
+
+// detectGitRoot returns the git repository root of the current working
+// directory, or an empty string if not inside a git repository.
+func detectGitRoot() string {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// setTerminalTitle sets the terminal tab/window title using the ANSI OSC 0
+// escape sequence. Writes directly to /dev/tty to bypass any stdout buffering
+// or redirection. Falls back to stderr if /dev/tty is unavailable.
+func setTerminalTitle(title string) {
+	seq := fmt.Sprintf("\033]0;%s\007", title)
+	if tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
+		fmt.Fprint(tty, seq)
+		tty.Close()
+	} else {
+		fmt.Fprint(os.Stderr, seq)
+	}
+}
+
+// launchWorkflow renames the terminal tab, launches Claude Code in the
+// worktree directory, and then drops the user into a shell in the worktree
+// so they remain in the work directory after Claude exits.
+func launchWorkflow(taskID, branch, worktreePath string) {
+	// Check if worktree directory exists.
+	if _, err := os.Stat(worktreePath); err != nil {
+		return
+	}
+
+	// Set terminal title.
+	title := fmt.Sprintf("%s (%s)", taskID, branch)
+	setTerminalTitle(title)
+
+	// Look for claude binary.
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		fmt.Printf("\nTo start working, run:\n  cd %s\n  claude --dangerously-skip-permissions\n", worktreePath)
+		return
+	}
+
+	fmt.Printf("\nLaunching Claude Code in %s...\n", worktreePath)
+	claudeCmd := exec.Command(claudePath, "--dangerously-skip-permissions")
+	claudeCmd.Dir = worktreePath
+	claudeCmd.Stdin = os.Stdin
+	claudeCmd.Stdout = os.Stdout
+	claudeCmd.Stderr = os.Stderr
+
+	if err := claudeCmd.Run(); err != nil {
+		// Non-zero exit from Claude is not necessarily an error (user pressed Ctrl-C).
+		fmt.Printf("Claude Code exited: %v\n", err)
+	}
+
+	// Restore terminal title after Claude exits.
+	setTerminalTitle(title)
+
+	// Drop the user into an interactive shell in the worktree directory so
+	// they remain in the work directory after Claude exits.
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/bash"
+	}
+
+	fmt.Printf("\nDropping into shell at %s\n", worktreePath)
+	fmt.Printf("Type 'exit' to return to your original directory.\n\n")
+
+	shellCmd := exec.Command(shell)
+	shellCmd.Dir = worktreePath
+	shellCmd.Stdin = os.Stdin
+	shellCmd.Stdout = os.Stdout
+	shellCmd.Stderr = os.Stderr
+	shellCmd.Env = append(os.Environ(),
+		"ADB_TASK_ID="+taskID,
+		"ADB_BRANCH="+branch,
+		"ADB_WORKTREE_PATH="+worktreePath,
+	)
+
+	_ = shellCmd.Run()
 }

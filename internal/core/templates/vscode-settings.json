@@ -1,0 +1,11 @@
+{
+  "terminal.integrated.tabs.title": "${sequence}",
+  "terminal.integrated.tabs.description": "${task}${separator}${cwdFolder}",
+  "files.exclude": {
+    ".task_counter": true
+  },
+  "search.exclude": {
+    "work/": true,
+    "repos/": true
+  }
+}

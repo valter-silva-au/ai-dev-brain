@@ -67,5 +67,6 @@ your review. You decide what to send and when.`,
 }
 
 func init() {
+	updateCmd.ValidArgsFunction = completeTaskIDs()
 	rootCmd.AddCommand(updateCmd)
 }

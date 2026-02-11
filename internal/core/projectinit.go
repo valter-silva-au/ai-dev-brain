@@ -76,6 +76,7 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		filepath.Join(config.BasePath, "docs", "wiki"),
 		filepath.Join(config.BasePath, "docs", "decisions"),
 		filepath.Join(config.BasePath, "docs", "runbooks"),
+		filepath.Join(config.BasePath, ".vscode"),
 	}
 	for _, dir := range dirs {
 		created, err := ensureDir(dir)
@@ -174,6 +175,12 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 				return nil, err
 			}
 		}
+	}
+
+	// Write .vscode/settings.json (editor configuration for terminal tab naming).
+	vscodePath := filepath.Join(config.BasePath, ".vscode", "settings.json")
+	if err := pi.writeStaticTemplate(vscodePath, "vscode-settings.json", result); err != nil {
+		return nil, err
 	}
 
 	// Scaffold docs/ template files (reuses existing ScaffoldDocs which

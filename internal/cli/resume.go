@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -10,8 +11,8 @@ var resumeCmd = &cobra.Command{
 	Use:   "resume <task-id>",
 	Short: "Resume working on an existing task",
 	Long: `Resume working on a previously created task. This loads the task's context,
-restores the working environment, and promotes the task to in_progress status
-if it was in backlog.`,
+restores the working environment, promotes the task to in_progress status
+if it was in backlog, and launches Claude Code in the worktree directory.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if TaskMgr == nil {
@@ -33,10 +34,16 @@ if it was in backlog.`,
 		}
 		fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
+		// Post-resume workflow: rename terminal tab and launch Claude Code.
+		if task.WorktreePath != "" {
+			launchWorkflow(task.ID, task.Branch, task.WorktreePath)
+		}
+
 		return nil
 	},
 }
 
 func init() {
+	resumeCmd.ValidArgsFunction = completeTaskIDs(models.StatusArchived, models.StatusDone)
 	rootCmd.AddCommand(resumeCmd)
 }

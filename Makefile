@@ -30,7 +30,7 @@ LDFLAGS   := -s -w \
 # --- Phony targets -----------------------------------------------------------
 
 .PHONY: all build test test-coverage test-property lint vet fmt fmt-check \
-        security clean install docker-build docker-run help
+        security clean install install-local docker-build docker-run help
 
 # --- Build -------------------------------------------------------------------
 
@@ -41,6 +41,11 @@ build: ## Compile the adb binary
 
 install: ## Install adb into $GOPATH/bin
 	go install -ldflags="$(LDFLAGS)" $(CMD)
+
+install-local: ## Build and install adb to ~/.local/bin/
+	@mkdir -p $(HOME)/.local/bin
+	go build -ldflags="$(LDFLAGS)" -o $(HOME)/.local/bin/$(BINARY) $(CMD)
+	@echo "Installed $(HOME)/.local/bin/$(BINARY) ($(VERSION))"
 
 # --- Testing -----------------------------------------------------------------
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -67,5 +68,6 @@ Without --force, archiving an active task will return an error.`,
 
 func init() {
 	archiveCmd.Flags().BoolVar(&archiveForce, "force", false, "Force archive an active task")
+	archiveCmd.ValidArgsFunction = completeTaskIDs(models.StatusArchived)
 	rootCmd.AddCommand(archiveCmd)
 }

@@ -2,10 +2,17 @@ package integration
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+// isAbsRepoPath returns true if the repo path is an absolute filesystem path
+// (i.e., a local git repository) rather than a platform/org/repo identifier.
+func isAbsRepoPath(repoPath string) bool {
+	return filepath.IsAbs(repoPath)
+}
 
 // WorktreeConfig holds the parameters needed to create a new git worktree.
 type WorktreeConfig struct {
@@ -43,15 +50,48 @@ func NewGitWorktreeManager(basePath string) GitWorktreeManager {
 	return &gitWorktreeManager{basePath: basePath}
 }
 
-// parseRepoPath splits a repository path like "github.com/org/repo" into
-// platform, org, and repo components.
-func parseRepoPath(repoPath string) (platform, org, repo string, err error) {
+// normalizeRepoPath converts various git URL and path formats into the
+// canonical platform/org/repo format. It handles:
+//   - github.com/org/repo (already canonical)
+//   - github.com:org/repo (SSH-style)
+//   - git@github.com:org/repo.git (full SSH URL)
+//   - https://github.com/org/repo.git (full HTTPS URL)
+//   - repos/github.com/org/repo (with repos/ prefix)
+//   - github.com/org/repo.git (with .git suffix)
+func normalizeRepoPath(repoPath string) string {
+	cleaned := strings.TrimSpace(repoPath)
+
+	// Strip common URL prefixes.
+	cleaned = strings.TrimPrefix(cleaned, "https://")
+	cleaned = strings.TrimPrefix(cleaned, "http://")
+	cleaned = strings.TrimPrefix(cleaned, "git@")
+
+	// Strip repos/ prefix (user might copy from filesystem path).
+	cleaned = strings.TrimPrefix(cleaned, "repos/")
+
+	// Convert SSH-style colon separator to slash: github.com:org/repo -> github.com/org/repo
+	if idx := strings.Index(cleaned, ":"); idx > 0 && !strings.Contains(cleaned[:idx], "/") {
+		cleaned = cleaned[:idx] + "/" + cleaned[idx+1:]
+	}
+
+	// Strip .git suffix.
+	cleaned = strings.TrimSuffix(cleaned, ".git")
+
 	// Normalise separators and trim trailing slashes.
-	cleaned := strings.TrimRight(strings.ReplaceAll(repoPath, `\`, "/"), "/")
+	cleaned = strings.TrimRight(strings.ReplaceAll(cleaned, `\`, "/"), "/")
+
+	return cleaned
+}
+
+// parseRepoPath splits a repository path like "github.com/org/repo" into
+// platform, org, and repo components. The input is normalized first to handle
+// SSH URLs, HTTPS URLs, .git suffixes, and repos/ prefixes.
+func parseRepoPath(repoPath string) (platform, org, repo string, err error) {
+	cleaned := normalizeRepoPath(repoPath)
 
 	parts := strings.Split(cleaned, "/")
 	if len(parts) < 3 {
-		return "", "", "", fmt.Errorf("invalid repo path %q: expected {platform}/{org}/{repo}", repoPath)
+		return "", "", "", fmt.Errorf("invalid repo path %q: expected format github.com/org/repo", repoPath)
 	}
 
 	// Take the last three segments to handle leading paths gracefully.
@@ -66,8 +106,14 @@ func (m *gitWorktreeManager) worktreePath(platform, org, repo, taskID string) st
 	return filepath.Join(m.basePath, "repos", platform, org, repo, "work", taskID)
 }
 
-// CreateWorktree creates a new git worktree for the given task. The worktree
-// is placed at repos/{platform}/{org}/{repo}/work/{taskID} under the base path.
+// CreateWorktree creates a new git worktree for the given task.
+//
+// If RepoPath is an absolute path (a local git repository), the worktree is
+// placed at basePath/work/{taskID}. Otherwise, RepoPath is treated as a
+// platform/org/repo identifier: the repo is cloned to
+// repos/{platform}/{org}/{repo}/ if not already present, and the worktree is
+// placed at repos/{platform}/{org}/{repo}/work/{taskID} under the base path.
+//
 // It returns the absolute path of the created worktree.
 func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, error) {
 	if config.RepoPath == "" {
@@ -80,12 +126,30 @@ func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, erro
 		return "", fmt.Errorf("WorktreeConfig.BranchName must not be empty")
 	}
 
-	platform, org, repo, err := parseRepoPath(config.RepoPath)
-	if err != nil {
-		return "", err
-	}
+	var wtPath string
+	var gitDir string
 
-	wtPath := m.worktreePath(platform, org, repo, config.TaskID)
+	if isAbsRepoPath(config.RepoPath) {
+		// Local git repository: place worktree in basePath/work/{taskID}.
+		wtPath = filepath.Join(m.basePath, "work", config.TaskID)
+		gitDir = config.RepoPath
+	} else {
+		// Normalize the repo path to handle SSH URLs, .git suffix, repos/ prefix, etc.
+		normalized := normalizeRepoPath(config.RepoPath)
+		platform, org, repo, err := parseRepoPath(normalized)
+		if err != nil {
+			return "", err
+		}
+		wtPath = m.worktreePath(platform, org, repo, config.TaskID)
+		// Resolve the repo path to the actual directory on disk.
+		gitDir = filepath.Join(m.basePath, "repos", platform, org, repo)
+
+		// Ensure the repository is cloned and has commits.
+		canonicalPath := platform + "/" + org + "/" + repo
+		if err := m.ensureRepoReady(gitDir, canonicalPath); err != nil {
+			return "", fmt.Errorf("preparing repository %s: %w", canonicalPath, err)
+		}
+	}
 
 	args := []string{"worktree", "add"}
 	if config.BaseBranch != "" {
@@ -95,12 +159,95 @@ func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, erro
 	}
 
 	cmd := exec.Command("git", args...)
-	cmd.Dir = config.RepoPath
+	cmd.Dir = gitDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git worktree add failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
 	return wtPath, nil
+}
+
+// ensureRepoReady ensures the git repository at repoDir is cloned and ready.
+// If the directory does not exist, the repository is cloned from the remote
+// URL derived from repoPath. If it exists but has no commits, a fetch from
+// origin is attempted.
+func (m *gitWorktreeManager) ensureRepoReady(repoDir, repoPath string) error {
+	_, statErr := os.Stat(filepath.Join(repoDir, ".git"))
+
+	if statErr != nil {
+		// Directory doesn't exist or isn't a git repo — clone it.
+		cloneURL := repoURLFromPath(repoPath)
+		if err := os.MkdirAll(filepath.Dir(repoDir), 0o750); err != nil {
+			return fmt.Errorf("creating parent directory: %w", err)
+		}
+		cmd := exec.Command("git", "clone", cloneURL, repoDir)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			// Clone via HTTPS failed — try SSH.
+			sshURL := repoSSHURLFromPath(repoPath)
+			sshCmd := exec.Command("git", "clone", sshURL, repoDir)
+			if sshOutput, sshErr := sshCmd.CombinedOutput(); sshErr != nil {
+				return fmt.Errorf("git clone failed (tried HTTPS and SSH):\n  HTTPS: %s\n  SSH: %s: %w",
+					strings.TrimSpace(string(output)),
+					strings.TrimSpace(string(sshOutput)), sshErr)
+			}
+		}
+		return nil
+	}
+
+	// Directory exists and is a git repo. Check if it has any commits.
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		// No commits — try fetching from origin.
+		fetchCmd := exec.Command("git", "fetch", "origin")
+		fetchCmd.Dir = repoDir
+		if output, fetchErr := fetchCmd.CombinedOutput(); fetchErr != nil {
+			return fmt.Errorf("git fetch origin failed: %s: %w", strings.TrimSpace(string(output)), fetchErr)
+		}
+
+		// Check if origin has any branches after fetching.
+		defaultBranch := detectDefaultBranch(repoDir)
+		if defaultBranch != "" {
+			checkoutCmd := exec.Command("git", "checkout", "-b", defaultBranch, "origin/"+defaultBranch)
+			checkoutCmd.Dir = repoDir
+			if output, checkoutErr := checkoutCmd.CombinedOutput(); checkoutErr != nil {
+				return fmt.Errorf("git checkout %s failed: %s: %w", defaultBranch, strings.TrimSpace(string(output)), checkoutErr)
+			}
+		}
+		// If no branches found, the remote repo is empty. That's OK — worktree
+		// will be created as an orphan branch.
+	}
+
+	return nil
+}
+
+// repoURLFromPath constructs an HTTPS clone URL from a platform/org/repo path.
+func repoURLFromPath(repoPath string) string {
+	return "https://" + repoPath + ".git"
+}
+
+// repoSSHURLFromPath constructs an SSH clone URL from a platform/org/repo path.
+func repoSSHURLFromPath(repoPath string) string {
+	cleaned := strings.TrimRight(strings.ReplaceAll(repoPath, `\`, "/"), "/")
+	parts := strings.SplitN(cleaned, "/", 2)
+	if len(parts) < 2 {
+		return "git@" + repoPath
+	}
+	return "git@" + parts[0] + ":" + parts[1] + ".git"
+}
+
+// detectDefaultBranch determines the default branch name from a remote by
+// checking origin/main and origin/master. Returns empty string if no remote
+// branches are found.
+func detectDefaultBranch(repoDir string) string {
+	for _, branch := range []string{"main", "master"} {
+		cmd := exec.Command("git", "rev-parse", "--verify", "origin/"+branch)
+		cmd.Dir = repoDir
+		if err := cmd.Run(); err == nil {
+			return branch
+		}
+	}
+	return ""
 }
 
 // RemoveWorktree removes a git worktree at the given path.
@@ -176,11 +323,20 @@ func parseWorktreeListOutput(output, repoPath string) []*Worktree {
 }
 
 // GetWorktreeForTask searches all worktrees under the base path for one whose
-// task ID matches. It walks the repos directory looking for repositories and
-// queries each one.
+// task ID matches. It checks both the local work/ directory and the repos/
+// directory for worktrees.
 func (m *gitWorktreeManager) GetWorktreeForTask(taskID string) (*Worktree, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("taskID must not be empty")
+	}
+
+	// Check local work/{taskID} directory first.
+	localWorkDir := filepath.Join(m.basePath, "work", taskID)
+	if info, err := os.Stat(localWorkDir); err == nil && info.IsDir() {
+		return &Worktree{
+			Path:   localWorkDir,
+			TaskID: taskID,
+		}, nil
 	}
 
 	// Search the repos directory structure for work/{taskID} directories.

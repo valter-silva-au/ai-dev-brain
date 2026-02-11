@@ -42,6 +42,7 @@ var expectedDirs = []string{
 	"docs/wiki",
 	"docs/decisions",
 	"docs/runbooks",
+	".vscode",
 }
 
 // expectedFiles lists all files that Init must create relative to basePath.
@@ -65,6 +66,7 @@ var expectedFiles = []string{
 	".claude/skills/sync/SKILL.md",
 	".claude/skills/changelog/SKILL.md",
 	".claude/agents/code-reviewer.md",
+	".vscode/settings.json",
 	"docs/stakeholders.md",
 	"docs/contacts.md",
 	"docs/glossary.md",
