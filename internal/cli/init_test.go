@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -87,8 +88,10 @@ func TestInitCommand_CustomPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if mock.lastConfig.BasePath != "/tmp/test-project" {
-		t.Errorf("expected basePath /tmp/test-project, got %s", mock.lastConfig.BasePath)
+	// filepath.Abs resolves the path relative to the current drive on Windows.
+	expectedPath, _ := filepath.Abs("/tmp/test-project")
+	if mock.lastConfig.BasePath != expectedPath {
+		t.Errorf("expected basePath %s, got %s", expectedPath, mock.lastConfig.BasePath)
 	}
 }
 
