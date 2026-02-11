@@ -1,7 +1,10 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
     - errcheck
     - gosimple
@@ -16,8 +19,6 @@ linters:
     - unparam
 
 issues:
-  # Exclude gosec findings in test files -- test code often has hardcoded
-  # values and insecure patterns that are intentional.
   exclude-rules:
     - path: _test\.go
       linters:
