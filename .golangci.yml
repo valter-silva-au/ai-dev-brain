@@ -22,3 +22,8 @@ linters:
         linters:
           - gosec
           - unparam
+      # G304 (file inclusion via variable) is not meaningful for this CLI tool
+      # because all file paths are constructed from the managed data directory.
+      - linters:
+          - gosec
+        text: "G304"

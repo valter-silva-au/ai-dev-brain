@@ -219,7 +219,7 @@ func (g *aiContextGenerator) AssembleConventions() (string, error) {
 
 func (g *aiContextGenerator) AssembleGlossary() (string, error) {
 	glossaryPath := filepath.Join(g.basePath, "docs", "glossary.md")
-	data, err := os.ReadFile(glossaryPath)
+	data, err := os.ReadFile(glossaryPath) //nolint:gosec // G304: reading glossary from managed docs directory
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return "", fmt.Errorf("reading glossary: %w", err)

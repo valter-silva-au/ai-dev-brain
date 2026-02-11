@@ -107,7 +107,7 @@ func (cd *conflictDetector) checkADRConflicts(ctx ConflictContext) ([]Conflict, 
 		}
 
 		filePath := filepath.Join(decisionsDir, entry.Name())
-		content, err := os.ReadFile(filePath)
+		content, err := os.ReadFile(filePath) //nolint:gosec // G304: reading ADR files from managed decisions directory
 		if err != nil {
 			continue
 		}
@@ -174,7 +174,7 @@ func (cd *conflictDetector) checkPreviousDecisions(ctx ConflictContext) ([]Confl
 		}
 
 		designPath := filepath.Join(ticketsDir, entry.Name(), "design.md")
-		content, err := os.ReadFile(designPath)
+		content, err := os.ReadFile(designPath) //nolint:gosec // G304: reading design docs from managed tickets directory
 		if err != nil {
 			continue
 		}
