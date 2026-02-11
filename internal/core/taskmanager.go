@@ -234,7 +234,7 @@ func (tm *taskManager) UnarchiveTask(taskID string) (*models.Task, error) {
 	}
 
 	// Clean up the pre-archive status file.
-	os.Remove(preArchivePath)
+	_ = os.Remove(preArchivePath)
 
 	return task, nil
 }

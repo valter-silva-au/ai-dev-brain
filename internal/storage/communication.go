@@ -77,7 +77,7 @@ func formatCommunication(comm models.Communication) string {
 
 func (m *fileCommunicationManager) AddCommunication(taskID string, comm models.Communication) error {
 	dir := m.commsDir(taskID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("adding communication for %s: creating dir: %w", taskID, err)
 	}
 

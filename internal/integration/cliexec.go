@@ -124,12 +124,12 @@ func (e *cliExecutor) Exec(config CLIExecConfig) (*CLIExecResult, error) {
 		parts := append([]string{command}, fullArgs...)
 		cmdLine := strings.Join(parts, " ")
 		if runtime.GOOS == "windows" {
-			cmd = exec.Command("cmd", "/c", cmdLine)
+			cmd = exec.Command("cmd", "/c", cmdLine) //nolint:gosec // G204: intentional command execution from user input
 		} else {
-			cmd = exec.Command("sh", "-c", cmdLine)
+			cmd = exec.Command("sh", "-c", cmdLine) //nolint:gosec // G204: intentional command execution from user input
 		}
 	} else {
-		cmd = exec.Command(command, fullArgs...)
+		cmd = exec.Command(command, fullArgs...) //nolint:gosec // G204: intentional command execution from user input
 	}
 
 	// Build environment with task context injection.
@@ -206,11 +206,11 @@ func (e *cliExecutor) LogFailure(taskCtx *TaskEnvContext, cli string, args []str
 	entry := fmt.Sprintf("\n\n## CLI Failure\n\n- **Command:** `%s %s`\n- **Exit Code:** %d\n- **Stderr:**\n```\n%s\n```\n",
 		cli, strings.Join(args, " "), result.ExitCode, result.Stderr)
 
-	f, err := os.OpenFile(contextPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(contextPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // G304: path from trusted task context
 	if err != nil {
 		return fmt.Errorf("opening context file %s: %w", contextPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString(entry); err != nil {
 		return fmt.Errorf("writing to context file %s: %w", contextPath, err)

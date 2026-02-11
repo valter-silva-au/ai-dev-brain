@@ -65,8 +65,8 @@ func (p *screenshotPipeline) Capture() (*Screenshot, error) {
 		return nil, fmt.Errorf("creating temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
+	_ = tmpFile.Close()
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	var cmd *exec.Cmd
 
@@ -85,7 +85,7 @@ func (p *screenshotPipeline) Capture() (*Screenshot, error) {
 		return nil, fmt.Errorf("screenshot capture failed: %s: %w", string(output), err)
 	}
 
-	data, err := os.ReadFile(tmpPath)
+	data, err := os.ReadFile(tmpPath) //nolint:gosec // G304: reading temp file we created
 	if err != nil {
 		return nil, fmt.Errorf("reading screenshot file: %w", err)
 	}
@@ -120,7 +120,7 @@ func (p *screenshotPipeline) FileContent(content *ProcessedContent, taskID strin
 	subDir := categorySubDir(content.Category)
 	dir := filepath.Join(p.basePath, "tasks", taskID, subDir)
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("creating directory %s: %w", dir, err)
 	}
 

@@ -96,7 +96,7 @@ func TestBacklogSerializationRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		mgr := NewBacklogManager(dir).(*fileBacklogManager)
 		for _, e := range unique {
@@ -181,7 +181,7 @@ func TestBacklogFilterCorrectness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		mgr := NewBacklogManager(dir).(*fileBacklogManager)
 		for _, e := range unique {

@@ -31,7 +31,7 @@ Use --list to display all available Taskfile tasks.`,
 		}
 
 		if Runner == nil {
-			return fmt.Errorf("Taskfile runner not initialized")
+			return fmt.Errorf("taskfile runner not initialized")
 		}
 
 		dir, err := os.Getwd()

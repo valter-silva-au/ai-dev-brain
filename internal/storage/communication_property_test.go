@@ -81,7 +81,7 @@ func TestCommunicationSearchRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		mgr := NewCommunicationManager(dir).(*fileCommunicationManager)
 		taskID := genTaskID(t)
@@ -181,7 +181,7 @@ func TestCommunicationGetAllCountProperty(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		mgr := NewCommunicationManager(dir).(*fileCommunicationManager)
 		taskID := genTaskID(t)

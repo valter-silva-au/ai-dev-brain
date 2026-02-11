@@ -247,7 +247,7 @@ func (m *fileBacklogManager) Load() error {
 }
 
 func (m *fileBacklogManager) Save() error {
-	if err := os.MkdirAll(m.basePath, 0o755); err != nil {
+	if err := os.MkdirAll(m.basePath, 0o750); err != nil {
 		return fmt.Errorf("saving backlog: creating directory: %w", err)
 	}
 	data, err := yaml.Marshal(&m.data)

@@ -58,10 +58,10 @@ func NewTaskfileRunner(executor CLIExecutor) TaskfileRunner {
 func (r *taskfileRunner) Discover(dir string) (*Taskfile, error) {
 	path := filepath.Join(dir, "Taskfile.yaml")
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: reading Taskfile.yaml from user-specified directory
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("Taskfile.yaml not found in %s: suggest creating one", dir)
+			return nil, fmt.Errorf("taskfile.yaml not found in %s: suggest creating one", dir)
 		}
 		return nil, fmt.Errorf("reading Taskfile.yaml: %w", err)
 	}
