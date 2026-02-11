@@ -17,10 +17,9 @@ linters:
     - exhaustive
     - nilerr
     - unparam
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - unparam
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
