@@ -93,7 +93,8 @@ func NewApp(basePath string) (*App, error) {
 	// Create adapters for the task manager's BacklogStore and ContextStore interfaces.
 	blAdapter := &backlogStoreAdapter{mgr: app.BacklogMgr}
 	ctxAdapter := &contextStoreAdapter{mgr: app.ContextMgr}
-	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter)
+	wtRemoveAdapter := &worktreeRemoverAdapter{mgr: app.WorktreeMgr}
+	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter)
 
 	app.UpdateGen = core.NewUpdateGenerator(app.ContextMgr, app.CommMgr)
 	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr)
@@ -166,6 +167,15 @@ func (a *worktreeAdapter) CreateWorktree(config core.WorktreeCreateConfig) (stri
 		TaskID:     config.TaskID,
 		BaseBranch: config.BaseBranch,
 	})
+}
+
+// worktreeRemoverAdapter adapts integration.GitWorktreeManager to core.WorktreeRemover.
+type worktreeRemoverAdapter struct {
+	mgr integration.GitWorktreeManager
+}
+
+func (a *worktreeRemoverAdapter) RemoveWorktree(worktreePath string) error {
+	return a.mgr.RemoveWorktree(worktreePath)
 }
 
 // backlogStoreAdapter adapts storage.BacklogManager to core.BacklogStore.

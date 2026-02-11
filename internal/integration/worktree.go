@@ -101,18 +101,18 @@ func parseRepoPath(repoPath string) (platform, org, repo string, err error) {
 
 // worktreePath builds the canonical worktree directory for a task:
 //
-//	basePath/repos/{platform}/{org}/{repo}/work/{taskID}
-func (m *gitWorktreeManager) worktreePath(platform, org, repo, taskID string) string {
-	return filepath.Join(m.basePath, "repos", platform, org, repo, "work", taskID)
+//	basePath/work/{taskID}
+func (m *gitWorktreeManager) worktreePath(taskID string) string {
+	return filepath.Join(m.basePath, "work", taskID)
 }
 
 // CreateWorktree creates a new git worktree for the given task.
 //
-// If RepoPath is an absolute path (a local git repository), the worktree is
-// placed at basePath/work/{taskID}. Otherwise, RepoPath is treated as a
-// platform/org/repo identifier: the repo is cloned to
+// The worktree is always placed at basePath/work/{taskID}. If RepoPath is an
+// absolute path, it is used directly as the git directory. Otherwise, RepoPath
+// is treated as a platform/org/repo identifier: the repo is cloned to
 // repos/{platform}/{org}/{repo}/ if not already present, and the worktree is
-// placed at repos/{platform}/{org}/{repo}/work/{taskID} under the base path.
+// created from that local mirror.
 //
 // It returns the absolute path of the created worktree.
 func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, error) {
@@ -140,7 +140,7 @@ func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, erro
 		if err != nil {
 			return "", err
 		}
-		wtPath = m.worktreePath(platform, org, repo, config.TaskID)
+		wtPath = m.worktreePath(config.TaskID)
 		// Resolve the repo path to the actual directory on disk.
 		gitDir = filepath.Join(m.basePath, "repos", platform, org, repo)
 
@@ -216,6 +216,11 @@ func (m *gitWorktreeManager) ensureRepoReady(repoDir, repoPath string) error {
 		}
 		// If no branches found, the remote repo is empty. That's OK — worktree
 		// will be created as an orphan branch.
+	} else {
+		// Repo has commits — fetch latest branches from origin.
+		fetchCmd := exec.Command("git", "fetch", "origin")
+		fetchCmd.Dir = repoDir
+		_, _ = fetchCmd.CombinedOutput() // best-effort, don't fail if offline
 	}
 
 	return nil
@@ -322,41 +327,19 @@ func parseWorktreeListOutput(output, repoPath string) []*Worktree {
 	return worktrees
 }
 
-// GetWorktreeForTask searches all worktrees under the base path for one whose
-// task ID matches. It checks both the local work/ directory and the repos/
-// directory for worktrees.
+// GetWorktreeForTask searches for the worktree directory associated with the
+// given task ID. All worktrees are stored at basePath/work/{taskID}.
 func (m *gitWorktreeManager) GetWorktreeForTask(taskID string) (*Worktree, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("taskID must not be empty")
 	}
 
-	// Check local work/{taskID} directory first.
-	localWorkDir := filepath.Join(m.basePath, "work", taskID)
-	if info, err := os.Stat(localWorkDir); err == nil && info.IsDir() {
+	workDir := filepath.Join(m.basePath, "work", taskID)
+	if info, err := os.Stat(workDir); err == nil && info.IsDir() {
 		return &Worktree{
-			Path:   localWorkDir,
+			Path:   workDir,
 			TaskID: taskID,
 		}, nil
-	}
-
-	// Search the repos directory structure for work/{taskID} directories.
-	pattern := filepath.Join(m.basePath, "repos", "*", "*", "*")
-	repoDirs, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("searching for repos: %w", err)
-	}
-
-	for _, repoDir := range repoDirs {
-		worktrees, err := m.ListWorktrees(repoDir)
-		if err != nil {
-			// Skip repos that fail to list (not a git repo, etc.).
-			continue
-		}
-		for _, wt := range worktrees {
-			if wt.TaskID == taskID {
-				return wt, nil
-			}
-		}
 	}
 
 	return nil, fmt.Errorf("no worktree found for task %q", taskID)

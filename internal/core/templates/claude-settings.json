@@ -11,5 +11,9 @@
       "Bash(curl * | bash)",
       "Bash(wget * | bash)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "printf '%s (%s)' \"$(basename \"$(pwd)\")\" \"$(git branch --show-current 2>/dev/null || echo 'no-branch')\""
   }
 }

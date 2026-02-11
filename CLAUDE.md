@@ -187,8 +187,9 @@ pkg/models/
 - `adb spike <branch>` -- Create a spike task
 - `adb refactor <branch>` -- Create a refactor task
 - `adb resume <task-id>` -- Resume a task (promotes backlog to in_progress)
-- `adb archive <task-id>` -- Archive a task (generates handoff.md)
+- `adb archive <task-id>` -- Archive a task (generates handoff.md, removes worktree)
 - `adb unarchive <task-id>` -- Restore an archived task
+- `adb cleanup <task-id>` -- Remove a task's git worktree without archiving
 - `adb status <task-id> <status>` -- Update task status
 - `adb priority <task-id> <priority>` -- Update task priority
 - `adb update <task-id>` -- Generate stakeholder update plan

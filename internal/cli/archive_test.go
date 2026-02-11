@@ -205,3 +205,7 @@ func (m *archiveMock) UpdateTaskPriority(taskID string, priority models.Priority
 func (m *archiveMock) ReorderPriorities(taskIDs []string) error {
 	return fmt.Errorf("not implemented")
 }
+
+func (m *archiveMock) CleanupWorktree(taskID string) error {
+	return nil
+}

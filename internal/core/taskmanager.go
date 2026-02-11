@@ -55,6 +55,12 @@ type ContextStore interface {
 	LoadContext(taskID string) (interface{}, error)
 }
 
+// WorktreeRemover is the subset of GitWorktreeManager that TaskManager needs
+// for worktree cleanup. Defining it here avoids importing the integration package.
+type WorktreeRemover interface {
+	RemoveWorktree(worktreePath string) error
+}
+
 // TaskManager defines the interface for task lifecycle operations.
 type TaskManager interface {
 	CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error)
@@ -67,24 +73,28 @@ type TaskManager interface {
 	UpdateTaskStatus(taskID string, status models.TaskStatus) error
 	UpdateTaskPriority(taskID string, priority models.Priority) error
 	ReorderPriorities(taskIDs []string) error
+	CleanupWorktree(taskID string) error
 }
 
 // taskManager implements TaskManager by coordinating the BootstrapSystem,
 // BacklogStore, and ContextStore.
 type taskManager struct {
-	basePath  string
-	bootstrap BootstrapSystem
-	backlog   BacklogStore
-	ctxStore  ContextStore
+	basePath   string
+	bootstrap  BootstrapSystem
+	backlog    BacklogStore
+	ctxStore   ContextStore
+	worktreeRm WorktreeRemover
 }
 
 // NewTaskManager creates a new TaskManager with all dependencies injected.
-func NewTaskManager(basePath string, bootstrap BootstrapSystem, backlog BacklogStore, ctxStore ContextStore) TaskManager {
+// worktreeRm may be nil if worktree cleanup is not needed.
+func NewTaskManager(basePath string, bootstrap BootstrapSystem, backlog BacklogStore, ctxStore ContextStore, worktreeRm WorktreeRemover) TaskManager {
 	return &taskManager{
-		basePath:  basePath,
-		bootstrap: bootstrap,
-		backlog:   backlog,
-		ctxStore:  ctxStore,
+		basePath:   basePath,
+		bootstrap:  bootstrap,
+		backlog:    backlog,
+		ctxStore:   ctxStore,
+		worktreeRm: worktreeRm,
 	}
 }
 
@@ -472,6 +482,36 @@ func (tm *taskManager) ReorderPriorities(taskIDs []string) error {
 		if err := tm.UpdateTaskPriority(taskID, p); err != nil {
 			return fmt.Errorf("reordering priorities: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// CleanupWorktree removes the git worktree for a task and clears the
+// worktree path from status.yaml.
+func (tm *taskManager) CleanupWorktree(taskID string) error {
+	task, err := tm.loadTaskFromTicket(taskID)
+	if err != nil {
+		return fmt.Errorf("cleaning up worktree for %s: %w", taskID, err)
+	}
+
+	if task.WorktreePath == "" {
+		return fmt.Errorf("cleaning up worktree for %s: task has no worktree", taskID)
+	}
+
+	if tm.worktreeRm == nil {
+		return fmt.Errorf("cleaning up worktree for %s: worktree remover not available", taskID)
+	}
+
+	if err := tm.worktreeRm.RemoveWorktree(task.WorktreePath); err != nil {
+		return fmt.Errorf("cleaning up worktree for %s: %w", taskID, err)
+	}
+
+	// Clear the worktree path in status.yaml.
+	task.WorktreePath = ""
+	task.Updated = time.Now().UTC()
+	if err := tm.saveTaskStatus(task); err != nil {
+		return fmt.Errorf("cleaning up worktree for %s: saving status: %w", taskID, err)
 	}
 
 	return nil

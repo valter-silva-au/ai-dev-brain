@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/drapaimern/ai-dev-brain/internal/core"
@@ -165,16 +166,66 @@ func launchWorkflow(taskID, branch, worktreePath string) {
 	fmt.Printf("\nDropping into shell at %s\n", worktreePath)
 	fmt.Printf("Type 'exit' to return to your original directory.\n\n")
 
-	shellCmd := exec.Command(shell)
-	shellCmd.Dir = worktreePath
-	shellCmd.Stdin = os.Stdin
-	shellCmd.Stdout = os.Stdout
-	shellCmd.Stderr = os.Stderr
-	shellCmd.Env = append(os.Environ(),
+	// Build the printf command that sets the terminal title via ANSI OSC 0.
+	titleSeq := fmt.Sprintf(`printf "\033]0;%s\007"`, title)
+
+	shellEnv := append(os.Environ(),
 		"ADB_TASK_ID="+taskID,
 		"ADB_BRANCH="+branch,
 		"ADB_WORKTREE_PATH="+worktreePath,
 	)
+
+	var shellCmd *exec.Cmd
+
+	if strings.HasSuffix(shell, "/zsh") {
+		// For zsh, create a temporary ZDOTDIR with a .zshenv that sources
+		// the user's real config and then installs a precmd hook to maintain
+		// the terminal title on every prompt.
+		tmpDir, mkErr := os.MkdirTemp("", "adb-zsh-*")
+		if mkErr == nil {
+			defer os.RemoveAll(tmpDir)
+
+			realZDOTDIR := os.Getenv("ZDOTDIR")
+			if realZDOTDIR == "" {
+				realZDOTDIR = os.Getenv("HOME")
+			}
+
+			zshenvContent := fmt.Sprintf(
+				"# adb: source user's .zshenv then install title hook\n"+
+					"[[ -f %q/.zshenv ]] && source %q/.zshenv\n"+
+					"function precmd { %s; }\n",
+				realZDOTDIR, realZDOTDIR, titleSeq,
+			)
+
+			zshrcContent := fmt.Sprintf(
+				"# adb: source user's .zshrc then re-install title hook\n"+
+					"[[ -f %q/.zshrc ]] && source %q/.zshrc\n"+
+					"function precmd { %s; }\n",
+				realZDOTDIR, realZDOTDIR, titleSeq,
+			)
+
+			zshenvPath := filepath.Join(tmpDir, ".zshenv")
+			zshrcPath := filepath.Join(tmpDir, ".zshrc")
+			_ = os.WriteFile(zshenvPath, []byte(zshenvContent), 0o644)
+			_ = os.WriteFile(zshrcPath, []byte(zshrcContent), 0o644)
+
+			shellEnv = append(shellEnv, "ZDOTDIR="+tmpDir)
+		}
+
+		shellCmd = exec.Command(shell)
+		shellCmd.Env = shellEnv
+	} else {
+		// For bash and other POSIX shells, PROMPT_COMMAND is executed
+		// before each prompt, which will re-set the terminal title.
+		shellEnv = append(shellEnv, "PROMPT_COMMAND="+titleSeq)
+		shellCmd = exec.Command(shell)
+		shellCmd.Env = shellEnv
+	}
+
+	shellCmd.Dir = worktreePath
+	shellCmd.Stdin = os.Stdin
+	shellCmd.Stdout = os.Stdout
+	shellCmd.Stderr = os.Stderr
 
 	_ = shellCmd.Run()
 }

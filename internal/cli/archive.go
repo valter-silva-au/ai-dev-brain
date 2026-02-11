@@ -8,12 +8,16 @@ import (
 )
 
 var archiveForce bool
+var archiveKeepWorktree bool
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive <task-id>",
 	Short: "Archive a completed task",
 	Long: `Archive a task, generating a handoff document that captures learnings,
 decisions, and open items for future reference.
+
+By default, the task's git worktree is also removed. Use --keep-worktree to
+preserve it.
 
 Use --force to archive a task that is still in active status (in_progress, blocked).
 Without --force, archiving an active task will return an error.`,
@@ -33,6 +37,17 @@ Without --force, archiving an active task will return an error.`,
 			}
 			if task.Status == "in_progress" || task.Status == "blocked" {
 				return fmt.Errorf("task %s is %s; use --force to archive an active task", taskID, task.Status)
+			}
+		}
+
+		// Clean up worktree before archiving unless --keep-worktree is set.
+		if !archiveKeepWorktree {
+			task, err := TaskMgr.GetTask(taskID)
+			if err == nil && task.WorktreePath != "" {
+				fmt.Printf("Removing worktree: %s\n", task.WorktreePath)
+				if cleanupErr := TaskMgr.CleanupWorktree(taskID); cleanupErr != nil {
+					fmt.Printf("  Warning: worktree cleanup failed: %v\n", cleanupErr)
+				}
 			}
 		}
 
@@ -68,6 +83,7 @@ Without --force, archiving an active task will return an error.`,
 
 func init() {
 	archiveCmd.Flags().BoolVar(&archiveForce, "force", false, "Force archive an active task")
+	archiveCmd.Flags().BoolVar(&archiveKeepWorktree, "keep-worktree", false, "Do not remove the git worktree when archiving")
 	archiveCmd.ValidArgsFunction = completeTaskIDs(models.StatusArchived)
 	rootCmd.AddCommand(archiveCmd)
 }

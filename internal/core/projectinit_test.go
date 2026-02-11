@@ -418,6 +418,9 @@ func TestInit_ClaudeCodeConfiguration(t *testing.T) {
 	if !strings.Contains(string(data), "permissions") {
 		t.Error("settings.json should contain permissions")
 	}
+	if !strings.Contains(string(data), "statusLine") {
+		t.Error("settings.json should contain statusLine configuration")
+	}
 
 	// Verify .claude/rules/workspace.md references the prefix.
 	data, err = os.ReadFile(filepath.Join(base, ".claude", "rules", "workspace.md"))

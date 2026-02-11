@@ -108,7 +108,7 @@ func setupTaskManager(t *testing.T) (string, TaskManager, *inMemoryBacklog) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
 	ctxStore := newMockContextStore()
-	mgr := NewTaskManager(dir, bs, backlog, ctxStore)
+	mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil)
 	return dir, mgr, backlog
 }
 
@@ -516,5 +516,142 @@ func TestArchiveUnarchive_RoundTrip(t *testing.T) {
 	}
 	if restored.Status != models.StatusReview {
 		t.Errorf("restored status should be review, got %s", restored.Status)
+	}
+}
+
+// mockWorktreeRemover implements WorktreeRemover for testing.
+type mockWorktreeRemover struct {
+	removedPaths []string
+	removeErr    error
+}
+
+func (m *mockWorktreeRemover) RemoveWorktree(worktreePath string) error {
+	if m.removeErr != nil {
+		return m.removeErr
+	}
+	m.removedPaths = append(m.removedPaths, worktreePath)
+	return nil
+}
+
+func setupTaskManagerWithWorktreeRemover(t *testing.T) (string, TaskManager, *inMemoryBacklog, *mockWorktreeRemover) {
+	t.Helper()
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
+	backlog := newInMemoryBacklog()
+	ctxStore := newMockContextStore()
+	wtRm := &mockWorktreeRemover{}
+	mgr := NewTaskManager(dir, bs, backlog, ctxStore, wtRm)
+	return dir, mgr, backlog, wtRm
+}
+
+func setWorktreePath(t *testing.T, dir, taskID, wtPath string) {
+	t.Helper()
+	statusPath := filepath.Join(dir, "tickets", taskID, "status.yaml")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("reading status.yaml: %v", err)
+	}
+	var task models.Task
+	if err := yaml.Unmarshal(data, &task); err != nil {
+		t.Fatalf("parsing status.yaml: %v", err)
+	}
+	task.WorktreePath = wtPath
+	updated, err := yaml.Marshal(&task)
+	if err != nil {
+		t.Fatalf("marshalling status.yaml: %v", err)
+	}
+	if err := os.WriteFile(statusPath, updated, 0o600); err != nil {
+		t.Fatalf("writing status.yaml: %v", err)
+	}
+}
+
+func TestCleanupWorktree(t *testing.T) {
+	dir, mgr, _, wtRm := setupTaskManagerWithWorktreeRemover(t)
+
+	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/cleanup-me", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	setWorktreePath(t, dir, created.ID, "/fake/worktree/path")
+
+	if err := mgr.CleanupWorktree(created.ID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(wtRm.removedPaths) != 1 || wtRm.removedPaths[0] != "/fake/worktree/path" {
+		t.Errorf("expected RemoveWorktree called with /fake/worktree/path, got %v", wtRm.removedPaths)
+	}
+
+	updated, err := mgr.GetTask(created.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.WorktreePath != "" {
+		t.Errorf("worktree path should be cleared, got %q", updated.WorktreePath)
+	}
+}
+
+func TestCleanupWorktree_NoWorktree(t *testing.T) {
+	_, mgr, _, _ := setupTaskManagerWithWorktreeRemover(t)
+
+	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/no-worktree", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	err = mgr.CleanupWorktree(created.ID)
+	if err == nil {
+		t.Fatal("expected error when task has no worktree")
+	}
+	if !strings.Contains(err.Error(), "no worktree") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCleanupWorktree_NilRemover(t *testing.T) {
+	dir, mgr, _ := setupTaskManager(t)
+
+	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/nil-remover", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	setWorktreePath(t, dir, created.ID, "/fake/path")
+
+	err = mgr.CleanupWorktree(created.ID)
+	if err == nil {
+		t.Fatal("expected error when worktree remover is nil")
+	}
+	if !strings.Contains(err.Error(), "not available") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCleanupWorktree_RemoveError(t *testing.T) {
+	dir, mgr, _, wtRm := setupTaskManagerWithWorktreeRemover(t)
+	wtRm.removeErr = fmt.Errorf("directory has modifications")
+
+	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/remove-err", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	setWorktreePath(t, dir, created.ID, "/fake/path")
+
+	err = mgr.CleanupWorktree(created.ID)
+	if err == nil {
+		t.Fatal("expected error when RemoveWorktree fails")
+	}
+
+	// Verify worktree path was NOT cleared since removal failed.
+	updated, err := mgr.GetTask(created.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.WorktreePath == "" {
+		t.Error("worktree path should not be cleared when removal fails")
 	}
 }

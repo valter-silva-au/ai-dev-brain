@@ -211,5 +211,9 @@ func (m *statusMock) ReorderPriorities(taskIDs []string) error {
 	return fmt.Errorf("not implemented")
 }
 
+func (m *statusMock) CleanupWorktree(taskID string) error {
+	return fmt.Errorf("not implemented")
+}
+
 // Suppress unused import warning.
 var _ = time.Now

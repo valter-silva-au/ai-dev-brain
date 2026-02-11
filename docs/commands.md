@@ -304,6 +304,9 @@ decisions, and open items for future reference. The handoff document is
 written to `tickets/<task-id>/handoff.md` and the task status changes to
 `archived`.
 
+By default, the task's git worktree is also removed. Use `--keep-worktree`
+to preserve it.
+
 By default, archiving fails for tasks in active statuses (`in_progress` or
 `blocked`). Use `--force` to override this safety check.
 
@@ -321,6 +324,7 @@ task to its previous state.
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--force` | bool | `false` | Force archive a task that is still in active status (`in_progress`, `blocked`) |
+| `--keep-worktree` | bool | `false` | Do not remove the git worktree when archiving |
 
 **Output**
 
@@ -336,14 +340,14 @@ files.
 **Examples**
 
 ```bash
-# Archive a completed task
+# Archive a completed task (worktree is removed automatically)
 adb archive TASK-00042
 
 # Force-archive a task that is still in progress
 adb archive TASK-00015 --force
 
-# Archive a task in review status (no --force needed)
-adb archive TASK-00031
+# Archive but keep the worktree on disk
+adb archive TASK-00031 --keep-worktree
 ```
 
 ---
@@ -393,6 +397,56 @@ adb unarchive TASK-00042
 # After unarchive, resume the task to continue working
 adb unarchive TASK-00015
 adb resume TASK-00015
+```
+
+---
+
+### adb cleanup
+
+Remove the git worktree for a task.
+
+**Synopsis**
+
+```
+adb cleanup <task-id>
+```
+
+**Description**
+
+Remove the git worktree associated with a task and clear the worktree
+path from the task's status.yaml. The task itself is not archived or
+deleted.
+
+Use this to reclaim disk space when you no longer need the worktree for
+a task that is still active or completed. This is also useful when a
+worktree has become stale.
+
+Note: `adb archive` removes worktrees automatically by default. Use
+`adb cleanup` only when you want to remove the worktree without archiving.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | Yes | The task identifier (e.g. `TASK-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints the worktree path being removed and a confirmation message.
+If the task has no worktree, prints an informational message.
+
+**Examples**
+
+```bash
+# Remove the worktree for a task
+adb cleanup TASK-00042
+
+# Task with no worktree (no-op)
+adb cleanup TASK-00001
 ```
 
 ---

@@ -76,9 +76,9 @@ func TestParseRepoPath_TrailingSlash(t *testing.T) {
 func TestWorktreePath_Structure(t *testing.T) {
 	mgr := &gitWorktreeManager{basePath: "/home/user/.adb"}
 
-	path := mgr.worktreePath("github.com", "myorg", "myrepo", "TASK-00001")
+	path := mgr.worktreePath("TASK-00001")
 
-	expected := filepath.Join("/home/user/.adb", "repos", "github.com", "myorg", "myrepo", "work", "TASK-00001")
+	expected := filepath.Join("/home/user/.adb", "work", "TASK-00001")
 	if path != expected {
 		t.Errorf("worktreePath = %q, want %q", path, expected)
 	}
@@ -242,61 +242,48 @@ func TestGetWorktreeForTask_NotFound_ReturnsError(t *testing.T) {
 // Property 12: Multi-Repository Worktree Creation
 // =============================================================================
 
-// Feature: ai-dev-brain, Property 12: Multi-Repository Worktree Creation
-// *For any* task that spans N repositories, exactly N worktrees SHALL be created,
-// one in each specified repository at the correct path.
+// Feature: ai-dev-brain, Property 12: Worktree Path Consistency
+// *For any* task, the worktree path SHALL be basePath/work/{taskID} regardless
+// of which repository is used.
 //
 // **Validates: Requirements 9.1**
 //
-// We test the path generation logic: for N distinct repos, N distinct paths are
-// produced and each follows the expected structure.
-func TestProperty12_MultiRepoWorktreeCreation(t *testing.T) {
+// We test that the worktree path is always basePath/work/{taskID} and that
+// different task IDs produce different paths.
+func TestProperty12_WorktreePathConsistency(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		basePath := "/home/user/.adb"
 		mgr := &gitWorktreeManager{basePath: basePath}
 
-		numRepos := rapid.IntRange(1, 5).Draw(rt, "numRepos")
-		taskID := fmt.Sprintf("TASK-%05d", rapid.IntRange(1, 99999).Draw(rt, "taskNum"))
+		numTasks := rapid.IntRange(1, 5).Draw(rt, "numTasks")
 
-		platforms := []string{"github.com", "gitlab.com", "code.aws.dev"}
-
-		type repoSpec struct {
-			platform, org, repo string
-		}
 		seen := map[string]bool{}
-		repos := make([]repoSpec, 0, numRepos)
+		paths := make(map[string]bool, numTasks)
 
-		for i := 0; i < numRepos; i++ {
-			platform := platforms[rapid.IntRange(0, len(platforms)-1).Draw(rt, fmt.Sprintf("platform_%d", i))]
-			org := rapid.StringMatching(`[a-z]{3,10}`).Draw(rt, fmt.Sprintf("org_%d", i))
-			repo := rapid.StringMatching(`[a-z]{3,10}`).Draw(rt, fmt.Sprintf("repo_%d", i))
-
-			key := platform + "/" + org + "/" + repo
-			if seen[key] {
+		for i := 0; i < numTasks; i++ {
+			taskID := fmt.Sprintf("TASK-%05d", rapid.IntRange(1, 99999).Draw(rt, fmt.Sprintf("taskNum_%d", i)))
+			if seen[taskID] {
 				continue
 			}
-			seen[key] = true
-			repos = append(repos, repoSpec{platform, org, repo})
-		}
+			seen[taskID] = true
 
-		// Generate paths for each repo.
-		paths := make(map[string]bool, len(repos))
-		for _, r := range repos {
-			p := mgr.worktreePath(r.platform, r.org, r.repo, taskID)
+			p := mgr.worktreePath(taskID)
+
+			// Verify path structure: basePath/work/{taskID}.
+			expectedFull := filepath.Join(basePath, "work", taskID)
+			if p != expectedFull {
+				rt.Errorf("path = %q, want %q", p, expectedFull)
+			}
+
 			if paths[p] {
-				rt.Fatalf("duplicate worktree path %q for different repos", p)
+				rt.Fatalf("duplicate worktree path %q for different tasks", p)
 			}
 			paths[p] = true
-
-			// Verify path structure.
-			if !strings.Contains(p, filepath.Join("repos", r.platform, r.org, r.repo, "work", taskID)) {
-				rt.Errorf("path %q does not follow expected structure", p)
-			}
 		}
 
-		// Exactly len(repos) distinct paths.
-		if len(paths) != len(repos) {
-			rt.Errorf("expected %d distinct paths, got %d", len(repos), len(paths))
+		// Exactly len(seen) distinct paths.
+		if len(paths) != len(seen) {
+			rt.Errorf("expected %d distinct paths, got %d", len(seen), len(paths))
 		}
 	})
 }
@@ -305,13 +292,12 @@ func TestProperty12_MultiRepoWorktreeCreation(t *testing.T) {
 // Property 13: Repository Path Structure
 // =============================================================================
 
-// Feature: ai-dev-brain, Property 13: Repository Path Structure
-// *For any* repository on any supported platform (github.com, gitlab.com,
-// code.aws.dev), the worktree path SHALL follow the structure:
-// repos/{platform}/{org}/{repo}/work/TASK-XXXXX.
+// Feature: ai-dev-brain, Property 13: Worktree Path Structure
+// *For any* task ID, the worktree path SHALL follow the structure:
+// basePath/work/TASK-XXXXX, independent of the repository.
 //
 // **Validates: Requirements 9.4**
-func TestProperty13_RepositoryPathStructure(t *testing.T) {
+func TestProperty13_WorktreePathStructure(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		// Use t.TempDir() as a base to avoid OS-specific path separator issues.
 		baseDir := t.TempDir()
@@ -319,15 +305,11 @@ func TestProperty13_RepositoryPathStructure(t *testing.T) {
 		basePath := filepath.Join(baseDir, subDir)
 		mgr := &gitWorktreeManager{basePath: basePath}
 
-		platforms := []string{"github.com", "gitlab.com", "code.aws.dev"}
-		platform := platforms[rapid.IntRange(0, len(platforms)-1).Draw(rt, "platform")]
-		org := rapid.StringMatching(`[a-z][a-z0-9]{1,10}`).Draw(rt, "org")
-		repo := rapid.StringMatching(`[a-z][a-z0-9]{1,10}`).Draw(rt, "repo")
 		taskNum := rapid.IntRange(1, 99999).Draw(rt, "taskNum")
 		taskID := fmt.Sprintf("TASK-%05d", taskNum)
 
 		// Generate path.
-		p := mgr.worktreePath(platform, org, repo, taskID)
+		p := mgr.worktreePath(taskID)
 
 		// Verify the path starts with basePath.
 		if !strings.HasPrefix(p, basePath) {
@@ -335,18 +317,22 @@ func TestProperty13_RepositoryPathStructure(t *testing.T) {
 		}
 
 		// Verify path contains the expected directory hierarchy.
-		expectedSuffix := filepath.Join("repos", platform, org, repo, "work", taskID)
+		expectedSuffix := filepath.Join("work", taskID)
 		if !strings.HasSuffix(p, expectedSuffix) {
 			rt.Errorf("path %q does not end with expected %q", p, expectedSuffix)
 		}
 
 		// Verify full expected path matches exactly.
-		expectedFull := filepath.Join(basePath, "repos", platform, org, repo, "work", taskID)
+		expectedFull := filepath.Join(basePath, "work", taskID)
 		if p != expectedFull {
 			rt.Errorf("path = %q, want %q", p, expectedFull)
 		}
 
-		// Verify parseRepoPath round-trips correctly.
+		// Verify parseRepoPath still works correctly for repo path parsing.
+		platforms := []string{"github.com", "gitlab.com", "code.aws.dev"}
+		platform := platforms[rapid.IntRange(0, len(platforms)-1).Draw(rt, "platform")]
+		org := rapid.StringMatching(`[a-z][a-z0-9]{1,10}`).Draw(rt, "org")
+		repo := rapid.StringMatching(`[a-z][a-z0-9]{1,10}`).Draw(rt, "repo")
 		repoPathInput := platform + "/" + org + "/" + repo
 		gotPlatform, gotOrg, gotRepo, err := parseRepoPath(repoPathInput)
 		if err != nil {

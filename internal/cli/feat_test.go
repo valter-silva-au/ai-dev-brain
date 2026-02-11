@@ -65,6 +65,10 @@ func (m *mockTaskManager) ReorderPriorities(taskIDs []string) error {
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockTaskManager) CleanupWorktree(taskID string) error {
+	return fmt.Errorf("not implemented")
+}
+
 // --- Tests ---
 
 func TestFeatCommand_RegistrationInRoot(t *testing.T) {
