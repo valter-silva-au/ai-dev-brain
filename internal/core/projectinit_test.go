@@ -24,7 +24,11 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 	// Verify all directories exist.
 	dirs := []string{
 		"tickets", "work", "tools",
-		".claude", ".claude/rules", ".claude/skills/commit", ".claude/skills/task-status", ".claude/agents",
+		".claude", ".claude/rules",
+		".claude/skills/commit", ".claude/skills/task-status",
+		".claude/skills/push", ".claude/skills/pr", ".claude/skills/review",
+		".claude/skills/sync", ".claude/skills/changelog",
+		".claude/agents",
 		"docs", "docs/wiki", "docs/decisions", "docs/runbooks",
 	}
 	for _, dir := range dirs {
@@ -53,6 +57,11 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 		".claude/rules/workspace.md",
 		".claude/skills/commit/SKILL.md",
 		".claude/skills/task-status/SKILL.md",
+		".claude/skills/push/SKILL.md",
+		".claude/skills/pr/SKILL.md",
+		".claude/skills/review/SKILL.md",
+		".claude/skills/sync/SKILL.md",
+		".claude/skills/changelog/SKILL.md",
 		".claude/agents/code-reviewer.md",
 		"docs/stakeholders.md",
 		"docs/contacts.md",
@@ -336,12 +345,14 @@ func TestInit_ResultSummary(t *testing.T) {
 	// Should have created all items.
 	// Directories: basePath(skipped) + tickets + work + tools + .claude +
 	//              .claude/rules + .claude/skills/commit + .claude/skills/task-status +
-	//              .claude/agents + docs + docs/wiki + docs/decisions + docs/runbooks = 13
+	//              .claude/skills/push + .claude/skills/pr + .claude/skills/review +
+	//              .claude/skills/sync + .claude/skills/changelog +
+	//              .claude/agents + docs + docs/wiki + docs/decisions + docs/runbooks = 18
 	// Files: .taskconfig + .task_counter + .gitignore + backlog.yaml + CLAUDE.md +
-	//        4 READMEs + settings.json + workspace.md + 2 SKILLs + agent +
-	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 18
+	//        4 READMEs + settings.json + workspace.md + 7 SKILLs + agent +
+	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 23
 	// Git: .git = 1
-	totalExpected := 32
+	totalExpected := 42
 	totalGot := len(result.Created) + len(result.Skipped)
 	if totalGot != totalExpected {
 		t.Errorf("expected %d total items, got %d (created=%d, skipped=%d)",
@@ -428,6 +439,27 @@ func TestInit_ClaudeCodeConfiguration(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "name: task-status") {
 		t.Error("task-status skill should have name frontmatter")
+	}
+
+	// Verify new workflow skills exist with expected content.
+	newSkills := []struct {
+		name string
+		dir  string
+	}{
+		{"push", "push"},
+		{"pr", "pr"},
+		{"review", "review"},
+		{"sync", "sync"},
+		{"changelog", "changelog"},
+	}
+	for _, s := range newSkills {
+		data, err = os.ReadFile(filepath.Join(base, ".claude", "skills", s.dir, "SKILL.md"))
+		if err != nil {
+			t.Fatalf("failed to read %s SKILL.md: %v", s.name, err)
+		}
+		if !strings.Contains(string(data), "name: "+s.name) {
+			t.Errorf("%s skill should have name frontmatter", s.name)
+		}
 	}
 
 	// Verify agent exists.

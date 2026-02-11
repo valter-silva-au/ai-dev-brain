@@ -66,6 +66,11 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		filepath.Join(config.BasePath, ".claude", "rules"),
 		filepath.Join(config.BasePath, ".claude", "skills", "commit"),
 		filepath.Join(config.BasePath, ".claude", "skills", "task-status"),
+		filepath.Join(config.BasePath, ".claude", "skills", "push"),
+		filepath.Join(config.BasePath, ".claude", "skills", "pr"),
+		filepath.Join(config.BasePath, ".claude", "skills", "review"),
+		filepath.Join(config.BasePath, ".claude", "skills", "sync"),
+		filepath.Join(config.BasePath, ".claude", "skills", "changelog"),
 		filepath.Join(config.BasePath, ".claude", "agents"),
 		filepath.Join(config.BasePath, "docs"),
 		filepath.Join(config.BasePath, "docs", "wiki"),
@@ -149,6 +154,11 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		{"claude-rules-workspace.md", filepath.Join(".claude", "rules", "workspace.md"), true},
 		{"claude-skill-commit.md", filepath.Join(".claude", "skills", "commit", "SKILL.md"), false},
 		{"claude-skill-task-status.md", filepath.Join(".claude", "skills", "task-status", "SKILL.md"), false},
+		{"claude-skill-push.md", filepath.Join(".claude", "skills", "push", "SKILL.md"), false},
+		{"claude-skill-pr.md", filepath.Join(".claude", "skills", "pr", "SKILL.md"), false},
+		{"claude-skill-review.md", filepath.Join(".claude", "skills", "review", "SKILL.md"), false},
+		{"claude-skill-sync.md", filepath.Join(".claude", "skills", "sync", "SKILL.md"), false},
+		{"claude-skill-changelog.md", filepath.Join(".claude", "skills", "changelog", "SKILL.md"), false},
 		{"claude-agent-code-reviewer.md", filepath.Join(".claude", "agents", "code-reviewer.md"), false},
 	}
 	for _, cf := range claudeFiles {

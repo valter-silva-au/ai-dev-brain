@@ -8,7 +8,8 @@
     "deny": [
       "Bash(rm -rf /)",
       "Bash(sudo:*)",
-      "Bash(curl|wget:* | bash)"
+      "Bash(curl * | bash)",
+      "Bash(wget * | bash)"
     ]
   }
 }
