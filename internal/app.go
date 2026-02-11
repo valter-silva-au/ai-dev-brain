@@ -26,15 +26,16 @@ type App struct {
 	CommMgr    storage.CommunicationManager
 
 	// Core services
-	TaskMgr    core.TaskManager
-	Bootstrap  core.BootstrapSystem
-	IDGen      core.TaskIDGenerator
-	TmplMgr    core.TemplateManager
-	UpdateGen  core.UpdateGenerator
-	AICtxGen   core.AIContextGenerator
-	DesignGen  core.TaskDesignDocGenerator
-	KnowledgeX core.KnowledgeExtractor
-	ConflictDt core.ConflictDetector
+	TaskMgr     core.TaskManager
+	Bootstrap   core.BootstrapSystem
+	IDGen       core.TaskIDGenerator
+	TmplMgr     core.TemplateManager
+	UpdateGen   core.UpdateGenerator
+	AICtxGen    core.AIContextGenerator
+	DesignGen   core.TaskDesignDocGenerator
+	KnowledgeX  core.KnowledgeExtractor
+	ConflictDt  core.ConflictDetector
+	ProjectInit core.ProjectInitializer
 
 	// Integration services
 	WorktreeMgr integration.GitWorktreeManager
@@ -99,6 +100,7 @@ func NewApp(basePath string) (*App, error) {
 	app.DesignGen = core.NewTaskDesignDocGenerator(basePath, app.CommMgr)
 	app.KnowledgeX = core.NewKnowledgeExtractor(basePath, app.ContextMgr, app.CommMgr)
 	app.ConflictDt = core.NewConflictDetector(basePath)
+	app.ProjectInit = core.NewProjectInitializer()
 
 	// --- Wire CLI package-level variables ---
 	cli.TaskMgr = app.TaskMgr
@@ -106,6 +108,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.AICtxGen = app.AICtxGen
 	cli.Executor = app.Executor
 	cli.Runner = app.Runner
+	cli.ProjectInit = app.ProjectInit
 
 	// Convert CLIAliasConfig to integration.CLIAlias.
 	aliases := make([]integration.CLIAlias, len(globalCfg.CLIAliases))

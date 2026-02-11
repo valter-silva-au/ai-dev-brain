@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-//go:embed templates/stakeholders.md templates/contacts.md templates/glossary.md templates/adr.md
+//go:embed templates
 var templateFS embed.FS
 
 // DocTemplates provides access to embedded documentation templates.
@@ -50,6 +50,26 @@ func (dt *DocTemplates) ADRTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/adr.md")
 	if err != nil {
 		return "", fmt.Errorf("reading ADR template: %w", err)
+	}
+	return string(data), nil
+}
+
+// TaskconfigTemplate returns the embedded .taskconfig template content.
+func (dt *DocTemplates) TaskconfigTemplate() (string, error) {
+	data, err := templateFS.ReadFile("templates/taskconfig.yaml")
+	if err != nil {
+		return "", fmt.Errorf("reading taskconfig template: %w", err)
+	}
+	return string(data), nil
+}
+
+// GetTemplate returns the content of an embedded template by filename.
+// The name should be the filename within the templates/ directory
+// (e.g., "claude-md.md", "readme-tickets.md").
+func (dt *DocTemplates) GetTemplate(name string) (string, error) {
+	data, err := templateFS.ReadFile("templates/" + name)
+	if err != nil {
+		return "", fmt.Errorf("reading template %s: %w", name, err)
 	}
 	return string(data), nil
 }

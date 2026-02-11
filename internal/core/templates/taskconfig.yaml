@@ -1,0 +1,11 @@
+version: "1.0"
+defaults:
+  ai: {{.AI}}
+  priority: P2
+  owner: ""
+task_id:
+  prefix: "{{.Prefix}}"
+  counter: 0
+screenshot:
+  hotkey: "ctrl+shift+s"
+offline_mode: false
