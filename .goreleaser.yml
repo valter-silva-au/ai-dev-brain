@@ -61,7 +61,7 @@ changelog:
 
 release:
   github:
-    owner: drapaimern
+    owner: valter-silva-au
     name: ai-dev-brain
   draft: false
   # Detect pre-release from tag (e.g. v1.0.0-beta.1)
@@ -72,7 +72,7 @@ release:
     **Homebrew (macOS/Linux):**
     ```bash
     # Download from release assets
-    curl -sSfL https://github.com/drapaimern/ai-dev-brain/releases/download/v{{.Version}}/adb_{{.Version}}_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m).tar.gz | tar xz
+    curl -sSfL https://github.com/valter-silva-au/ai-dev-brain/releases/download/v{{.Version}}/adb_{{.Version}}_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m).tar.gz | tar xz
     sudo mv adb /usr/local/bin/
     ```
 

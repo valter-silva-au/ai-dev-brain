@@ -40,11 +40,11 @@ FROM alpine:3.20
 
 ARG VERSION=dev
 
-LABEL maintainer="drapaimern"
+LABEL maintainer="valter-silva-au"
 LABEL org.opencontainers.image.title="ai-dev-brain"
 LABEL org.opencontainers.image.description="AI Dev Brain - intelligent developer workflow CLI"
 LABEL org.opencontainers.image.version="${VERSION}"
-LABEL org.opencontainers.image.source="https://github.com/drapaimern/ai-dev-brain"
+LABEL org.opencontainers.image.source="https://github.com/valter-silva-au/ai-dev-brain"
 
 # Git is required at runtime for worktree operations
 RUN apk add --no-cache git ca-certificates

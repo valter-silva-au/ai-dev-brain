@@ -11,7 +11,7 @@
 # --- Variables ---------------------------------------------------------------
 
 BINARY    := adb
-MODULE    := github.com/drapaimern/ai-dev-brain
+MODULE    := github.com/valter-silva-au/ai-dev-brain
 CMD       := ./cmd/adb/
 
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
