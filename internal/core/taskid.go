@@ -55,7 +55,7 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 		return "", fmt.Errorf("creating base path for task counter: %w", err)
 	}
 
-	if err := os.WriteFile(counterPath, []byte(strconv.Itoa(counter)), 0o644); err != nil {
+	if err := os.WriteFile(counterPath, []byte(strconv.Itoa(counter)), 0o600); err != nil {
 		return "", fmt.Errorf("writing task counter file: %w", err)
 	}
 

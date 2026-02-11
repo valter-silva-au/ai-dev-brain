@@ -173,7 +173,7 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 
 	// Save the pre-archive status so unarchive can restore it.
 	preArchivePath := filepath.Join(tm.basePath, "tickets", taskID, ".pre_archive_status")
-	if err := os.WriteFile(preArchivePath, []byte(string(task.Status)), 0o644); err != nil {
+	if err := os.WriteFile(preArchivePath, []byte(string(task.Status)), 0o600); err != nil {
 		return nil, fmt.Errorf("archiving task %s: saving pre-archive status: %w", taskID, err)
 	}
 
@@ -186,7 +186,7 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 		return nil, fmt.Errorf("archiving task %s: rendering handoff: %w", taskID, err)
 	}
 	handoffPath := filepath.Join(tm.basePath, "tickets", taskID, "handoff.md")
-	if err := os.WriteFile(handoffPath, []byte(handoffContent), 0o644); err != nil {
+	if err := os.WriteFile(handoffPath, []byte(handoffContent), 0o600); err != nil {
 		return nil, fmt.Errorf("archiving task %s: writing handoff.md: %w", taskID, err)
 	}
 
@@ -500,7 +500,7 @@ func (tm *taskManager) saveTaskStatus(task *models.Task) error {
 	if err != nil {
 		return fmt.Errorf("marshalling status.yaml for %s: %w", task.ID, err)
 	}
-	return os.WriteFile(statusPath, data, 0o644)
+	return os.WriteFile(statusPath, data, 0o600)
 }
 
 // updateBacklogStatus updates the task's status in the backlog file.

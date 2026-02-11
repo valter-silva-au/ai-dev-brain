@@ -119,7 +119,7 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 
 ## Related Resources
 `, taskID)
-	if err := os.WriteFile(contextPath, []byte(contextContent), 0o644); err != nil {
+	if err := os.WriteFile(contextPath, []byte(contextContent), 0o600); err != nil {
 		return nil, fmt.Errorf("writing context.md for %s: %w", taskID, err)
 	}
 
@@ -166,7 +166,7 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 	if err != nil {
 		return nil, fmt.Errorf("marshalling status.yaml for %s: %w", taskID, err)
 	}
-	if err := os.WriteFile(statusPath, statusData, 0o644); err != nil {
+	if err := os.WriteFile(statusPath, statusData, 0o600); err != nil {
 		return nil, fmt.Errorf("writing status.yaml for %s: %w", taskID, err)
 	}
 

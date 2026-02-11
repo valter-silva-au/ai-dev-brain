@@ -91,7 +91,7 @@ func (dt *DocTemplates) ScaffoldDocs(basePath string) error {
 			return err
 		}
 
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("writing %s: %w", path, err)
 		}
 	}

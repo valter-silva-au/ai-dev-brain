@@ -54,12 +54,12 @@ func (tm *templateManager) ApplyTemplate(ticketPath string, templateType models.
 	}
 
 	notesPath := filepath.Join(ticketPath, "notes.md")
-	if err := os.WriteFile(notesPath, []byte(notesContent), 0o644); err != nil {
+	if err := os.WriteFile(notesPath, []byte(notesContent), 0o600); err != nil {
 		return fmt.Errorf("writing notes.md: %w", err)
 	}
 
 	designPath := filepath.Join(ticketPath, "design.md")
-	if err := os.WriteFile(designPath, []byte(designContent), 0o644); err != nil {
+	if err := os.WriteFile(designPath, []byte(designContent), 0o600); err != nil {
 		return fmt.Errorf("writing design.md: %w", err)
 	}
 

@@ -123,7 +123,7 @@ func (g *taskDesignDocGenerator) InitializeDesignDoc(taskID string) error {
 		now.Format(time.RFC3339),
 	)
 
-	if err := os.WriteFile(g.designDocPath(taskID), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(g.designDocPath(taskID), []byte(content), 0o600); err != nil {
 		return fmt.Errorf("initializing design doc for %s: writing file: %w", taskID, err)
 	}
 
@@ -449,7 +449,7 @@ func extractListFromSection(content, header string) []string {
 
 func (g *taskDesignDocGenerator) writeDesignDoc(doc *TaskDesignDocument) error {
 	content := formatDesignDoc(doc)
-	if err := os.WriteFile(g.designDocPath(doc.TaskID), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(g.designDocPath(doc.TaskID), []byte(content), 0o600); err != nil {
 		return fmt.Errorf("writing design doc for %s: %w", doc.TaskID, err)
 	}
 	return nil

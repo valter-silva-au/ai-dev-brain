@@ -159,7 +159,7 @@ func (ke *knowledgeExtractor) GenerateHandoff(taskID string) (*models.HandoffDoc
 	// Write handoff.md.
 	handoffPath := filepath.Join(ke.basePath, "tickets", taskID, "handoff.md")
 	content := formatHandoff(handoff, knowledge)
-	if err := os.WriteFile(handoffPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(handoffPath, []byte(content), 0o600); err != nil {
 		return nil, fmt.Errorf("generating handoff for %s: writing handoff.md: %w", taskID, err)
 	}
 
@@ -196,7 +196,7 @@ func (ke *knowledgeExtractor) UpdateWiki(knowledge *models.ExtractedKnowledge) e
 			content = string(existing) + attribution
 		}
 
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("updating wiki for topic %q: %w", update.Topic, err)
 		}
 	}
@@ -240,7 +240,7 @@ func (ke *knowledgeExtractor) CreateADR(decision models.Decision, taskID string)
 		sb.WriteString(fmt.Sprintf("- %s\n", a))
 	}
 
-	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(sb.String()), 0o600); err != nil {
 		return "", fmt.Errorf("creating ADR: writing file: %w", err)
 	}
 
