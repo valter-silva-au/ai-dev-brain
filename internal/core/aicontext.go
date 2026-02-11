@@ -97,7 +97,7 @@ func (g *aiContextGenerator) GenerateContextFile(aiType AIType) (string, error) 
 	content := g.renderContextFile()
 	path := filepath.Join(g.basePath, g.filenameForAI(aiType))
 
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return "", fmt.Errorf("generating context file: writing %s: %w", path, err)
 	}
 
@@ -137,7 +137,7 @@ func (g *aiContextGenerator) SyncContext() error {
 	for _, aiType := range []AIType{AITypeClaude, AITypeKiro} {
 		content := g.renderContextFile()
 		path := filepath.Join(g.basePath, g.filenameForAI(aiType))
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("syncing context: writing %s: %w", path, err)
 		}
 	}

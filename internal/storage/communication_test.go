@@ -128,7 +128,7 @@ func TestSearchCommunications_ByContent(t *testing.T) {
 func TestSearchCommunications_BySource(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, _ := mgr.SearchCommunications("TASK-00001", "slack")
 	if len(results) != 1 {
@@ -139,7 +139,7 @@ func TestSearchCommunications_BySource(t *testing.T) {
 func TestSearchCommunications_ByContact(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, _ := mgr.SearchCommunications("TASK-00001", "john")
 	if len(results) != 1 {
@@ -150,7 +150,7 @@ func TestSearchCommunications_ByContact(t *testing.T) {
 func TestSearchCommunications_ByDate(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, _ := mgr.SearchCommunications("TASK-00001", "2026-02-05")
 	if len(results) != 1 {
@@ -161,7 +161,7 @@ func TestSearchCommunications_ByDate(t *testing.T) {
 func TestSearchCommunications_NoMatch(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, _ := mgr.SearchCommunications("TASK-00001", "nonexistent-term-xyz")
 	if len(results) != 0 {
@@ -172,7 +172,7 @@ func TestSearchCommunications_NoMatch(t *testing.T) {
 func TestSearchCommunications_CaseInsensitive(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, _ := mgr.SearchCommunications("TASK-00001", "OAUTH")
 	if len(results) != 1 {

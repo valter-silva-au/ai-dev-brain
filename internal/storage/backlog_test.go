@@ -204,8 +204,8 @@ func TestFilterTasks_ByOwner(t *testing.T) {
 	e1.Owner = "@alice"
 	e2 := sampleEntry("TASK-00002")
 	e2.Owner = "@bob"
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{Owner: "@alice"})
 	if len(result) != 1 || result[0].ID != "TASK-00001" {
@@ -219,8 +219,8 @@ func TestFilterTasks_ByRepo(t *testing.T) {
 	e1.Repo = "github.com/org/repoA"
 	e2 := sampleEntry("TASK-00002")
 	e2.Repo = "github.com/org/repoB"
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{Repo: "github.com/org/repoA"})
 	if len(result) != 1 || result[0].ID != "TASK-00001" {
@@ -234,8 +234,8 @@ func TestFilterTasks_ByTags(t *testing.T) {
 	e1.Tags = []string{"security", "auth", "Q1"}
 	e2 := sampleEntry("TASK-00002")
 	e2.Tags = []string{"security", "Q2"}
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{Tags: []string{"security", "auth"}})
 	if len(result) != 1 || result[0].ID != "TASK-00001" {
@@ -253,8 +253,8 @@ func TestFilterTasks_MultiCriteria(t *testing.T) {
 	e2.Status = models.StatusInProgress
 	e2.Priority = models.P1
 	e2.Owner = "@bob"
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{
 		Status:   []models.TaskStatus{models.StatusInProgress},
@@ -268,8 +268,8 @@ func TestFilterTasks_MultiCriteria(t *testing.T) {
 
 func TestFilterTasks_EmptyFilter(t *testing.T) {
 	mgr := newTestBacklogManager(t)
-	mgr.AddTask(sampleEntry("TASK-00001"))
-	mgr.AddTask(sampleEntry("TASK-00002"))
+	_ = mgr.AddTask(sampleEntry("TASK-00001"))
+	_ = mgr.AddTask(sampleEntry("TASK-00002"))
 
 	result, _ := mgr.FilterTasks(BacklogFilter{})
 	if len(result) != 2 {
@@ -285,7 +285,7 @@ func TestSaveAndLoad(t *testing.T) {
 	entry.Tags = []string{"security", "auth"}
 	entry.BlockedBy = []string{"TASK-00000"}
 	entry.Related = []string{"TASK-00099"}
-	mgr.AddTask(entry)
+	_ = mgr.AddTask(entry)
 
 	if err := mgr.Save(); err != nil {
 		t.Fatalf("save failed: %v", err)

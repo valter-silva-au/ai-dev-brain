@@ -130,7 +130,7 @@ func (p *screenshotPipeline) FileContent(content *ProcessedContent, taskID strin
 	body := fmt.Sprintf("# Screenshot Content\n\n**Category:** %s\n**Summary:** %s\n\n%s\n",
 		content.Category, content.Summary, content.ExtractedText)
 
-	if err := os.WriteFile(filePath, []byte(body), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(body), 0o600); err != nil {
 		return "", fmt.Errorf("writing content file: %w", err)
 	}
 

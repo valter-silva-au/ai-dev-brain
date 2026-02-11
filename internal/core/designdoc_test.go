@@ -98,7 +98,7 @@ func TestUpdateDesignDoc_Architecture(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00005"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	mermaid := "graph LR\n    Auth --> Token\n    Token --> API"
 	err := gen.UpdateDesignDoc(taskID, DesignUpdate{
@@ -119,7 +119,7 @@ func TestUpdateDesignDoc_Decisions(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00006"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	err := gen.UpdateDesignDoc(taskID, DesignUpdate{
 		Section: "decisions",
@@ -142,7 +142,7 @@ func TestUpdateDesignDoc_Components(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00007"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	err := gen.UpdateDesignDoc(taskID, DesignUpdate{
 		Section: "components",
@@ -165,7 +165,7 @@ func TestUpdateDesignDoc_InvalidSection(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00008"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	err := gen.UpdateDesignDoc(taskID, DesignUpdate{
 		Section: "invalid",
@@ -233,7 +233,7 @@ func TestGenerateArchitectureDiagram_Empty(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00011"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	diagram, err := gen.GenerateArchitectureDiagram(taskID)
 	if err != nil {
@@ -248,7 +248,7 @@ func TestGenerateArchitectureDiagram_WithComponents(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00012"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	// Write a design doc with components.
 	doc, _ := gen.GetDesignDoc(taskID)
@@ -281,10 +281,10 @@ func TestPopulateFromContext(t *testing.T) {
 	taskID := "TASK-00013"
 	commMgr := storage.NewCommunicationManager(dir)
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	// Add a requirement communication.
-	commMgr.AddCommunication(taskID, models.Communication{
+	_ = commMgr.AddCommunication(taskID, models.Communication{
 		Date:    time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 		Source:  "Slack",
 		Contact: "Alice",
@@ -294,7 +294,7 @@ func TestPopulateFromContext(t *testing.T) {
 	})
 
 	// Add a decision communication.
-	commMgr.AddCommunication(taskID, models.Communication{
+	_ = commMgr.AddCommunication(taskID, models.Communication{
 		Date:    time.Date(2026, 2, 6, 0, 0, 0, 0, time.UTC),
 		Source:  "Meeting",
 		Contact: "Bob",
@@ -419,7 +419,7 @@ func TestFindRelatedADRs(t *testing.T) {
 
 	// Create an unrelated ADR.
 	unrelatedContent := "# ADR-0002: Use PostgreSQL\n\n**Source:** TASK-00099\n\n## Decision\nUse PostgreSQL."
-	os.WriteFile(filepath.Join(decisionsDir, "ADR-0002-use-postgresql.md"), []byte(unrelatedContent), 0o644)
+	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0002-use-postgresql.md"), []byte(unrelatedContent), 0o644)
 
 	adrs, err := gen.findRelatedADRs(taskID)
 	if err != nil {

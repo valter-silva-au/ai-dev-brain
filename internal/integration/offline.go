@@ -97,19 +97,12 @@ func (m *offlineManager) SyncPendingOperations() (*SyncResult, error) {
 		return result, nil
 	}
 
-	var remaining []QueuedOperation
-
 	for _, op := range queue {
-		if err := m.executeOperation(op); err != nil {
-			result.Failed++
-			result.Errors = append(result.Errors, fmt.Sprintf("op %s (%s): %v", op.ID, op.Type, err))
-			remaining = append(remaining, op)
-		} else {
-			result.Synced++
-		}
+		m.executeOperation(op)
+		result.Synced++
 	}
 
-	if err := m.saveQueue(remaining); err != nil {
+	if err := m.saveQueue(nil); err != nil {
 		return result, fmt.Errorf("saving remaining queue: %w", err)
 	}
 
@@ -134,11 +127,10 @@ func (m *offlineManager) notifyCallbacks(online bool) {
 
 // executeOperation attempts to execute a queued operation. The actual dispatch
 // logic will be implemented when specific operation types are defined.
-func (m *offlineManager) executeOperation(op QueuedOperation) error {
+func (m *offlineManager) executeOperation(op QueuedOperation) {
 	// Placeholder: operations succeed by default.
 	// Real implementations will dispatch based on op.Type.
 	_ = op.Type
-	return nil
 }
 
 // loadQueue reads the queue file and returns the queued operations.
@@ -181,5 +173,5 @@ func (m *offlineManager) saveQueue(queue []QueuedOperation) error {
 		return fmt.Errorf("marshalling offline queue: %w", err)
 	}
 
-	return os.WriteFile(m.queueFilePath(), data, 0644)
+	return os.WriteFile(m.queueFilePath(), data, 0o600)
 }

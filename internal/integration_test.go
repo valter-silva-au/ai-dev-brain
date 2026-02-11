@@ -897,7 +897,7 @@ func TestIntegration_ConfigDefaults_WhenNoConfigFile(t *testing.T) {
 
 func TestIntegration_ConfigMerge_WithoutRepoConfig(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, ".taskconfig"), []byte("defaults:\n  ai: claude\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".taskconfig"), []byte("defaults:\n  ai: claude\n"), 0o644)
 
 	cfgMgr := core.NewConfigurationManager(dir)
 	merged, err := cfgMgr.GetMergedConfig("")
@@ -969,8 +969,8 @@ func TestIntegration_BacklogFilter_StatusAndPriority(t *testing.T) {
 	}
 
 	// Change statuses.
-	app.TaskMgr.ResumeTask(task1.ID)    // -> in_progress
-	app.TaskMgr.ArchiveTask(task2.ID)   // -> archived
+	_, _ = app.TaskMgr.ResumeTask(task1.ID)    // -> in_progress
+	_, _ = app.TaskMgr.ArchiveTask(task2.ID)   // -> archived
 	// task3 stays in backlog
 
 	// Filter by in_progress.
@@ -1011,15 +1011,15 @@ func TestIntegration_BacklogFilter_Combinations(t *testing.T) {
 	}
 
 	// t1: backlog, P0, alice, [frontend]
-	app.BacklogMgr.UpdateTask(t1.ID, storage.BacklogEntry{Priority: models.P0, Owner: "alice", Tags: []string{"frontend"}})
+	_ = app.BacklogMgr.UpdateTask(t1.ID, storage.BacklogEntry{Priority: models.P0, Owner: "alice", Tags: []string{"frontend"}})
 	// t2: backlog, P1, bob, [backend, urgent]
-	app.BacklogMgr.UpdateTask(t2.ID, storage.BacklogEntry{Priority: models.P1, Owner: "bob", Tags: []string{"backend", "urgent"}})
+	_ = app.BacklogMgr.UpdateTask(t2.ID, storage.BacklogEntry{Priority: models.P1, Owner: "bob", Tags: []string{"backend", "urgent"}})
 	// t3: in_progress, P2, alice, [frontend, search]
-	app.BacklogMgr.UpdateTask(t3.ID, storage.BacklogEntry{Status: models.StatusInProgress, Priority: models.P2, Owner: "alice", Tags: []string{"frontend", "search"}})
+	_ = app.BacklogMgr.UpdateTask(t3.ID, storage.BacklogEntry{Status: models.StatusInProgress, Priority: models.P2, Owner: "alice", Tags: []string{"frontend", "search"}})
 	// t4: backlog, P3, charlie, [backend]
-	app.BacklogMgr.UpdateTask(t4.ID, storage.BacklogEntry{Priority: models.P3, Owner: "charlie", Tags: []string{"backend"}})
+	_ = app.BacklogMgr.UpdateTask(t4.ID, storage.BacklogEntry{Priority: models.P3, Owner: "charlie", Tags: []string{"backend"}})
 	// t5: blocked, P1, alice, [backend, cache]
-	app.BacklogMgr.UpdateTask(t5.ID, storage.BacklogEntry{Status: models.StatusBlocked, Priority: models.P1, Owner: "alice", Tags: []string{"backend", "cache"}})
+	_ = app.BacklogMgr.UpdateTask(t5.ID, storage.BacklogEntry{Status: models.StatusBlocked, Priority: models.P1, Owner: "alice", Tags: []string{"backend", "cache"}})
 
 	if err := app.BacklogMgr.Save(); err != nil {
 		t.Fatalf("save backlog: %v", err)
@@ -1168,13 +1168,13 @@ func TestIntegration_DesignDoc_BootstrapAndPopulate(t *testing.T) {
 	}
 
 	// Add communications for context population.
-	app.CommMgr.AddCommunication(taskID, models.Communication{
+	_ = app.CommMgr.AddCommunication(taskID, models.Communication{
 		Date: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), Source: "meeting",
 		Contact: "charlie", Topic: "api-design",
 		Content: "REST over gRPC for external API",
 		Tags:    []models.CommunicationTag{models.TagRequirement},
 	})
-	app.CommMgr.AddCommunication(taskID, models.Communication{
+	_ = app.CommMgr.AddCommunication(taskID, models.Communication{
 		Date: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), Source: "slack",
 		Contact: "dave", Topic: "tech-stack",
 		Content: "Use Go with Chi router",
@@ -1221,7 +1221,7 @@ func TestIntegration_UpdateGeneration(t *testing.T) {
 	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "update-test", "")
 	taskID := task.ID
 
-	app.CommMgr.AddCommunication(taskID, models.Communication{
+	_ = app.CommMgr.AddCommunication(taskID, models.Communication{
 		Date: time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC), Source: "slack",
 		Contact: "manager", Topic: "status-check",
 		Content: "What is the status of this feature?",
@@ -1250,13 +1250,13 @@ func TestIntegration_CommunicationSearch(t *testing.T) {
 	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "search-test", "")
 	taskID := task.ID
 
-	app.CommMgr.AddCommunication(taskID, models.Communication{
+	_ = app.CommMgr.AddCommunication(taskID, models.Communication{
 		Date: time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC), Source: "slack",
 		Contact: "alice", Topic: "database-choice",
 		Content: "We should use PostgreSQL for the primary database",
 		Tags:    []models.CommunicationTag{models.TagDecision},
 	})
-	app.CommMgr.AddCommunication(taskID, models.Communication{
+	_ = app.CommMgr.AddCommunication(taskID, models.Communication{
 		Date: time.Date(2026, 2, 6, 0, 0, 0, 0, time.UTC), Source: "email",
 		Contact: "bob", Topic: "timeline",
 		Content: "Need the feature by end of sprint",
@@ -1290,7 +1290,7 @@ func TestIntegration_AIContextGeneration(t *testing.T) {
 	app := newTestApp(t)
 
 	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-x", "")
-	app.TaskMgr.CreateTask(models.TaskTypeBug, "fix-y", "")
+	_, _ = app.TaskMgr.CreateTask(models.TaskTypeBug, "fix-y", "")
 
 	// Sync context to generate both files.
 	if err := app.AICtxGen.SyncContext(); err != nil {
@@ -1332,7 +1332,7 @@ func TestIntegration_AIContextGeneration_WithADR(t *testing.T) {
 	task, _ := app.TaskMgr.CreateTask(models.TaskTypeFeat, "auth-redesign", "")
 
 	// Create an ADR so the decisions summary has content.
-	app.KnowledgeX.CreateADR(models.Decision{
+	_, _ = app.KnowledgeX.CreateADR(models.Decision{
 		Title:    "Adopt OAuth2 with PKCE for authentication",
 		Context:  "Current auth system uses session cookies",
 		Decision: "All public-facing services use OAuth2 with PKCE flow",
@@ -1360,7 +1360,7 @@ func TestIntegration_AIContextGeneration_WithADR(t *testing.T) {
 func TestIntegration_ConflictDetection_WithADR(t *testing.T) {
 	app := newTestApp(t)
 
-	app.KnowledgeX.CreateADR(models.Decision{
+	_, _ = app.KnowledgeX.CreateADR(models.Decision{
 		Title:    "Use REST for API",
 		Context:  "External facing API needs broad client support",
 		Decision: "Use REST over gRPC for external API endpoints",
@@ -1449,19 +1449,19 @@ func TestIntegration_BacklogPersistence_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	mgr := storage.NewBacklogManager(dir)
 
-	mgr.Load()
+	_ = mgr.Load()
 	entry := storage.BacklogEntry{
 		ID: "TASK-00001", Title: "Test task", Status: models.StatusBacklog,
 		Priority: models.P2, Owner: "alice", Repo: "github.com/org/repo",
 		Branch: "feat/test", Created: time.Now().Format(time.RFC3339),
 		Tags: []string{"test", "integration"},
 	}
-	mgr.AddTask(entry)
-	mgr.Save()
+	_ = mgr.AddTask(entry)
+	_ = mgr.Save()
 
 	// Fresh manager: load from disk.
 	mgr2 := storage.NewBacklogManager(dir)
-	mgr2.Load()
+	_ = mgr2.Load()
 	loaded, err := mgr2.GetTask("TASK-00001")
 	if err != nil {
 		t.Fatalf("GetTask: %v", err)
@@ -1483,8 +1483,8 @@ func TestIntegration_BacklogPersistence_RoundTrip(t *testing.T) {
 func TestIntegration_BacklogDuplicateRejected(t *testing.T) {
 	dir := t.TempDir()
 	mgr := storage.NewBacklogManager(dir)
-	mgr.Load()
-	mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "First"})
+	_ = mgr.Load()
+	_ = mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "First"})
 	if err := mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "Dup"}); err == nil {
 		t.Error("expected error for duplicate task ID")
 	}
@@ -1512,7 +1512,7 @@ func TestIntegration_TemplateManager_AllTaskTypes(t *testing.T) {
 	for _, tt := range types {
 		t.Run(string(tt.typ), func(t *testing.T) {
 			ticketDir := filepath.Join(dir, "tickets", "test-"+string(tt.typ))
-			os.MkdirAll(ticketDir, 0o755)
+			_ = os.MkdirAll(ticketDir, 0o755)
 
 			if err := tmplMgr.ApplyTemplate(ticketDir, tt.typ); err != nil {
 				t.Fatalf("ApplyTemplate(%s): %v", tt.typ, err)
@@ -1649,7 +1649,7 @@ func TestIntegration_FullWorkflow_ADRAndContextGen(t *testing.T) {
 		t.Fatalf("ADR not written: %v", err)
 	}
 
-	app.AICtxGen.GenerateContextFile(core.AITypeClaude)
+	_, _ = app.AICtxGen.GenerateContextFile(core.AITypeClaude)
 	claudeData, _ := os.ReadFile(filepath.Join(app.BasePath, "CLAUDE.md"))
 	content := string(claudeData)
 	if !strings.Contains(content, "OAuth2") {
@@ -1826,7 +1826,7 @@ func TestEdgeCase_CorruptedBacklogYAML(t *testing.T) {
 
 	// Write corrupted YAML.
 	backlogPath := filepath.Join(dir, "backlog.yaml")
-	os.WriteFile(backlogPath, []byte("this is not: valid:\nyaml: [[["), 0o644)
+	_ = os.WriteFile(backlogPath, []byte("this is not: valid:\nyaml: [[["), 0o644)
 
 	mgr := storage.NewBacklogManager(dir)
 	err := mgr.Load()
@@ -1846,7 +1846,7 @@ func TestEdgeCase_CorruptedStatusYAML(t *testing.T) {
 
 	// Corrupt the status.yaml file.
 	statusPath := filepath.Join(app.BasePath, "tickets", task.ID, "status.yaml")
-	os.WriteFile(statusPath, []byte("this: is: broken: yaml: [[["), 0o644)
+	_ = os.WriteFile(statusPath, []byte("this: is: broken: yaml: [[["), 0o644)
 
 	// GetTask should fail gracefully.
 	_, err := app.TaskMgr.GetTask(task.ID)
@@ -1866,7 +1866,7 @@ func TestEdgeCase_ResumeDeletedTicketDir(t *testing.T) {
 
 	// Delete the ticket directory.
 	ticketDir := filepath.Join(app.BasePath, "tickets", task.ID)
-	os.RemoveAll(ticketDir)
+	_ = os.RemoveAll(ticketDir)
 
 	_, err := app.TaskMgr.ResumeTask(task.ID)
 	if err == nil {
@@ -1925,7 +1925,7 @@ func TestEdgeCase_OfflineQueue_CorruptedJSON(t *testing.T) {
 
 	// Write corrupted JSON to the queue file.
 	queuePath := filepath.Join(dir, ".offline_queue.json")
-	os.WriteFile(queuePath, []byte("not valid json{{{"), 0o644)
+	_ = os.WriteFile(queuePath, []byte("not valid json{{{"), 0o644)
 
 	mgr := integration.NewOfflineManager(dir)
 	_, err := mgr.SyncPendingOperations()

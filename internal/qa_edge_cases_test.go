@@ -314,8 +314,8 @@ func TestEdgeCase_FilterNoMatches(t *testing.T) {
 	app := newTestApp(t)
 
 	// Create some tasks.
-	app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-one", "")
-	app.TaskMgr.CreateTask(models.TaskTypeBug, "bug-one", "")
+	_, _ = app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-one", "")
+	_, _ = app.TaskMgr.CreateTask(models.TaskTypeBug, "bug-one", "")
 
 	// Filter for a status that no tasks have.
 	done, err := app.TaskMgr.GetTasksByStatus(models.StatusDone)
@@ -580,9 +580,9 @@ func TestEdgeCase_BacklogSaveLoadRoundTrip(t *testing.T) {
 	mgr := storage.NewBacklogManager(dir)
 
 	// Add tasks.
-	mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "Task 1", Status: "backlog", Priority: "P0"})
-	mgr.AddTask(storage.BacklogEntry{ID: "TASK-00002", Title: "Task 2", Status: "in_progress", Priority: "P1"})
-	mgr.Save()
+	_ = mgr.AddTask(storage.BacklogEntry{ID: "TASK-00001", Title: "Task 1", Status: "backlog", Priority: "P0"})
+	_ = mgr.AddTask(storage.BacklogEntry{ID: "TASK-00002", Title: "Task 2", Status: "in_progress", Priority: "P1"})
+	_ = mgr.Save()
 
 	// Load in a new manager.
 	mgr2 := storage.NewBacklogManager(dir)

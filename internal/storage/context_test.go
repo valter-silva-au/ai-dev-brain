@@ -118,7 +118,7 @@ func TestUpdateContext_LoadsFromDisk(t *testing.T) {
 
 func TestPersistContext(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	_ = mgr.UpdateContext("TASK-00001", map[string]interface{}{
 		"notes":   "Persisted notes",
@@ -153,7 +153,7 @@ func TestPersistContext_NotLoaded(t *testing.T) {
 
 func TestGetContextForAI(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	customContext := `# Task Context: TASK-00001
 
@@ -209,7 +209,7 @@ Token validation
 
 func TestGetContextForAI_EmptyContext(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	ai, err := mgr.GetContextForAI("TASK-00001")
 	if err != nil {

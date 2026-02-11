@@ -98,7 +98,7 @@ Working on OAuth
 		Content: "We decided to use Auth0",
 		Tags:    []models.CommunicationTag{models.TagDecision},
 	}
-	commMgr.AddCommunication("TASK-00001", comm)
+	_ = commMgr.AddCommunication("TASK-00001", comm)
 
 	knowledge, err := ke.ExtractFromTask("TASK-00001")
 	if err != nil {
@@ -215,8 +215,8 @@ func TestUpdateWiki_AppendToExisting(t *testing.T) {
 
 	// Create initial wiki content.
 	wikiDir := filepath.Join(dir, "docs", "wiki")
-	os.MkdirAll(wikiDir, 0o755)
-	os.WriteFile(filepath.Join(wikiDir, "oauth-implementation.md"), []byte("# Existing content\n"), 0o644)
+	_ = os.MkdirAll(wikiDir, 0o755)
+	_ = os.WriteFile(filepath.Join(wikiDir, "oauth-implementation.md"), []byte("# Existing content\n"), 0o644)
 
 	knowledge := &models.ExtractedKnowledge{
 		TaskID: "TASK-00002",

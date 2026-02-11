@@ -360,7 +360,7 @@ func TestReorderPriorities(t *testing.T) {
 		statusPath := filepath.Join(dir, "tickets", taskID, "status.yaml")
 		data, _ := os.ReadFile(statusPath)
 		var task models.Task
-		yaml.Unmarshal(data, &task)
+		_ = yaml.Unmarshal(data, &task)
 		if task.Priority != expected {
 			t.Errorf("task %s should have priority %s, got %s", taskID, expected, task.Priority)
 		}

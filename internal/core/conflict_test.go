@@ -260,19 +260,19 @@ func TestCheckForConflicts_NoMatchReturnsEmpty(t *testing.T) {
 		}
 	}
 
-	os.WriteFile(filepath.Join(decisionsDir, "ADR-0001.md"), []byte(`# ADR-0001: Use PostgreSQL
+	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001.md"), []byte(`# ADR-0001: Use PostgreSQL
 **Status:** Accepted
 ## Decision
 Use PostgreSQL as the primary database for all transactional data.
 `), 0o644)
 
-	os.WriteFile(filepath.Join(ticketDir, "design.md"), []byte(`# Design
+	_ = os.WriteFile(filepath.Join(ticketDir, "design.md"), []byte(`# Design
 ## Decisions
 | Decision | Rationale | Date |
 | Use Docker for deployments | Container standardization | 2026-01 |
 `), 0o644)
 
-	os.WriteFile(filepath.Join(wikiDir, "coding-standards.md"), []byte(`# Coding Standards
+	_ = os.WriteFile(filepath.Join(wikiDir, "coding-standards.md"), []byte(`# Coding Standards
 All Go code must pass golangci-lint with default configuration.
 `), 0o644)
 
