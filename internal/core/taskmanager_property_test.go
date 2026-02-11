@@ -37,7 +37,7 @@ func TestProperty_ArchiveUnarchiveRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		idGen := NewTaskIDGenerator(dir, "TASK")
 		tmplMgr := NewTemplateManager(dir)

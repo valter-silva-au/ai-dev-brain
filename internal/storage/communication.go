@@ -155,7 +155,7 @@ func (m *fileCommunicationManager) GetAllCommunications(taskID string) ([]models
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name())) //nolint:gosec // G304: reading communication files from managed directory
 		if err != nil {
 			continue
 		}

@@ -51,7 +51,7 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 
 	counter++
 
-	if err := os.MkdirAll(g.basePath, 0o755); err != nil {
+	if err := os.MkdirAll(g.basePath, 0o750); err != nil {
 		return "", fmt.Errorf("creating base path for task counter: %w", err)
 	}
 

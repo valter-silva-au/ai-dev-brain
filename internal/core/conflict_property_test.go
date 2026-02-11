@@ -39,7 +39,7 @@ func TestProperty_ConflictReportingFormat(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		// Create an ADR that uses both keywords.
 		decisionsDir := filepath.Join(dir, "docs", "decisions")
@@ -139,7 +139,7 @@ func TestProperty_ConflictSelfExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		// Create the task's own design.md with the keyword in decisions.
 		ticketDir := filepath.Join(dir, "tickets", taskID)

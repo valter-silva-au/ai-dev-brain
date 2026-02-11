@@ -72,11 +72,11 @@ func (p *screenshotPipeline) Capture() (*Screenshot, error) {
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("screencapture", "-i", tmpPath)
+		cmd = exec.Command("screencapture", "-i", tmpPath) //nolint:gosec // G204: known OS screenshot tool
 	case "linux":
-		cmd = exec.Command("import", tmpPath)
+		cmd = exec.Command("import", tmpPath) //nolint:gosec // G204: known OS screenshot tool
 	case "windows":
-		cmd = exec.Command("snippingtool", "/clip")
+		cmd = exec.Command("snippingtool", "/clip") //nolint:gosec // G204: known OS screenshot tool
 	default:
 		return nil, fmt.Errorf("unsupported OS for screenshot capture: %s", runtime.GOOS)
 	}

@@ -18,7 +18,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		backlogMgr := storage.NewBacklogManager(dir)
 
@@ -92,7 +92,7 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		backlogMgr := storage.NewBacklogManager(dir)
 		gen := NewAIContextGenerator(dir, backlogMgr)

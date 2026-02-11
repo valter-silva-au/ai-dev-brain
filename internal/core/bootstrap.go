@@ -89,7 +89,7 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 		filepath.Join(ticketPath, "communications"),
 	}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
 		}
 	}

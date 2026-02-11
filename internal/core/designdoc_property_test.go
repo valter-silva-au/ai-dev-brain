@@ -37,7 +37,7 @@ func TestDesignDocBootstrapProperty(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		commMgr := storage.NewCommunicationManager(dir)
 		gen := NewTaskDesignDocGenerator(dir, commMgr).(*taskDesignDocGenerator)
@@ -99,7 +99,7 @@ func TestDesignDocContextPopulationProperty(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		commMgr := storage.NewCommunicationManager(dir)
 		gen := NewTaskDesignDocGenerator(dir, commMgr).(*taskDesignDocGenerator)
@@ -152,7 +152,7 @@ func TestTechnicalDecisionExtractionProperty(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		commMgr := storage.NewCommunicationManager(dir)
 		gen := NewTaskDesignDocGenerator(dir, commMgr).(*taskDesignDocGenerator)
@@ -317,7 +317,7 @@ func TestDesignDocAsKnowledgeSourceProperty(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		commMgr := storage.NewCommunicationManager(dir)
 		ctxMgr := storage.NewContextManager(dir)

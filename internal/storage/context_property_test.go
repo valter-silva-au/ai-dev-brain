@@ -17,7 +17,7 @@ func TestContextPersistenceRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		mgr := NewContextManager(dir).(*fileContextManager)
 

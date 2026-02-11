@@ -100,10 +100,10 @@ const notesTemplate = `# Notes: %s
 
 func (m *fileContextManager) InitializeContext(taskID string) (*TaskContext, error) {
 	dir := m.ticketDir(taskID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("initializing context for %s: creating ticket dir: %w", taskID, err)
 	}
-	if err := os.MkdirAll(m.commsDir(taskID), 0o755); err != nil {
+	if err := os.MkdirAll(m.commsDir(taskID), 0o750); err != nil {
 		return nil, fmt.Errorf("initializing context for %s: creating communications dir: %w", taskID, err)
 	}
 
@@ -170,7 +170,7 @@ func (m *fileContextManager) loadCommunications(taskID string) ([]models.Communi
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name())) //nolint:gosec // G304: reading communication files from managed directory
 		if err != nil {
 			continue
 		}
@@ -262,7 +262,7 @@ func (m *fileContextManager) PersistContext(taskID string) error {
 		return fmt.Errorf("persisting context for %s: no context loaded", taskID)
 	}
 
-	if err := os.MkdirAll(m.ticketDir(taskID), 0o755); err != nil {
+	if err := os.MkdirAll(m.ticketDir(taskID), 0o750); err != nil {
 		return fmt.Errorf("persisting context for %s: creating directory: %w", taskID, err)
 	}
 

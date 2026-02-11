@@ -168,7 +168,7 @@ func (ke *knowledgeExtractor) GenerateHandoff(taskID string) (*models.HandoffDoc
 
 func (ke *knowledgeExtractor) UpdateWiki(knowledge *models.ExtractedKnowledge) error {
 	wikiDir := filepath.Join(ke.basePath, "docs", "wiki")
-	if err := os.MkdirAll(wikiDir, 0o755); err != nil {
+	if err := os.MkdirAll(wikiDir, 0o750); err != nil {
 		return fmt.Errorf("updating wiki: creating directory: %w", err)
 	}
 
@@ -182,7 +182,7 @@ func (ke *knowledgeExtractor) UpdateWiki(knowledge *models.ExtractedKnowledge) e
 			path = filepath.Join(ke.basePath, path)
 		}
 
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return fmt.Errorf("updating wiki: creating directory for %s: %w", path, err)
 		}
 
@@ -206,7 +206,7 @@ func (ke *knowledgeExtractor) UpdateWiki(knowledge *models.ExtractedKnowledge) e
 
 func (ke *knowledgeExtractor) CreateADR(decision models.Decision, taskID string) (string, error) {
 	decisionsDir := filepath.Join(ke.basePath, "docs", "decisions")
-	if err := os.MkdirAll(decisionsDir, 0o755); err != nil {
+	if err := os.MkdirAll(decisionsDir, 0o750); err != nil {
 		return "", fmt.Errorf("creating ADR: creating directory: %w", err)
 	}
 

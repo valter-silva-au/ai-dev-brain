@@ -199,7 +199,7 @@ func (g *aiContextGenerator) AssembleConventions() (string, error) {
 	if entries, err := os.ReadDir(conventionsPath); err == nil {
 		for _, entry := range entries {
 			if strings.Contains(strings.ToLower(entry.Name()), "convention") {
-				data, err := os.ReadFile(filepath.Join(conventionsPath, entry.Name()))
+				data, err := os.ReadFile(filepath.Join(conventionsPath, entry.Name())) //nolint:gosec // G304: reading convention files from managed wiki directory
 				if err == nil {
 					sb.WriteString(string(data))
 					sb.WriteString("\n")
@@ -280,7 +280,7 @@ func (g *aiContextGenerator) AssembleDecisionsSummary() (string, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(decisionsDir, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(decisionsDir, entry.Name())) //nolint:gosec // G304: reading ADR files from managed decisions directory
 		if err != nil {
 			continue
 		}

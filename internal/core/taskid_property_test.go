@@ -20,7 +20,7 @@ func TestProperty_TaskIDUniqueness(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 
 		gen := NewTaskIDGenerator(dir, prefix)
 

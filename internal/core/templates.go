@@ -49,7 +49,7 @@ func (tm *templateManager) ApplyTemplate(ticketPath string, templateType models.
 		return fmt.Errorf("rendering design template for %s: %w", templateType, err)
 	}
 
-	if err := os.MkdirAll(ticketPath, 0o755); err != nil {
+	if err := os.MkdirAll(ticketPath, 0o750); err != nil {
 		return fmt.Errorf("creating ticket directory %s: %w", ticketPath, err)
 	}
 

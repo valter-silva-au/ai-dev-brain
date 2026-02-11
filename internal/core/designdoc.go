@@ -111,7 +111,7 @@ const designDocTemplate = `# Technical Design: %s
 // InitializeDesignDoc creates a new design.md file for the given task.
 func (g *taskDesignDocGenerator) InitializeDesignDoc(taskID string) error {
 	dir := filepath.Dir(g.designDocPath(taskID))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("initializing design doc for %s: creating directory: %w", taskID, err)
 	}
 
@@ -540,7 +540,7 @@ func (g *taskDesignDocGenerator) findRelatedADRs(taskID string) ([]string, error
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(decisionsDir, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(decisionsDir, entry.Name())) //nolint:gosec // G304: reading ADR files from managed decisions directory
 		if err != nil {
 			continue
 		}
