@@ -3,7 +3,6 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -133,26 +132,13 @@ func (m *offlineManager) notifyCallbacks(online bool) {
 	}
 }
 
-// executeOperation is a placeholder that attempts to execute a queued operation.
-// The actual execution logic will be implemented when specific operation types
-// are defined. It retries with exponential backoff on failure.
+// executeOperation attempts to execute a queued operation. The actual dispatch
+// logic will be implemented when specific operation types are defined.
 func (m *offlineManager) executeOperation(op QueuedOperation) error {
-	const maxRetries = 3
-
-	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		if attempt > 0 {
-			backoff := time.Duration(math.Pow(2, float64(attempt))) * 100 * time.Millisecond
-			time.Sleep(backoff)
-		}
-
-		// Placeholder: operations succeed by default.
-		// Real implementations will dispatch based on op.Type.
-		lastErr = nil
-		break
-	}
-
-	return lastErr
+	// Placeholder: operations succeed by default.
+	// Real implementations will dispatch based on op.Type.
+	_ = op.Type
+	return nil
 }
 
 // loadQueue reads the queue file and returns the queued operations.

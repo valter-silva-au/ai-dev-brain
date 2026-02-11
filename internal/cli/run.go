@@ -16,8 +16,6 @@ var Runner integration.TaskfileRunner
 // Populated during application wiring when a task is active.
 var RunTaskCtx *integration.TaskEnvContext
 
-var runListFlag bool
-
 var runCmd = &cobra.Command{
 	Use:   "run [task] [args...]",
 	Short: "Execute a task from Taskfile.yaml",

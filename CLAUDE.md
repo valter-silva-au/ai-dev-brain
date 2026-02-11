@@ -19,7 +19,7 @@ Layered architecture: CLI -> Core -> Storage/Integration. All dependencies are w
 
 ## Technology Stack
 
-- Go 1.23
+- Go 1.24
 - Cobra (CLI framework), Viper (configuration), yaml.v3 (persistence)
 - pgregory.net/rapid (property-based testing)
 - GoReleaser (release automation), golangci-lint (linting)

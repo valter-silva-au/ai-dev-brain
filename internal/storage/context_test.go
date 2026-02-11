@@ -52,7 +52,7 @@ func TestInitializeContext(t *testing.T) {
 
 func TestLoadContext(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	// Clear in-memory cache to force file read.
 	mgr.contexts = make(map[string]*TaskContext)
@@ -79,7 +79,7 @@ func TestLoadContext_NotFound(t *testing.T) {
 
 func TestUpdateContext(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	err := mgr.UpdateContext("TASK-00001", map[string]interface{}{
 		"notes":   "Updated notes content",
@@ -100,7 +100,7 @@ func TestUpdateContext(t *testing.T) {
 
 func TestUpdateContext_LoadsFromDisk(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
-	mgr.InitializeContext("TASK-00001")
+	_, _ = mgr.InitializeContext("TASK-00001")
 
 	// Clear cache.
 	mgr.contexts = make(map[string]*TaskContext)
@@ -120,7 +120,7 @@ func TestPersistContext(t *testing.T) {
 	mgr, _ := newTestContextManager(t)
 	mgr.InitializeContext("TASK-00001")
 
-	mgr.UpdateContext("TASK-00001", map[string]interface{}{
+	_ = mgr.UpdateContext("TASK-00001", map[string]interface{}{
 		"notes":   "Persisted notes",
 		"context": "Persisted context",
 	})
@@ -181,7 +181,7 @@ Token validation
 ## Next Steps
 - [ ] Implement token refresh
 `
-	mgr.UpdateContext("TASK-00001", map[string]interface{}{
+	_ = mgr.UpdateContext("TASK-00001", map[string]interface{}{
 		"context": customContext,
 	})
 

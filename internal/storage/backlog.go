@@ -254,7 +254,7 @@ func (m *fileBacklogManager) Save() error {
 	if err != nil {
 		return fmt.Errorf("saving backlog: marshaling YAML: %w", err)
 	}
-	if err := os.WriteFile(m.filePath(), data, 0o644); err != nil {
+	if err := os.WriteFile(m.filePath(), data, 0o600); err != nil {
 		return fmt.Errorf("saving backlog: writing file: %w", err)
 	}
 	return nil

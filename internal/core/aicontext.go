@@ -94,7 +94,7 @@ func (g *aiContextGenerator) GenerateContextFile(aiType AIType) (string, error) 
 		return "", fmt.Errorf("generating context file: %w", err)
 	}
 
-	content := g.renderContextFile(aiType)
+	content := g.renderContextFile()
 	path := filepath.Join(g.basePath, g.filenameForAI(aiType))
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -120,10 +120,8 @@ func (g *aiContextGenerator) RegenerateSection(section ContextSection) error {
 	case SectionActiveTasks:
 		g.sections.ActiveTaskSummaries, err = g.AssembleActiveTaskSummaries()
 	case SectionContacts:
-		g.sections.ContactLinks, err = g.assembleContacts()
-		if err == nil {
-			g.sections.StakeholderLinks, err = g.assembleStakeholders()
-		}
+		g.sections.ContactLinks = g.assembleContacts()
+		g.sections.StakeholderLinks = g.assembleStakeholders()
 	default:
 		return fmt.Errorf("unknown section: %s", section)
 	}
@@ -137,7 +135,7 @@ func (g *aiContextGenerator) SyncContext() error {
 
 	// Generate both CLAUDE.md and kiro.md.
 	for _, aiType := range []AIType{AITypeClaude, AITypeKiro} {
-		content := g.renderContextFile(aiType)
+		content := g.renderContextFile()
 		path := filepath.Join(g.basePath, g.filenameForAI(aiType))
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("syncing context: writing %s: %w", path, err)
@@ -174,8 +172,8 @@ func (g *aiContextGenerator) assembleAll() error {
 	if err != nil {
 		return err
 	}
-	g.sections.StakeholderLinks, _ = g.assembleStakeholders()
-	g.sections.ContactLinks, _ = g.assembleContacts()
+	g.sections.StakeholderLinks = g.assembleStakeholders()
+	g.sections.ContactLinks = g.assembleContacts()
 
 	return nil
 }
@@ -223,6 +221,9 @@ func (g *aiContextGenerator) AssembleGlossary() (string, error) {
 	glossaryPath := filepath.Join(g.basePath, "docs", "glossary.md")
 	data, err := os.ReadFile(glossaryPath)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("reading glossary: %w", err)
+		}
 		// Return default glossary.
 		var sb strings.Builder
 		sb.WriteString("- **Task**: Unit of work with TASK-XXXXX ID\n")
@@ -314,23 +315,23 @@ func (g *aiContextGenerator) AssembleDecisionsSummary() (string, error) {
 	return sb.String(), nil
 }
 
-func (g *aiContextGenerator) assembleStakeholders() (string, error) {
+func (g *aiContextGenerator) assembleStakeholders() string {
 	path := filepath.Join(g.basePath, "docs", "stakeholders.md")
 	if _, err := os.Stat(path); err == nil {
-		return "See [docs/stakeholders.md](docs/stakeholders.md) for outcome owners.", nil
+		return "See [docs/stakeholders.md](docs/stakeholders.md) for outcome owners."
 	}
-	return "No stakeholders file found.", nil
+	return "No stakeholders file found."
 }
 
-func (g *aiContextGenerator) assembleContacts() (string, error) {
+func (g *aiContextGenerator) assembleContacts() string {
 	path := filepath.Join(g.basePath, "docs", "contacts.md")
 	if _, err := os.Stat(path); err == nil {
-		return "See [docs/contacts.md](docs/contacts.md) for subject matter experts.", nil
+		return "See [docs/contacts.md](docs/contacts.md) for subject matter experts."
 	}
-	return "No contacts file found.", nil
+	return "No contacts file found."
 }
 
-func (g *aiContextGenerator) renderContextFile(aiType AIType) string {
+func (g *aiContextGenerator) renderContextFile() string {
 	now := time.Now().Format(time.RFC3339)
 
 	var sb strings.Builder

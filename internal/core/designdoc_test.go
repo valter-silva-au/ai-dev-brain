@@ -41,7 +41,7 @@ func TestInitializeDesignDoc_CreatesFile(t *testing.T) {
 	gen, dir := newTestDesignDocGenerator(t)
 	taskID := "TASK-00002"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	path := filepath.Join(dir, "tickets", taskID, "design.md")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -53,7 +53,7 @@ func TestInitializeDesignDoc_ContainsExpectedSections(t *testing.T) {
 	gen, dir := newTestDesignDocGenerator(t)
 	taskID := "TASK-00003"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	path := filepath.Join(dir, "tickets", taskID, "design.md")
 	data, _ := os.ReadFile(path)
@@ -78,7 +78,7 @@ func TestUpdateDesignDoc_Overview(t *testing.T) {
 	gen, _ := newTestDesignDocGenerator(t)
 	taskID := "TASK-00004"
 
-	gen.InitializeDesignDoc(taskID)
+	_ = gen.InitializeDesignDoc(taskID)
 
 	err := gen.UpdateDesignDoc(taskID, DesignUpdate{
 		Section: "overview",
@@ -182,7 +182,7 @@ func TestExtractFromCommunications(t *testing.T) {
 	commMgr := storage.NewCommunicationManager(dir)
 
 	// Add a communication tagged as decision.
-	commMgr.AddCommunication(taskID, models.Communication{
+	_ = commMgr.AddCommunication(taskID, models.Communication{
 		Date:    time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 		Source:  "Slack",
 		Contact: "John",
@@ -192,7 +192,7 @@ func TestExtractFromCommunications(t *testing.T) {
 	})
 
 	// Add a non-decision communication.
-	commMgr.AddCommunication(taskID, models.Communication{
+	_ = commMgr.AddCommunication(taskID, models.Communication{
 		Date:    time.Date(2026, 2, 6, 0, 0, 0, 0, time.UTC),
 		Source:  "Email",
 		Contact: "Jane",
@@ -256,7 +256,7 @@ func TestGenerateArchitectureDiagram_WithComponents(t *testing.T) {
 		{Name: "Auth", Purpose: "Authentication", Dependencies: []string{"Token"}},
 		{Name: "Token", Purpose: "Token management"},
 	}
-	gen.writeDesignDoc(doc)
+	_ = gen.writeDesignDoc(doc)
 
 	diagram, err := gen.GenerateArchitectureDiagram(taskID)
 	if err != nil {
@@ -413,9 +413,9 @@ func TestFindRelatedADRs(t *testing.T) {
 
 	// Create decisions directory with an ADR referencing our task.
 	decisionsDir := filepath.Join(dir, "docs", "decisions")
-	os.MkdirAll(decisionsDir, 0o755)
+	_ = os.MkdirAll(decisionsDir, 0o755)
 	adrContent := "# ADR-0001: Use OAuth2\n\n**Source:** TASK-00021\n\n## Decision\nUse OAuth2."
-	os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-use-oauth2.md"), []byte(adrContent), 0o644)
+	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-use-oauth2.md"), []byte(adrContent), 0o644)
 
 	// Create an unrelated ADR.
 	unrelatedContent := "# ADR-0002: Use PostgreSQL\n\n**Source:** TASK-00099\n\n## Decision\nUse PostgreSQL."

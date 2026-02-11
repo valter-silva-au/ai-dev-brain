@@ -133,6 +133,7 @@ func TestProperty19_NoAutoSendInvariant(t *testing.T) {
 		// Verify it's an *UpdatePlan with proper fields.
 		if plan == nil {
 			rt.Fatal("plan is nil")
+			return
 		}
 
 		// All messages should have non-empty recipients and bodies.

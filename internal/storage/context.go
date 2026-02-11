@@ -108,12 +108,12 @@ func (m *fileContextManager) InitializeContext(taskID string) (*TaskContext, err
 	}
 
 	contextContent := fmt.Sprintf(contextTemplate, taskID)
-	if err := os.WriteFile(m.contextPath(taskID), []byte(contextContent), 0o644); err != nil {
+	if err := os.WriteFile(m.contextPath(taskID), []byte(contextContent), 0o600); err != nil {
 		return nil, fmt.Errorf("initializing context for %s: writing context.md: %w", taskID, err)
 	}
 
 	notesContent := fmt.Sprintf(notesTemplate, taskID)
-	if err := os.WriteFile(m.notesPath(taskID), []byte(notesContent), 0o644); err != nil {
+	if err := os.WriteFile(m.notesPath(taskID), []byte(notesContent), 0o600); err != nil {
 		return nil, fmt.Errorf("initializing context for %s: writing notes.md: %w", taskID, err)
 	}
 
@@ -266,10 +266,10 @@ func (m *fileContextManager) PersistContext(taskID string) error {
 		return fmt.Errorf("persisting context for %s: creating directory: %w", taskID, err)
 	}
 
-	if err := os.WriteFile(m.contextPath(taskID), []byte(ctx.Context), 0o644); err != nil {
+	if err := os.WriteFile(m.contextPath(taskID), []byte(ctx.Context), 0o600); err != nil {
 		return fmt.Errorf("persisting context for %s: writing context.md: %w", taskID, err)
 	}
-	if err := os.WriteFile(m.notesPath(taskID), []byte(ctx.Notes), 0o644); err != nil {
+	if err := os.WriteFile(m.notesPath(taskID), []byte(ctx.Notes), 0o600); err != nil {
 		return fmt.Errorf("persisting context for %s: writing notes.md: %w", taskID, err)
 	}
 

@@ -24,7 +24,7 @@ func (m *mockTaskManager) CreateTask(taskType models.TaskType, branchName string
 		Type:       taskType,
 		Branch:     fmt.Sprintf("%s/%s", taskType, branchName),
 		Repo:       repoPath,
-		TicketPath: fmt.Sprintf("tickets/TASK-00001"),
+		TicketPath: "tickets/TASK-00001",
 		Created:    time.Now(),
 	}, nil
 }

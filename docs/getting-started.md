@@ -51,10 +51,10 @@ adb --help
 If the version of Go provided by `apt` is too old, install a newer version from the [official Go downloads](https://go.dev/dl/):
 
 ```bash
-# Example: install Go 1.23.0 manually
-wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
+# Example: install Go 1.24.9 manually
+wget https://go.dev/dl/go1.24.9.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.9.linux-amd64.tar.gz
 echo 'export PATH="/usr/local/go/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```

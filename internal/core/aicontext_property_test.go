@@ -32,7 +32,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 			}
 			status := statuses[rapid.IntRange(0, len(statuses)-1).Draw(t, fmt.Sprintf("status%d", i))]
 
-			backlogMgr.AddTask(storage.BacklogEntry{
+			_ = backlogMgr.AddTask(storage.BacklogEntry{
 				ID:       taskID,
 				Title:    genAlpha(t, fmt.Sprintf("title%d", i), 3, 20),
 				Status:   status,
@@ -40,7 +40,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 				Branch:   genAlpha(t, fmt.Sprintf("branch%d", i), 3, 15),
 			})
 		}
-		backlogMgr.Save()
+		_ = backlogMgr.Save()
 
 		gen := NewAIContextGenerator(dir, backlogMgr)
 
@@ -100,28 +100,28 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		// Initial sync with some tasks.
 		nInitialTasks := rapid.IntRange(1, 3).Draw(t, "nInitial")
 		for i := 0; i < nInitialTasks; i++ {
-			backlogMgr.AddTask(storage.BacklogEntry{
+			_ = backlogMgr.AddTask(storage.BacklogEntry{
 				ID:     fmt.Sprintf("TASK-%05d", i+1),
 				Title:  genAlpha(t, fmt.Sprintf("iTitle%d", i), 3, 20),
 				Status: models.StatusInProgress,
 				Branch: genAlpha(t, fmt.Sprintf("iBranch%d", i), 3, 10),
 			})
 		}
-		backlogMgr.Save()
-		gen.SyncContext()
+		_ = backlogMgr.Save()
+		_ = gen.SyncContext()
 
 		// Add a new task.
 		newTaskID := fmt.Sprintf("TASK-%05d", rapid.IntRange(10000, 99999).Draw(t, "newTaskID"))
 		newTitle := genAlpha(t, "newTitle", 3, 20)
 		backlogMgr2 := storage.NewBacklogManager(dir)
-		backlogMgr2.Load()
-		backlogMgr2.AddTask(storage.BacklogEntry{
+		_ = backlogMgr2.Load()
+		_ = backlogMgr2.AddTask(storage.BacklogEntry{
 			ID:     newTaskID,
 			Title:  newTitle,
 			Status: models.StatusInProgress,
 			Branch: genAlpha(t, "newBranch", 3, 10),
 		})
-		backlogMgr2.Save()
+		_ = backlogMgr2.Save()
 
 		// Re-sync with a fresh generator that will pick up the new backlog state.
 		backlogMgr3 := storage.NewBacklogManager(dir)

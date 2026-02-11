@@ -205,10 +205,10 @@ func TestResumeTask_AlreadyInProgress(t *testing.T) {
 	statusPath := filepath.Join(dir, "tickets", created.ID, "status.yaml")
 	data, _ := os.ReadFile(statusPath)
 	var task models.Task
-	yaml.Unmarshal(data, &task)
+	_ = yaml.Unmarshal(data, &task)
 	task.Status = models.StatusInProgress
 	updated, _ := yaml.Marshal(&task)
-	os.WriteFile(statusPath, updated, 0o644)
+	_ = os.WriteFile(statusPath, updated, 0o644)
 
 	// Resume should not change status.
 	resumed, err := mgr.ResumeTask(created.ID)
@@ -249,8 +249,8 @@ func TestGetTask_NotFound(t *testing.T) {
 func TestGetAllTasks(t *testing.T) {
 	_, mgr, _ := setupTaskManager(t)
 
-	mgr.CreateTask(models.TaskTypeFeat, "feat/a", "")
-	mgr.CreateTask(models.TaskTypeBug, "fix/b", "")
+	_, _ = mgr.CreateTask(models.TaskTypeFeat, "feat/a", "")
+	_, _ = mgr.CreateTask(models.TaskTypeBug, "fix/b", "")
 
 	tasks, err := mgr.GetAllTasks()
 	if err != nil {
@@ -279,7 +279,7 @@ func TestGetTasksByStatus(t *testing.T) {
 	}
 
 	// Resume to in_progress.
-	mgr.ResumeTask(created.ID)
+	_, _ = mgr.ResumeTask(created.ID)
 
 	tasks, err = mgr.GetTasksByStatus(models.StatusInProgress)
 	if err != nil {
@@ -306,7 +306,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 	statusPath := filepath.Join(dir, "tickets", created.ID, "status.yaml")
 	data, _ := os.ReadFile(statusPath)
 	var task models.Task
-	yaml.Unmarshal(data, &task)
+	_ = yaml.Unmarshal(data, &task)
 	if task.Status != models.StatusReview {
 		t.Errorf("status.yaml should show review, got %s", task.Status)
 	}
@@ -333,7 +333,7 @@ func TestUpdateTaskPriority(t *testing.T) {
 	statusPath := filepath.Join(dir, "tickets", created.ID, "status.yaml")
 	data, _ := os.ReadFile(statusPath)
 	var task models.Task
-	yaml.Unmarshal(data, &task)
+	_ = yaml.Unmarshal(data, &task)
 	if task.Priority != models.P0 {
 		t.Errorf("status.yaml priority should be P0, got %s", task.Priority)
 	}
@@ -380,7 +380,7 @@ func TestArchiveTask(t *testing.T) {
 	}
 
 	// Resume to in_progress first.
-	mgr.ResumeTask(created.ID)
+	_, _ = mgr.ResumeTask(created.ID)
 
 	handoff, err := mgr.ArchiveTask(created.ID)
 	if err != nil {
@@ -442,7 +442,7 @@ func TestArchiveTask_AlreadyArchived(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	mgr.ArchiveTask(created.ID)
+	_, _ = mgr.ArchiveTask(created.ID)
 
 	_, err = mgr.ArchiveTask(created.ID)
 	if err == nil {
@@ -459,8 +459,8 @@ func TestUnarchiveTask(t *testing.T) {
 	}
 
 	// Resume to in_progress, then archive.
-	mgr.ResumeTask(created.ID)
-	mgr.ArchiveTask(created.ID)
+	_, _ = mgr.ResumeTask(created.ID)
+	_, _ = mgr.ArchiveTask(created.ID)
 
 	// Unarchive should restore to in_progress.
 	unarchived, err := mgr.UnarchiveTask(created.ID)
@@ -501,7 +501,7 @@ func TestArchiveUnarchive_RoundTrip(t *testing.T) {
 	}
 
 	// Set to review status.
-	mgr.UpdateTaskStatus(created.ID, models.StatusReview)
+	_ = mgr.UpdateTaskStatus(created.ID, models.StatusReview)
 
 	// Archive from review.
 	_, err = mgr.ArchiveTask(created.ID)

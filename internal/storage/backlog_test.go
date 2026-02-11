@@ -174,8 +174,8 @@ func TestFilterTasks_ByStatus(t *testing.T) {
 	e1.Status = models.StatusInProgress
 	e2 := sampleEntry("TASK-00002")
 	e2.Status = models.StatusBacklog
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{Status: []models.TaskStatus{models.StatusInProgress}})
 	if len(result) != 1 || result[0].ID != "TASK-00001" {
@@ -189,8 +189,8 @@ func TestFilterTasks_ByPriority(t *testing.T) {
 	e1.Priority = models.P0
 	e2 := sampleEntry("TASK-00002")
 	e2.Priority = models.P3
-	mgr.AddTask(e1)
-	mgr.AddTask(e2)
+	_ = mgr.AddTask(e1)
+	_ = mgr.AddTask(e2)
 
 	result, _ := mgr.FilterTasks(BacklogFilter{Priority: []models.Priority{models.P0}})
 	if len(result) != 1 || result[0].ID != "TASK-00001" {
@@ -339,7 +339,7 @@ func TestLoad_NoFile(t *testing.T) {
 
 func TestLoad_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "backlog.yaml"), []byte("{{{{invalid"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "backlog.yaml"), []byte("{{{{invalid"), 0o644)
 	mgr := NewBacklogManager(dir).(*fileBacklogManager)
 	err := mgr.Load()
 	if err == nil {

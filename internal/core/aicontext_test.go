@@ -133,8 +133,8 @@ func TestAssembleGlossary_FromFile(t *testing.T) {
 	gen, dir := setupAIContextTest(t)
 
 	docsDir := filepath.Join(dir, "docs")
-	os.MkdirAll(docsDir, 0o755)
-	os.WriteFile(filepath.Join(docsDir, "glossary.md"), []byte("# Glossary\n\n- **Widget**: A UI component"), 0o644)
+	_ = os.MkdirAll(docsDir, 0o755)
+	_ = os.WriteFile(filepath.Join(docsDir, "glossary.md"), []byte("# Glossary\n\n- **Widget**: A UI component"), 0o644)
 
 	glossary, err := gen.AssembleGlossary()
 	if err != nil {
@@ -150,20 +150,20 @@ func TestAssembleActiveTaskSummaries(t *testing.T) {
 
 	// Add tasks to backlog.
 	backlogMgr := storage.NewBacklogManager(dir)
-	backlogMgr.AddTask(storage.BacklogEntry{
+	_ = backlogMgr.AddTask(storage.BacklogEntry{
 		ID:       "TASK-00001",
 		Title:    "Implement OAuth",
 		Status:   models.StatusInProgress,
 		Priority: models.P1,
 		Branch:   "feat/oauth",
 	})
-	backlogMgr.AddTask(storage.BacklogEntry{
+	_ = backlogMgr.AddTask(storage.BacklogEntry{
 		ID:       "TASK-00002",
 		Title:    "Archived task",
 		Status:   models.StatusArchived,
 		Priority: models.P2,
 	})
-	backlogMgr.Save()
+	_ = backlogMgr.Save()
 
 	summary, err := gen.AssembleActiveTaskSummaries()
 	if err != nil {
@@ -192,7 +192,7 @@ func TestAssembleDecisionsSummary(t *testing.T) {
 	gen, dir := setupAIContextTest(t)
 
 	decisionsDir := filepath.Join(dir, "docs", "decisions")
-	os.MkdirAll(decisionsDir, 0o755)
+	_ = os.MkdirAll(decisionsDir, 0o755)
 	adr := `# ADR-0001: Use Auth0
 
 **Status:** Accepted
@@ -202,7 +202,7 @@ func TestAssembleDecisionsSummary(t *testing.T) {
 ## Context
 Need OAuth
 `
-	os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-use-auth0.md"), []byte(adr), 0o644)
+	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-use-auth0.md"), []byte(adr), 0o644)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -254,19 +254,19 @@ func TestSyncContext_ReflectsChanges(t *testing.T) {
 	gen, dir := setupAIContextTest(t)
 
 	// Initial sync.
-	gen.SyncContext()
+	_ = gen.SyncContext()
 
 	// Add a task and re-sync.
 	backlogMgr := storage.NewBacklogManager(dir)
-	backlogMgr.AddTask(storage.BacklogEntry{
+	_ = backlogMgr.AddTask(storage.BacklogEntry{
 		ID:     "TASK-00099",
 		Title:  "New task added",
 		Status: models.StatusInProgress,
 		Branch: "feat/new",
 	})
-	backlogMgr.Save()
+	_ = backlogMgr.Save()
 
-	gen.SyncContext()
+	_ = gen.SyncContext()
 
 	data, _ := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
 	content := string(data)

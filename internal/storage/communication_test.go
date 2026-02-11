@@ -90,8 +90,8 @@ func TestAddCommunication_DuplicateHandling(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
 
-	mgr.AddCommunication("TASK-00001", comm)
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	all, _ := mgr.GetAllCommunications("TASK-00001")
 	if len(all) != 2 {
@@ -114,7 +114,7 @@ func TestGetAllCommunications_Empty(t *testing.T) {
 func TestSearchCommunications_ByContent(t *testing.T) {
 	mgr := newTestCommManager(t)
 	comm := sampleCommunication()
-	mgr.AddCommunication("TASK-00001", comm)
+	_ = mgr.AddCommunication("TASK-00001", comm)
 
 	results, err := mgr.SearchCommunications("TASK-00001", "PKCE")
 	if err != nil {

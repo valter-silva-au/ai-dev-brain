@@ -23,12 +23,12 @@ func setupKnowledgeTest(t *testing.T) (KnowledgeExtractor, string) {
 func initTaskWithContext(t *testing.T, dir, taskID, contextContent, notesContent string) {
 	t.Helper()
 	ctxMgr := storage.NewContextManager(dir)
-	ctxMgr.InitializeContext(taskID)
-	ctxMgr.UpdateContext(taskID, map[string]interface{}{
+	_, _ = ctxMgr.InitializeContext(taskID)
+	_ = ctxMgr.UpdateContext(taskID, map[string]interface{}{
 		"context": contextContent,
 		"notes":   notesContent,
 	})
-	ctxMgr.PersistContext(taskID)
+	_ = ctxMgr.PersistContext(taskID)
 }
 
 func TestExtractFromTask(t *testing.T) {

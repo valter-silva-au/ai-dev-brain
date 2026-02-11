@@ -25,12 +25,6 @@ func genValidPriority(t *rapid.T, label string) models.Priority {
 	return priorities[rapid.IntRange(0, len(priorities)-1).Draw(t, label)]
 }
 
-// genValidTaskType generates a valid TaskType value.
-func genValidTaskType(t *rapid.T, label string) models.TaskType {
-	types := []models.TaskType{models.TaskTypeFeat, models.TaskTypeBug, models.TaskTypeSpike, models.TaskTypeRefactor}
-	return types[rapid.IntRange(0, len(types)-1).Draw(t, label)]
-}
-
 // genGlobalConfigValues generates random valid global config field values.
 type globalConfigValues struct {
 	DefaultAI        string

@@ -180,7 +180,7 @@ func TestTechnicalDecisionExtractionProperty(t *testing.T) {
 		}
 
 		// Also add a non-decision communication that should NOT be extracted.
-		commMgr.AddCommunication(taskID, models.Communication{
+		_ = commMgr.AddCommunication(taskID, models.Communication{
 			Date:    time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 			Source:  "email",
 			Contact: "boss",

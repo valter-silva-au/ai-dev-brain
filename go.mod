@@ -1,6 +1,8 @@
 module github.com/drapaimern/ai-dev-brain
 
-go 1.23.0
+go 1.24
+
+toolchain go1.24.9
 
 require (
 	github.com/spf13/cobra v1.9.1
@@ -11,7 +13,7 @@ require (
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect

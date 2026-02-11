@@ -148,6 +148,8 @@ func categorySubDir(cat ContentCategory) string {
 		return "requirements"
 	case CategoryCode:
 		return "code"
+	case CategoryOther:
+		return "other"
 	default:
 		return "other"
 	}
