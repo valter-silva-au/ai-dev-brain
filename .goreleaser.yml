@@ -1,13 +1,29 @@
 version: 2
 
 builds:
-  - main: ./cmd/adb/
+  - id: unix
+    main: ./cmd/adb/
     binary: adb
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: windows
+    main: ./cmd/adb/
+    binary: adb
+    env:
+      - CGO_ENABLED=0
+    goos:
       - windows
     goarch:
       - amd64
@@ -19,7 +35,8 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - name_template: "adb_{{.Version}}_{{.Os}}_{{.Arch}}"
+  - id: default
+    name_template: "adb_{{.Version}}_{{.Os}}_{{.Arch}}"
     format: tar.gz
     format_overrides:
       - goos: windows
@@ -28,6 +45,12 @@ archives:
       - README.md
       - LICENSE*
       - docs/**/*
+
+  - id: windows-exe
+    builds:
+      - windows
+    format: binary
+    name_template: "adb_{{.Version}}_{{.Os}}_{{.Arch}}"
 
 checksum:
   name_template: "checksums.txt"
@@ -78,7 +101,8 @@ release:
 
     **Windows (PowerShell):**
     ```powershell
-    # Download the zip from release assets and extract
+    # Download the standalone exe
+    Invoke-WebRequest -Uri "https://github.com/valter-silva-au/ai-dev-brain/releases/download/v{{.Version}}/adb_{{.Version}}_windows_amd64.exe" -OutFile adb.exe
     ```
 
     **Verify checksums:**
@@ -90,6 +114,7 @@ snapshot:
   name_template: "next"
 
 sboms:
-  - artifacts: archive
-    # syft generates Software Bill of Materials for supply chain security
+  - ids:
+      - default
+    artifacts: archive
     cmd: syft
