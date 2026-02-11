@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build the Go binary
 # ---------------------------------------------------------------------------
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Version can be injected at build time: docker build --build-arg VERSION=1.0.0
 ARG VERSION=dev
@@ -36,7 +36,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # ---------------------------------------------------------------------------
 # Stage 2: Minimal runtime image
 # ---------------------------------------------------------------------------
-FROM alpine:3.20
+FROM alpine:3.23
 
 ARG VERSION=dev
 

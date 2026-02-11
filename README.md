@@ -103,7 +103,7 @@ Or add it through **System Properties > Environment Variables > Path > Edit**.
 
 ### Build from source
 
-Requires [Go](https://go.dev/dl/) 1.24 or later.
+Requires [Go](https://go.dev/dl/) 1.26 or later.
 
 ```bash
 go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest

@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.x"
+          go-version: "1.26.x"
 
       - name: Run tests with coverage
         run: go test ./... -coverprofile=coverage.out -covermode=atomic
@@ -27,7 +27,7 @@ jobs:
       # Requires CODECOV_TOKEN to be set in repository secrets.
       # Generate a token at https://app.codecov.io/ for your repository.
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
