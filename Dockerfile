@@ -36,7 +36,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # ---------------------------------------------------------------------------
 # Stage 2: Minimal runtime image
 # ---------------------------------------------------------------------------
-FROM alpine:3.20
+FROM alpine:3.23
 
 ARG VERSION=dev
 
