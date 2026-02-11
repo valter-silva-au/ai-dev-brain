@@ -27,7 +27,7 @@ jobs:
       # Requires CODECOV_TOKEN to be set in repository secrets.
       # Generate a token at https://app.codecov.io/ for your repository.
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
