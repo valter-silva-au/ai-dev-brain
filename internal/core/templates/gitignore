@@ -1,0 +1,25 @@
+# === Git Worktrees ===
+# The work/ directory contains git worktrees managed by adb.
+# Each task gets its own worktree; these should not be committed.
+work/
+
+# === Cloned Repositories ===
+# The repos/ directory holds cloned repositories for multi-repo workflows.
+repos/
+
+# === Local State ===
+# Task counter is machine-local sequential state.
+.task_counter
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Editor / IDE ===
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace

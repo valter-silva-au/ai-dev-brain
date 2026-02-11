@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/template"
 )
@@ -99,6 +100,12 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		return nil, err
 	}
 
+	// Write .gitignore.
+	gitignorePath := filepath.Join(config.BasePath, ".gitignore")
+	if err := pi.writeStaticTemplate(gitignorePath, "gitignore", result); err != nil {
+		return nil, err
+	}
+
 	// Write backlog.yaml.
 	backlogPath := filepath.Join(config.BasePath, "backlog.yaml")
 	if err := pi.writeFileIfNotExists(backlogPath, func() ([]byte, error) {
@@ -185,6 +192,19 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		} else {
 			result.Created = append(result.Created, p)
 		}
+	}
+
+	// Initialize git repository if not already one.
+	gitDir := filepath.Join(config.BasePath, ".git")
+	if _, err := os.Stat(gitDir); err != nil {
+		cmd := exec.Command("git", "init")
+		cmd.Dir = config.BasePath
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("initializing project: running git init: %w", err)
+		}
+		result.Created = append(result.Created, gitDir)
+	} else {
+		result.Skipped = append(result.Skipped, gitDir)
 	}
 
 	return result, nil

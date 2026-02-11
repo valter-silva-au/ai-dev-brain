@@ -43,6 +43,7 @@ var expectedDirs = []string{
 var expectedFiles = []string{
 	".taskconfig",
 	".task_counter",
+	".gitignore",
 	"backlog.yaml",
 	"CLAUDE.md",
 	"tickets/README.md",
@@ -153,6 +154,16 @@ func TestProperty_InitStructureCompleteness(t *testing.T) {
 			if info.IsDir() {
 				t.Fatalf("%s must be a file, not a directory", f)
 			}
+		}
+
+		// Git repository must be initialized.
+		gitDir := filepath.Join(dir, ".git")
+		info, err := os.Stat(gitDir)
+		if err != nil {
+			t.Fatalf(".git directory must exist: %v", err)
+		}
+		if !info.IsDir() {
+			t.Fatalf(".git must be a directory")
 		}
 	})
 }

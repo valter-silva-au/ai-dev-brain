@@ -42,6 +42,7 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 	files := []string{
 		".taskconfig",
 		".task_counter",
+		".gitignore",
 		"backlog.yaml",
 		"CLAUDE.md",
 		"tickets/README.md",
@@ -67,6 +68,15 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 		if info.IsDir() {
 			t.Errorf("%s is a directory, expected file", f)
 		}
+	}
+
+	// Verify git repository was initialized.
+	gitDir := filepath.Join(base, ".git")
+	info, err := os.Stat(gitDir)
+	if err != nil {
+		t.Errorf(".git directory not created: %v", err)
+	} else if !info.IsDir() {
+		t.Error(".git should be a directory")
 	}
 
 	// Most items should be in Created. The basePath itself is created by
@@ -327,10 +337,11 @@ func TestInit_ResultSummary(t *testing.T) {
 	// Directories: basePath(skipped) + tickets + work + tools + .claude +
 	//              .claude/rules + .claude/skills/commit + .claude/skills/task-status +
 	//              .claude/agents + docs + docs/wiki + docs/decisions + docs/runbooks = 13
-	// Files: .taskconfig + .task_counter + backlog.yaml + CLAUDE.md +
+	// Files: .taskconfig + .task_counter + .gitignore + backlog.yaml + CLAUDE.md +
 	//        4 READMEs + settings.json + workspace.md + 2 SKILLs + agent +
-	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 17
-	totalExpected := 30
+	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 18
+	// Git: .git = 1
+	totalExpected := 32
 	totalGot := len(result.Created) + len(result.Skipped)
 	if totalGot != totalExpected {
 		t.Errorf("expected %d total items, got %d (created=%d, skipped=%d)",
@@ -491,5 +502,94 @@ func TestInit_DocsSubstructure(t *testing.T) {
 		if !strings.Contains(string(data), tt.contains) {
 			t.Errorf("file %s missing expected content %q", tt.path, tt.contains)
 		}
+	}
+}
+
+func TestInit_GitignoreContent(t *testing.T) {
+	base := t.TempDir()
+	pi := NewProjectInitializer()
+
+	_, err := pi.Init(InitConfig{
+		BasePath: base,
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(base, ".gitignore"))
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+	content := string(data)
+
+	expected := []string{"work/", "repos/", ".task_counter"}
+	for _, pattern := range expected {
+		if !strings.Contains(content, pattern) {
+			t.Errorf(".gitignore should contain %q", pattern)
+		}
+	}
+}
+
+func TestInit_GitInit(t *testing.T) {
+	base := t.TempDir()
+	pi := NewProjectInitializer()
+
+	result, err := pi.Init(InitConfig{
+		BasePath: base,
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// .git should exist.
+	gitDir := filepath.Join(base, ".git")
+	info, err := os.Stat(gitDir)
+	if err != nil {
+		t.Fatalf(".git directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal(".git should be a directory")
+	}
+
+	// .git should be in Created list.
+	found := false
+	for _, p := range result.Created {
+		if strings.HasSuffix(p, ".git") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected .git in Created list")
+	}
+}
+
+func TestInit_GitInitIdempotent(t *testing.T) {
+	base := t.TempDir()
+	pi := NewProjectInitializer()
+
+	cfg := InitConfig{BasePath: base}
+
+	// First run creates .git.
+	_, err := pi.Init(cfg)
+	if err != nil {
+		t.Fatalf("first Init failed: %v", err)
+	}
+
+	// Second run should skip .git.
+	result2, err := pi.Init(cfg)
+	if err != nil {
+		t.Fatalf("second Init failed: %v", err)
+	}
+
+	found := false
+	for _, p := range result2.Skipped {
+		if strings.HasSuffix(p, ".git") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected .git in Skipped list on second run")
 	}
 }
