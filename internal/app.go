@@ -44,6 +44,7 @@ type App struct {
 	ScreenPipe  integration.ScreenshotPipeline
 	Executor    integration.CLIExecutor
 	Runner      integration.TaskfileRunner
+	RepoSyncMgr *integration.RepoSyncManager
 }
 
 // NewApp creates and wires all components of the AI Dev Brain system.
@@ -76,6 +77,7 @@ func NewApp(basePath string) (*App, error) {
 	app.ScreenPipe = integration.NewScreenshotPipeline(basePath)
 	app.Executor = integration.NewCLIExecutor()
 	app.Runner = integration.NewTaskfileRunner(app.Executor)
+	app.RepoSyncMgr = integration.NewRepoSyncManager(basePath)
 
 	// --- Core services ---
 	prefix := globalCfg.TaskIDPrefix
@@ -111,6 +113,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.Executor = app.Executor
 	cli.Runner = app.Runner
 	cli.ProjectInit = app.ProjectInit
+	cli.RepoSyncMgr = app.RepoSyncMgr
 
 	// Convert CLIAliasConfig to integration.CLIAlias.
 	aliases := make([]integration.CLIAlias, len(globalCfg.CLIAliases))

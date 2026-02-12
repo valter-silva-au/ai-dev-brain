@@ -50,7 +50,7 @@ func NewGitWorktreeManager(basePath string) GitWorktreeManager {
 	return &gitWorktreeManager{basePath: basePath}
 }
 
-// normalizeRepoPath converts various git URL and path formats into the
+// NormalizeRepoPath converts various git URL and path formats into the
 // canonical platform/org/repo format. It handles:
 //   - github.com/org/repo (already canonical)
 //   - github.com:org/repo (SSH-style)
@@ -58,7 +58,7 @@ func NewGitWorktreeManager(basePath string) GitWorktreeManager {
 //   - https://github.com/org/repo.git (full HTTPS URL)
 //   - repos/github.com/org/repo (with repos/ prefix)
 //   - github.com/org/repo.git (with .git suffix)
-func normalizeRepoPath(repoPath string) string {
+func NormalizeRepoPath(repoPath string) string {
 	cleaned := strings.TrimSpace(repoPath)
 
 	// Strip common URL prefixes.
@@ -87,7 +87,7 @@ func normalizeRepoPath(repoPath string) string {
 // platform, org, and repo components. The input is normalized first to handle
 // SSH URLs, HTTPS URLs, .git suffixes, and repos/ prefixes.
 func parseRepoPath(repoPath string) (platform, org, repo string, err error) {
-	cleaned := normalizeRepoPath(repoPath)
+	cleaned := NormalizeRepoPath(repoPath)
 
 	parts := strings.Split(cleaned, "/")
 	if len(parts) < 3 {
@@ -135,7 +135,7 @@ func (m *gitWorktreeManager) CreateWorktree(config WorktreeConfig) (string, erro
 		gitDir = config.RepoPath
 	} else {
 		// Normalize the repo path to handle SSH URLs, .git suffix, repos/ prefix, etc.
-		normalized := normalizeRepoPath(config.RepoPath)
+		normalized := NormalizeRepoPath(config.RepoPath)
 		platform, org, repo, err := parseRepoPath(normalized)
 		if err != nil {
 			return "", err
