@@ -1,6 +1,6 @@
 # Usage Scenarios
 
-This document walks through 10 real-world scenarios that demonstrate how to use AI Dev Brain (`adb`) in day-to-day software development. Each scenario is self-contained and shows full command sequences with realistic output.
+This document walks through 11 real-world scenarios that demonstrate how to use AI Dev Brain (`adb`) in day-to-day software development. Each scenario is self-contained and shows full command sequences with realistic output.
 
 ---
 
@@ -16,6 +16,7 @@ This document walks through 10 real-world scenarios that demonstrate how to use 
 8. [CLI Tool Integration](#scenario-8-cli-tool-integration)
 9. [Knowledge Management](#scenario-9-knowledge-management)
 10. [Priority Management and Backlog Grooming](#scenario-10-priority-management-and-backlog-grooming)
+11. [Observability and Health Monitoring](#scenario-11-observability-and-health-monitoring)
 
 ---
 
@@ -52,6 +53,8 @@ tickets/TASK-00012/
   notes.md            # Free-form developer notes
   design.md           # Technical design document with architecture diagram
   communications/     # Stakeholder communication log (empty initially)
+  sessions/           # Session summaries (timestamped markdown files)
+  knowledge/          # Extracted decisions and facts (decisions.yaml)
 ```
 
 ### Step 3: Edit the Design Document
@@ -919,7 +922,17 @@ src/components/SearchBar.tsx:42:5 error Unexpected var, use let or const
 
 This creates a persistent record of build failures tied to the task context.
 
-### Step 5: Use Taskfile.yaml for Project Automation
+### Step 5: Pipe Support
+
+If any argument to `adb exec` is the pipe character (`|`), the entire command is delegated to the system shell (`sh -c` on Linux/macOS, `cmd /c` on Windows). This allows piped commands to work transparently:
+
+```bash
+$ adb exec grep -r "TODO" src | wc -l
+```
+
+The shell delegation preserves alias resolution and task context injection.
+
+### Step 6: Use Taskfile.yaml for Project Automation
 
 Create a `Taskfile.yaml` in your project root:
 
@@ -979,7 +992,7 @@ The runner discovers `Taskfile.yaml`, finds the named task, and executes each co
 
 ### Step 1: Extract Knowledge from a Completed Task
 
-Knowledge extraction happens automatically during `adb archive`. The system reads:
+Knowledge extraction is **automatic** -- it happens as part of `adb archive` with no separate command required. When you archive a task, the system reads:
 
 - `tickets/TASK-00015/notes.md` -- Sections: `## Learnings`, `## Gotchas`, `## Wiki Updates`, `## Runbook Updates`
 - `tickets/TASK-00015/context.md` -- Sections: `## Decisions Made`
@@ -1273,6 +1286,100 @@ $ adb status
 
 ---
 
+## Scenario 11: Observability and Health Monitoring
+
+**Situation:** You want to understand your task workflow health -- how many tasks are being created versus completed, whether anything is stuck, and whether the backlog is growing out of control.
+
+### Step 1: Check Metrics
+
+View aggregated metrics from the event log:
+
+```bash
+$ adb metrics --since 30d
+```
+
+```
+Metrics (since 2025-06-18)
+
+  Events recorded:         42
+  Tasks created:           8
+  Tasks completed:         5
+  Agent sessions:          15
+  Knowledge extracted:     3
+
+  Tasks by type:
+    feat:                5
+    bug:                 2
+    spike:               1
+
+  Status transitions:
+    in_progress:         12
+    done:                5
+    review:              4
+
+  Oldest event:          2025-06-20T09:15:00Z
+  Newest event:          2025-07-18T14:22:00Z
+```
+
+Use `--json` for machine-readable output suitable for dashboards or scripts:
+
+```bash
+$ adb metrics --json --since 7d
+```
+
+### Step 2: Review Active Alerts
+
+Check for workflow issues that need attention:
+
+```bash
+$ adb alerts
+```
+
+```
+2 active alert(s):
+
+  [HIGH] Task TASK-00017 has been blocked for 72 hours
+         triggered at 2025-07-18 10:30 UTC
+
+  [MEDIUM] Task TASK-00018 has been in review for 5 days
+         triggered at 2025-07-18 10:30 UTC
+```
+
+Alert thresholds are configurable in `.taskconfig`:
+
+```yaml
+notifications:
+  alerts:
+    blocked_threshold_hours: 24
+    stale_threshold_days: 3
+    review_threshold_days: 5
+    max_backlog_size: 10
+```
+
+### Step 3: Save a Session Summary
+
+Before ending a work session, save a summary for continuity:
+
+```bash
+$ adb session save TASK-00016
+```
+
+```
+Session saved: /home/you/adb-workspace/tickets/TASK-00016/sessions/2025-07-18T16-30-00Z.md
+Edit the file to fill in session details.
+```
+
+The generated file contains sections for accomplished work, decisions, blockers, and next steps. If `context.md` exists, its contents are appended as a context snapshot. The AI context generator reads the latest session file per active task to provide continuity across AI assistant sessions.
+
+### Key Points
+
+- **Event log:** All task lifecycle events are recorded automatically to `.adb_events.jsonl` (append-only JSONL)
+- **Non-fatal:** If the event log cannot be created, observability is disabled without affecting core functionality
+- **On-demand:** Metrics and alerts are derived from the event log at query time, not pre-computed
+- **Configurable:** Alert thresholds can be tuned per workspace in `.taskconfig`
+
+---
+
 ## Quick Reference: Command Cheat Sheet
 
 | Command                          | Description                                       |
@@ -1294,3 +1401,6 @@ $ adb status
 | `adb exec`                      | List configured CLI aliases                        |
 | `adb run [task] [args...]`      | Execute a Taskfile.yaml task                       |
 | `adb run --list`                | List available Taskfile tasks                      |
+| `adb metrics [--json] [--since]`| Display task and agent metrics from the event log  |
+| `adb alerts`                    | Show active alerts (blocked, stale, review, backlog)|
+| `adb session save [task-id]`   | Save a session summary to the task's sessions/      |

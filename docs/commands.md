@@ -792,8 +792,9 @@ anything.
 
 The Taskfile runner discovers `Taskfile.yaml` in the current working
 directory, finds the named task, and executes its commands sequentially.
-Each command in the task definition is run through the CLI executor with
-alias resolution and environment injection.
+Each command in the task definition is run through the `CLIExecutor` with
+alias resolution, environment injection, and task context propagation
+(`ADB_TASK_ID`, `ADB_BRANCH`, `ADB_WORKTREE_PATH`, `ADB_TICKET_PATH`).
 
 If any command in the task exits with a non-zero code, execution stops
 and the exit code is propagated.
@@ -1169,11 +1170,14 @@ environment variables into subprocesses:
 
 Additionally, the `ADB_HOME` environment variable can be set to override
 the default base directory where `adb` stores its data (tickets, backlog,
-wiki, etc.).
+wiki, etc.). When resolving the base path, `adb` checks `ADB_HOME` first.
+If it is not set, `adb` walks up the directory tree from the current
+working directory looking for a `.taskconfig` file. If neither is found,
+it falls back to the current working directory.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ADB_HOME` | Root directory for all adb data | Platform-dependent (typically `~/.adb`) |
+| `ADB_HOME` | Root directory for all adb data (checked first, before directory walk-up) | Unset; falls back to `.taskconfig` directory walk-up, then cwd |
 
 ### Event Log
 

@@ -133,6 +133,7 @@ classDiagram
         +UpdateTaskStatus(taskID, status) error
         +UpdateTaskPriority(taskID, priority) error
         +ReorderPriorities(taskIDs) error
+        +CleanupWorktree(taskID) error
     }
 
     class BootstrapSystem {
@@ -169,6 +170,11 @@ classDiagram
     class WorktreeCreator {
         <<interface>>
         +CreateWorktree(config) string, error
+    }
+
+    class WorktreeRemover {
+        <<interface>>
+        +RemoveWorktree(worktreePath) error
     }
 
     class TaskIDGenerator {
@@ -208,6 +214,7 @@ classDiagram
     TaskManager --> BootstrapSystem : delegates creation
     TaskManager --> BacklogStore : persists entries
     TaskManager --> ContextStore : loads context
+    TaskManager --> WorktreeRemover : removes worktrees
     BootstrapSystem --> TaskIDGenerator : generates IDs
     BootstrapSystem --> WorktreeCreator : creates worktrees
     BootstrapSystem --> TemplateManager : applies templates
@@ -219,7 +226,7 @@ classDiagram
 
 ## Adapter Pattern and Dependency Injection
 
-The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
+The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
 
 ```mermaid
 classDiagram
@@ -233,6 +240,9 @@ classDiagram
             <<interface>>
         }
         class WorktreeCreator {
+            <<interface>>
+        }
+        class WorktreeRemover {
             <<interface>>
         }
         class EventLogger {
@@ -271,6 +281,9 @@ classDiagram
         class worktreeAdapter {
             -mgr: GitWorktreeManager
         }
+        class worktreeRemoverAdapter {
+            -mgr: GitWorktreeManager
+        }
         class eventLogAdapter {
             -log: EventLog
         }
@@ -285,6 +298,9 @@ classDiagram
     worktreeAdapter ..|> WorktreeCreator : implements
     worktreeAdapter --> GitWorktreeManager : delegates to
 
+    worktreeRemoverAdapter ..|> WorktreeRemover : implements
+    worktreeRemoverAdapter --> GitWorktreeManager : delegates to
+
     eventLogAdapter ..|> EventLogger : implements
     eventLogAdapter --> EventLog : delegates to
 ```
@@ -295,7 +311,7 @@ The `NewApp` function in `internal/app.go` performs all wiring in a fixed order:
 2. **Storage** -- `BacklogManager`, `ContextManager`, `CommunicationManager` are created with the base path.
 3. **Integration** -- `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` are created.
 4. **Observability** -- `EventLog` (JSONL-backed) is opened at `.adb_events.jsonl`. `AlertEngine` and `MetricsCalculator` are created with the event log and configurable thresholds. If the event log cannot be created, observability is disabled gracefully (non-fatal).
-5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`.
+5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`. The `worktreeRemoverAdapter` bridges `integration.GitWorktreeManager` to `core.WorktreeRemover`.
 6. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`EventLog`, `AlertEngine`, `MetricsCalc`).
 
 ---
@@ -834,7 +850,7 @@ Property testing catches edge cases that example-based tests miss, particularly 
 
 ### Local interface definitions to avoid import cycles
 
-The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
+The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
 
 ### JSONL for event logging
 
@@ -982,9 +998,9 @@ This is a static configuration file read by AI assistants (e.g., Claude Code). I
 | Package | Responsibility | Key Interfaces |
 |---------|---------------|----------------|
 | `cmd/adb` | Binary entrypoint | -- |
-| `internal` | Composition root, adapters | `App` struct, `eventLogAdapter`, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter` |
+| `internal` | Composition root, adapters | `App` struct, `eventLogAdapter`, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter` |
 | `internal/cli` | Cobra command definitions | -- |
-| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `EventLogger` |
+| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover` |
 | `internal/observability` | Event logging, metrics, alerting | `EventLog`, `MetricsCalculator`, `AlertEngine` |
 | `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager` |
 | `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` |

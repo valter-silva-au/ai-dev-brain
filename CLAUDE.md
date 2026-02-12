@@ -60,6 +60,7 @@ internal/
     designdoc.go              # TaskDesignDocGenerator (task-level design docs)
     knowledge.go              # KnowledgeExtractor (learnings, ADRs, wiki)
     conflict.go               # ConflictDetector (ADR/decision/requirement checks)
+    projectinit.go            # ProjectInitializer (full workspace scaffolding)
     eventlogger.go            # EventLogger local interface (avoids importing observability)
   storage/
     backlog.go                # BacklogManager (backlog.yaml CRUD)
@@ -111,7 +112,7 @@ pkg/models/
 ## Go Coding Standards
 
 - Wrap errors with `fmt.Errorf("context: %w", err)` to preserve the error chain.
-- Define interfaces close to where they are consumed, not where they are implemented. Core package defines local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) to avoid importing storage/integration/observability.
+- Define interfaces close to where they are consumed, not where they are implemented. Core package defines local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) to avoid importing storage/integration/observability.
 - Use constructor functions that return interfaces: `func NewFoo(...) FooInterface { return &foo{...} }`.
 - All struct fields that need persistence use `yaml` struct tags.
 - File permissions: directories `0o755`, files `0o644`.
@@ -120,7 +121,7 @@ pkg/models/
 
 ## Key Patterns in This Codebase
 
-- **Local interface definitions** in `core/` (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) avoid importing `storage`/`integration`/`observability` packages.
+- **Local interface definitions** in `core/` (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) avoid importing `storage`/`integration`/`observability` packages.
 - **Adapter pattern** in `internal/app.go` bridges packages: `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `eventLogAdapter`.
 - **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
 - **Property tests** use `rapid.Check` with the `TestProperty` prefix naming convention.
@@ -154,10 +155,12 @@ pkg/models/
 | `TaskDesignDocGenerator` | Manage task-level technical design documents |
 | `KnowledgeExtractor` | Extract learnings, decisions, gotchas from completed tasks |
 | `ConflictDetector` | Check proposed changes against ADRs, decisions, requirements |
+| `ProjectInitializer` | Initialize full project workspace with directory structure, config, and docs |
 | `EventLogger` | Local interface for event logging, avoids importing observability package |
 | `BacklogStore` | Local interface mirroring storage.BacklogManager for decoupling |
 | `ContextStore` | Local interface mirroring storage.ContextManager for decoupling |
 | `WorktreeCreator` | Local interface mirroring integration.GitWorktreeManager for decoupling |
+| `WorktreeRemover` | Local interface for worktree removal, used by TaskManager for cleanup |
 
 ### Storage Package (`internal/storage/`)
 
@@ -193,7 +196,7 @@ pkg/models/
 - Integration tests: `internal/integration_test.go`
 - Edge case tests: `internal/qa_edge_cases_test.go`
 - All tests use `t.TempDir()` for filesystem isolation
-- 13 property test files across core, storage, and integration packages
+- 14 property test files across core, storage, and integration packages
 - Test files live alongside their implementation files
 
 ## File Naming Conventions
@@ -291,6 +294,8 @@ The AIContextGenerator assembles these sections into CLAUDE.md/kiro.md:
 | Recent Sessions | Latest `tickets/*/sessions/*.md` from active tasks (truncated to 20 lines) |
 | Stakeholders/Contacts | `docs/stakeholders.md`, `docs/contacts.md` |
 
+Additionally, `BootstrapSystem.generateTaskContext` writes a per-worktree `.claude/rules/task-context.md` file at task creation time (not part of `AIContextGenerator` or `sync-context`).
+
 ## Task Directory Structure
 
 Each task bootstraps the following directory tree:
@@ -355,8 +360,8 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 | `teammate-idle-check.sh` | `TeammateIdle` | Runs `go test` and `golangci-lint` to verify project health when a teammate is idle |
 | `task-completed-check.sh` | `TaskCompleted` | Verifies no uncommitted Go changes, runs tests and lint before marking a task complete |
 | `stop-quality-check.sh` | `Stop` | Checks for uncommitted changes, runs build and vet before stopping |
-| `post-edit-go-fmt.sh` | Post-Edit | Auto-formats Go files with `gofmt -s -w` after Edit/Write tool use |
-| `pre-edit-validate.sh` | Pre-Edit | Blocks editing vendor/ files and go.sum directly |
+| `post-edit-go-fmt.sh` | `PostToolUse` (Edit\|Write) | Auto-formats Go files with `gofmt -s -w` after Edit/Write tool use |
+| `pre-edit-validate.sh` | `PreToolUse` (Edit\|Write) | Blocks editing vendor/ files and go.sum directly |
 
 ### MCP Servers (`.mcp.json`)
 
