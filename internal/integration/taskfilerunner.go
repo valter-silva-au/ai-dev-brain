@@ -28,7 +28,7 @@ type TaskfileRunConfig struct {
 	TaskName string
 	Args     []string
 	TaskCtx  *TaskEnvContext // nil if no active task
-	Dir      string         // directory containing Taskfile.yaml
+	Dir      string          // directory containing Taskfile.yaml
 	Stdout   io.Writer
 	Stderr   io.Writer
 }

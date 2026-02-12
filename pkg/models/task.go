@@ -52,5 +52,6 @@ type Task struct {
 	Tags         []string   `yaml:"tags"`
 	BlockedBy    []string   `yaml:"blocked_by"`
 	Related      []string   `yaml:"related"`
+	Teams        []string   `yaml:"teams,omitempty"`
 	Source       string     `yaml:"source,omitempty"`
 }

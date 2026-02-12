@@ -146,4 +146,3 @@ func (m *resumeMock) ReorderPriorities(taskIDs []string) error {
 func (m *resumeMock) CleanupWorktree(taskID string) error {
 	return fmt.Errorf("not implemented")
 }
-

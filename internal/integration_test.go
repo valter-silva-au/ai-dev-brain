@@ -969,8 +969,8 @@ func TestIntegration_BacklogFilter_StatusAndPriority(t *testing.T) {
 	}
 
 	// Change statuses.
-	_, _ = app.TaskMgr.ResumeTask(task1.ID)    // -> in_progress
-	_, _ = app.TaskMgr.ArchiveTask(task2.ID)   // -> archived
+	_, _ = app.TaskMgr.ResumeTask(task1.ID)  // -> in_progress
+	_, _ = app.TaskMgr.ArchiveTask(task2.ID) // -> archived
 	// task3 stays in backlog
 
 	// Filter by in_progress.
@@ -1499,9 +1499,9 @@ func TestIntegration_TemplateManager_AllTaskTypes(t *testing.T) {
 	tmplMgr := core.NewTemplateManager(dir)
 
 	types := []struct {
-		typ        models.TaskType
-		notesKW    string
-		designKW   string
+		typ      models.TaskType
+		notesKW  string
+		designKW string
 	}{
 		{models.TaskTypeFeat, "Feature Notes", "Technical Design"},
 		{models.TaskTypeBug, "Bug Notes", "Root Cause"},

@@ -3,6 +3,7 @@ name: code-reviewer
 description: Reviews Go code for quality, security, correctness, and adherence to project patterns. Use when you want a thorough code review of changes.
 tools: Read, Grep, Glob, Bash
 model: sonnet
+memory: project
 ---
 
 You are a code reviewer for the AI Dev Brain (adb) Go project. Review Go code against project standards and patterns.

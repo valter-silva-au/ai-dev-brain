@@ -23,13 +23,15 @@ const (
 type ContextSection string
 
 const (
-	SectionOverview    ContextSection = "overview"
-	SectionStructure   ContextSection = "structure"
-	SectionConventions ContextSection = "conventions"
-	SectionGlossary    ContextSection = "glossary"
-	SectionDecisions   ContextSection = "decisions"
-	SectionActiveTasks ContextSection = "active_tasks"
-	SectionContacts    ContextSection = "contacts"
+	SectionOverview          ContextSection = "overview"
+	SectionStructure         ContextSection = "structure"
+	SectionConventions       ContextSection = "conventions"
+	SectionGlossary          ContextSection = "glossary"
+	SectionDecisions         ContextSection = "decisions"
+	SectionActiveTasks       ContextSection = "active_tasks"
+	SectionCriticalDecisions ContextSection = "critical_decisions"
+	SectionRecentSessions    ContextSection = "recent_sessions"
+	SectionContacts          ContextSection = "contacts"
 )
 
 // AIContextFile represents a generated AI context file.
@@ -47,6 +49,8 @@ type AIContextSections struct {
 	Glossary            string
 	DecisionsSummary    string
 	ActiveTaskSummaries string
+	CriticalDecisions   string
+	RecentSessions      string
 	StakeholderLinks    string
 	ContactLinks        string
 }
@@ -119,6 +123,10 @@ func (g *aiContextGenerator) RegenerateSection(section ContextSection) error {
 		g.sections.DecisionsSummary, err = g.AssembleDecisionsSummary()
 	case SectionActiveTasks:
 		g.sections.ActiveTaskSummaries, err = g.AssembleActiveTaskSummaries()
+	case SectionCriticalDecisions:
+		g.sections.CriticalDecisions, err = g.assembleCriticalDecisions()
+	case SectionRecentSessions:
+		g.sections.RecentSessions, err = g.assembleRecentSessions()
 	case SectionContacts:
 		g.sections.ContactLinks = g.assembleContacts()
 		g.sections.StakeholderLinks = g.assembleStakeholders()
@@ -169,6 +177,14 @@ func (g *aiContextGenerator) assembleAll() error {
 		return err
 	}
 	g.sections.ActiveTaskSummaries, err = g.AssembleActiveTaskSummaries()
+	if err != nil {
+		return err
+	}
+	g.sections.CriticalDecisions, err = g.assembleCriticalDecisions()
+	if err != nil {
+		return err
+	}
+	g.sections.RecentSessions, err = g.assembleRecentSessions()
 	if err != nil {
 		return err
 	}
@@ -331,6 +347,105 @@ func (g *aiContextGenerator) assembleContacts() string {
 	return "No contacts file found."
 }
 
+// assembleCriticalDecisions reads knowledge/decisions.yaml from active task
+// tickets and returns a formatted list of recent decisions.
+func (g *aiContextGenerator) assembleCriticalDecisions() (string, error) {
+	if err := g.backlogMgr.Load(); err != nil {
+		return "", fmt.Errorf("assembling critical decisions: %w", err)
+	}
+
+	activeStatuses := []models.TaskStatus{
+		models.StatusInProgress, models.StatusBlocked,
+		models.StatusReview, models.StatusBacklog,
+	}
+	tasks, err := g.backlogMgr.FilterTasks(storage.BacklogFilter{
+		Status: activeStatuses,
+	})
+	if err != nil {
+		return "", fmt.Errorf("assembling critical decisions: %w", err)
+	}
+
+	var sb strings.Builder
+	for _, task := range tasks {
+		decPath := filepath.Join(g.basePath, "tickets", task.ID, "knowledge", "decisions.yaml")
+		data, err := os.ReadFile(decPath) //nolint:gosec // G304: reading decisions from managed ticket directory
+		if err != nil {
+			continue
+		}
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("### %s\n\n", task.ID))
+		sb.WriteString(content)
+		sb.WriteString("\n\n")
+	}
+
+	if sb.Len() == 0 {
+		return "No critical decisions recorded in active tasks.", nil
+	}
+	return sb.String(), nil
+}
+
+// assembleRecentSessions reads the latest session files from active task
+// tickets and returns a formatted summary.
+func (g *aiContextGenerator) assembleRecentSessions() (string, error) {
+	if err := g.backlogMgr.Load(); err != nil {
+		return "", fmt.Errorf("assembling recent sessions: %w", err)
+	}
+
+	activeStatuses := []models.TaskStatus{
+		models.StatusInProgress, models.StatusBlocked,
+		models.StatusReview,
+	}
+	tasks, err := g.backlogMgr.FilterTasks(storage.BacklogFilter{
+		Status: activeStatuses,
+	})
+	if err != nil {
+		return "", fmt.Errorf("assembling recent sessions: %w", err)
+	}
+
+	var sb strings.Builder
+	for _, task := range tasks {
+		sessionsDir := filepath.Join(g.basePath, "tickets", task.ID, "sessions")
+		entries, err := os.ReadDir(sessionsDir)
+		if err != nil || len(entries) == 0 {
+			continue
+		}
+
+		// Get the last session file (entries are sorted by name, which is timestamp-based).
+		lastEntry := entries[len(entries)-1]
+		if lastEntry.IsDir() || !strings.HasSuffix(lastEntry.Name(), ".md") {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(sessionsDir, lastEntry.Name())) //nolint:gosec // G304: reading session files from managed ticket directory
+		if err != nil {
+			continue
+		}
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf("### %s (latest: %s)\n\n", task.ID, lastEntry.Name()))
+		// Include only the first 20 lines to keep context concise.
+		lines := strings.SplitN(content, "\n", 21)
+		if len(lines) > 20 {
+			sb.WriteString(strings.Join(lines[:20], "\n"))
+			sb.WriteString("\n...(truncated)\n")
+		} else {
+			sb.WriteString(content)
+		}
+		sb.WriteString("\n\n")
+	}
+
+	if sb.Len() == 0 {
+		return "No recent sessions recorded.", nil
+	}
+	return sb.String(), nil
+}
+
 func (g *aiContextGenerator) renderContextFile() string {
 	now := time.Now().Format(time.RFC3339)
 
@@ -360,6 +475,14 @@ func (g *aiContextGenerator) renderContextFile() string {
 
 	sb.WriteString("## Active Tasks\n\n")
 	sb.WriteString(g.sections.ActiveTaskSummaries)
+	sb.WriteString("\n\n")
+
+	sb.WriteString("## Critical Decisions\n\n")
+	sb.WriteString(g.sections.CriticalDecisions)
+	sb.WriteString("\n\n")
+
+	sb.WriteString("## Recent Sessions\n\n")
+	sb.WriteString(g.sections.RecentSessions)
 	sb.WriteString("\n\n")
 
 	sb.WriteString("## Key Contacts\n\n")

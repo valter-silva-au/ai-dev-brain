@@ -82,8 +82,8 @@ func (b *inMemoryBacklog) FilterTasks(filter BacklogStoreFilter) ([]BacklogStore
 	return result, nil
 }
 
-func (b *inMemoryBacklog) Load() error  { return nil }
-func (b *inMemoryBacklog) Save() error  { return nil }
+func (b *inMemoryBacklog) Load() error { return nil }
+func (b *inMemoryBacklog) Save() error { return nil }
 
 // mockContextStore implements ContextStore for testing.
 type mockContextStore struct {

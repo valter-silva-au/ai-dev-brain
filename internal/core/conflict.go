@@ -11,9 +11,9 @@ import (
 type ConflictType string
 
 const (
-	ConflictADRViolation            ConflictType = "adr_violation"
-	ConflictPreviousDecision        ConflictType = "previous_decision"
-	ConflictStakeholderRequirement  ConflictType = "stakeholder_requirement"
+	ConflictADRViolation           ConflictType = "adr_violation"
+	ConflictPreviousDecision       ConflictType = "previous_decision"
+	ConflictStakeholderRequirement ConflictType = "stakeholder_requirement"
 )
 
 // Severity indicates how urgent a conflict is.

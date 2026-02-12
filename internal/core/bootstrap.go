@@ -87,6 +87,8 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 	dirs := []string{
 		ticketPath,
 		filepath.Join(ticketPath, "communications"),
+		filepath.Join(ticketPath, "sessions"),
+		filepath.Join(ticketPath, "knowledge"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -159,6 +161,12 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 		result.WorktreePath = wtPath
 	}
 
+	// Generate .claude/rules/task-context.md in the worktree.
+	if result.WorktreePath != "" {
+		// Non-fatal: log but don't fail bootstrap.
+		_ = bs.generateTaskContext(result.WorktreePath, taskID, config)
+	}
+
 	task.TicketPath = ticketPath
 
 	statusPath := filepath.Join(ticketPath, "status.yaml")
@@ -183,4 +191,39 @@ func (bs *bootstrapSystem) ApplyTemplate(taskID string, templateType models.Task
 // GenerateTaskID delegates to the TaskIDGenerator.
 func (bs *bootstrapSystem) GenerateTaskID() (string, error) {
 	return bs.idGen.GenerateTaskID()
+}
+
+// generateTaskContext writes a .claude/rules/task-context.md file inside the
+// worktree so AI assistants have immediate task awareness.
+func (bs *bootstrapSystem) generateTaskContext(worktreePath, taskID string, config BootstrapConfig) error {
+	rulesDir := filepath.Join(worktreePath, ".claude", "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		return fmt.Errorf("creating rules directory: %w", err)
+	}
+
+	content := fmt.Sprintf(`# Task Context: %s
+
+This worktree is for task %s (%s).
+
+- **Type**: %s
+- **Branch**: %s
+- **Status**: backlog (newly created)
+- **Ticket**: tickets/%s/
+
+## Key Files
+- tickets/%s/context.md -- Running context (update as you work)
+- tickets/%s/notes.md -- Requirements and acceptance criteria
+- tickets/%s/design.md -- Technical design document
+- tickets/%s/sessions/ -- Session summaries (save progress between sessions)
+- tickets/%s/knowledge/ -- Extracted decisions and facts
+
+## Instructions
+- Update context.md with progress, decisions, and blockers as you work
+- Save session summaries to sessions/ when ending a work session
+- Record key decisions in knowledge/decisions.yaml
+`, taskID, taskID, config.Title, config.Type, config.BranchName,
+		taskID, taskID, taskID, taskID, taskID, taskID)
+
+	contextPath := filepath.Join(rulesDir, "task-context.md")
+	return os.WriteFile(contextPath, []byte(content), 0o644)
 }
