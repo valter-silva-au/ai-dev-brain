@@ -6,7 +6,7 @@ This document describes the internal architecture of AI Dev Brain (`adb`), cover
 
 ## System Overview
 
-AI Dev Brain is organized into four layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic. The integration layer communicates with external systems (git, OS tools, Taskfile). The storage layer persists data to the local filesystem. A shared `pkg/models` package defines the data structures used across layers.
+AI Dev Brain is organized into five layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic. The integration layer communicates with external systems (git, OS tools, Taskfile). The storage layer persists data to the local filesystem. The observability layer provides event logging, metrics derivation, and alerting. A shared `pkg/models` package defines the data structures used across layers.
 
 ```mermaid
 graph TD
@@ -25,6 +25,12 @@ graph TD
         TDG[TaskDesignDocGenerator]
         IDG[TaskIDGenerator]
         TMPL[TemplateManager]
+    end
+
+    subgraph "Observability Layer"
+        EL[EventLog]
+        MC[MetricsCalculator]
+        AE[AlertEngine]
     end
 
     subgraph "Integration Layer"
@@ -51,6 +57,9 @@ graph TD
     CLI --> ACG
     CLI --> EXEC
     CLI --> TFR
+    CLI --> EL
+    CLI --> MC
+    CLI --> AE
 
     TM --> BS
     TM --> BM
@@ -66,6 +75,9 @@ graph TD
     ACG --> BM
     TDG --> COMM
     CD --> MDL
+
+    MC --> EL
+    AE --> EL
 
     TFR --> EXEC
 
@@ -84,6 +96,9 @@ graph TD
     style TDG fill:#7b68ee,color:#fff
     style IDG fill:#7b68ee,color:#fff
     style TMPL fill:#7b68ee,color:#fff
+    style EL fill:#e74c3c,color:#fff
+    style MC fill:#e74c3c,color:#fff
+    style AE fill:#e74c3c,color:#fff
     style GWM fill:#2ecc71,color:#fff
     style OM fill:#2ecc71,color:#fff
     style TABM fill:#2ecc71,color:#fff
@@ -168,19 +183,43 @@ classDiagram
         +RegisterTemplate(taskType, templatePath) error
     }
 
+    class EventLog {
+        <<interface>>
+        +Write(event) error
+        +Read(filter) []Event, error
+        +Close() error
+    }
+
+    class MetricsCalculator {
+        <<interface>>
+        +Calculate(since) Metrics, error
+    }
+
+    class AlertEngine {
+        <<interface>>
+        +Evaluate() []Alert, error
+    }
+
+    class EventLogger {
+        <<interface>>
+        +LogEvent(eventType, data) error
+    }
+
     TaskManager --> BootstrapSystem : delegates creation
     TaskManager --> BacklogStore : persists entries
     TaskManager --> ContextStore : loads context
     BootstrapSystem --> TaskIDGenerator : generates IDs
     BootstrapSystem --> WorktreeCreator : creates worktrees
     BootstrapSystem --> TemplateManager : applies templates
+    MetricsCalculator --> EventLog : reads events
+    AlertEngine --> EventLog : evaluates conditions
 ```
 
 ---
 
 ## Adapter Pattern and Dependency Injection
 
-The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`) that mirror subsets of the storage and integration interfaces. This keeps the core package free of import dependencies on the storage and integration packages. The `App` struct bridges the gap using adapter structs.
+The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
 
 ```mermaid
 classDiagram
@@ -194,6 +233,9 @@ classDiagram
             <<interface>>
         }
         class WorktreeCreator {
+            <<interface>>
+        }
+        class EventLogger {
             <<interface>>
         }
     }
@@ -213,6 +255,12 @@ classDiagram
         }
     }
 
+    namespace observability {
+        class EventLog {
+            <<interface>>
+        }
+    }
+
     namespace internal_app {
         class backlogStoreAdapter {
             -mgr: BacklogManager
@@ -222,6 +270,9 @@ classDiagram
         }
         class worktreeAdapter {
             -mgr: GitWorktreeManager
+        }
+        class eventLogAdapter {
+            -log: EventLog
         }
     }
 
@@ -233,6 +284,9 @@ classDiagram
 
     worktreeAdapter ..|> WorktreeCreator : implements
     worktreeAdapter --> GitWorktreeManager : delegates to
+
+    eventLogAdapter ..|> EventLogger : implements
+    eventLogAdapter --> EventLog : delegates to
 ```
 
 The `NewApp` function in `internal/app.go` performs all wiring in a fixed order:
@@ -240,8 +294,9 @@ The `NewApp` function in `internal/app.go` performs all wiring in a fixed order:
 1. **Configuration** -- `ConfigurationManager` loads `.taskconfig` with Viper.
 2. **Storage** -- `BacklogManager`, `ContextManager`, `CommunicationManager` are created with the base path.
 3. **Integration** -- `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` are created.
-4. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed.
-5. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core and integration service instances.
+4. **Observability** -- `EventLog` (JSONL-backed) is opened at `.adb_events.jsonl`. `AlertEngine` and `MetricsCalculator` are created with the event log and configurable thresholds. If the event log cannot be created, observability is disabled gracefully (non-fatal).
+5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`.
+6. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`EventLog`, `AlertEngine`, `MetricsCalc`).
 
 ---
 
@@ -267,7 +322,7 @@ sequenceDiagram
     BS->>IDG: GenerateTaskID()
     IDG-->>BS: "TASK-00042"
 
-    BS->>BS: MkdirAll tickets/TASK-00042/communications/
+    BS->>BS: MkdirAll tickets/TASK-00042/{communications,sessions,knowledge}/
 
     BS->>TMPL: ApplyTemplate(ticketPath, "feat")
     TMPL-->>BS: writes notes.md + design.md
@@ -277,6 +332,9 @@ sequenceDiagram
 
     BS->>WT: CreateWorktree(config)
     WT-->>BS: worktree path
+
+    BS->>BS: generateTaskContext(worktreePath, taskID, config)
+    Note over BS: Writes .claude/rules/task-context.md into worktree
 
     BS-->>TM: BootstrapResult{TaskID, TicketPath, WorktreePath}
 
@@ -293,11 +351,12 @@ sequenceDiagram
 | Step | File / Directory |
 |------|-----------------|
 | GenerateTaskID | `.task_counter` (incremented) |
-| MkdirAll | `tickets/TASK-00042/` and `tickets/TASK-00042/communications/` |
+| MkdirAll | `tickets/TASK-00042/`, `tickets/TASK-00042/communications/`, `tickets/TASK-00042/sessions/`, `tickets/TASK-00042/knowledge/` |
 | ApplyTemplate | `tickets/TASK-00042/notes.md`, `tickets/TASK-00042/design.md` |
 | Write context.md | `tickets/TASK-00042/context.md` |
 | Write status.yaml | `tickets/TASK-00042/status.yaml` |
 | CreateWorktree | `repos/{platform}/{org}/{repo}/work/TASK-00042/` |
+| generateTaskContext | `work/TASK-00042/.claude/rules/task-context.md` (non-fatal if fails) |
 | BacklogStore.Save | `backlog.yaml` (updated) |
 
 ---
@@ -362,22 +421,26 @@ flowchart TD
     B --> F[AssembleGlossary]
     B --> G[AssembleDecisionsSummary]
     B --> H[AssembleActiveTaskSummaries]
-    B --> I[assembleStakeholders + assembleContacts]
+    B --> I[assembleCriticalDecisions]
+    B --> J[assembleRecentSessions]
+    B --> K[assembleStakeholders + assembleContacts]
 
-    C --> |"Static overview text"| J[AIContextSections]
-    D --> |"Directory tree description"| J
-    E --> |"Read docs/wiki/*convention*<br/>or use defaults"| J
-    F --> |"Read docs/glossary.md<br/>or use defaults"| J
-    G --> |"Scan docs/decisions/*.md<br/>for accepted ADRs"| J
-    H --> |"BacklogManager.FilterTasks<br/>active statuses"| J
-    I --> |"Check docs/stakeholders.md<br/>and docs/contacts.md"| J
+    C --> |"Static overview text"| L[AIContextSections]
+    D --> |"Directory tree description"| L
+    E --> |"Read docs/wiki/*convention*<br/>or use defaults"| L
+    F --> |"Read docs/glossary.md<br/>or use defaults"| L
+    G --> |"Scan docs/decisions/*.md<br/>for accepted ADRs"| L
+    H --> |"BacklogManager.FilterTasks<br/>active statuses"| L
+    I --> |"Read tickets/*/knowledge/decisions.yaml<br/>from active tasks"| L
+    J --> |"Read latest session from<br/>tickets/*/sessions/"| L
+    K --> |"Check docs/stakeholders.md<br/>and docs/contacts.md"| L
 
-    J --> K{Target AI type?}
-    K --> |claude| L["Write CLAUDE.md"]
-    K --> |kiro| M["Write kiro.md"]
+    L --> M{Target AI type?}
+    M --> |claude| N["Write CLAUDE.md"]
+    M --> |kiro| O["Write kiro.md"]
 
-    L --> N[Done]
-    M --> N
+    N --> P[Done]
+    O --> P
 ```
 
 ### Section data sources
@@ -390,6 +453,8 @@ flowchart TD
 | Glossary | `docs/glossary.md`, else defaults |
 | Decisions Summary | `docs/decisions/*.md` (accepted ADRs only) |
 | Active Tasks | `backlog.yaml` filtered by active statuses |
+| Critical Decisions | `tickets/*/knowledge/decisions.yaml` for active tasks |
+| Recent Sessions | Latest `.md` file from `tickets/*/sessions/` for active tasks (first 20 lines) |
 | Stakeholders/Contacts | `docs/stakeholders.md`, `docs/contacts.md` |
 
 ---
@@ -439,9 +504,128 @@ flowchart TD
 
 ---
 
+## Observability Architecture
+
+The observability layer (`internal/observability/`) provides structured event logging, on-demand metrics derivation, and threshold-based alerting. It operates on an append-only JSONL event log and requires no external services. The core package accesses the event log through a narrow `EventLogger` interface, following the same local interface pattern used for storage and integration decoupling.
+
+```mermaid
+flowchart TD
+    subgraph "Event Sources"
+        CLI["CLI Commands"]
+        TM["TaskManager"]
+        KE["KnowledgeExtractor"]
+    end
+
+    subgraph "Observability Layer"
+        EL["EventLog<br/>(JSONL append-only)"]
+        MC["MetricsCalculator"]
+        AE["AlertEngine"]
+    end
+
+    subgraph "Persistence"
+        JSONL[".adb_events.jsonl"]
+    end
+
+    CLI -->|"Write(Event)"| EL
+    TM -->|"LogEvent() via adapter"| EL
+    KE -->|"LogEvent() via adapter"| EL
+
+    EL -->|"append JSON + newline"| JSONL
+
+    MC -->|"Read(filter)"| EL
+    AE -->|"Read(filter)"| EL
+
+    MC -->|"Aggregate counts,<br/>status transitions"| METRICS["Metrics struct"]
+    AE -->|"Check thresholds"| ALERTS["[]Alert"]
+
+    style EL fill:#e74c3c,color:#fff
+    style MC fill:#e74c3c,color:#fff
+    style AE fill:#e74c3c,color:#fff
+    style JSONL fill:#c0392b,color:#fff
+```
+
+### Event structure
+
+Every event is a JSON object with a fixed schema, written as a single line in the JSONL file:
+
+```json
+{
+  "time": "2025-01-15T10:30:00Z",
+  "level": "INFO",
+  "type": "task.created",
+  "msg": "task.created",
+  "data": {
+    "task_id": "TASK-00042",
+    "type": "feat",
+    "branch": "add-user-auth"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time` | RFC 3339 timestamp | When the event occurred (UTC) |
+| `level` | string | Severity: `INFO`, `WARN`, `ERROR` |
+| `type` | string | Dot-namespaced event type (e.g., `task.created`, `task.status_changed`, `agent.session_started`, `knowledge.extracted`) |
+| `msg` | string | Human-readable message |
+| `data` | object | Arbitrary key-value payload (event-type-specific) |
+
+### Event types
+
+| Event Type | Trigger | Data Fields |
+|------------|---------|-------------|
+| `task.created` | New task bootstrapped | `task_id`, `type`, `branch` |
+| `task.completed` | Task status set to `done` | `task_id` |
+| `task.status_changed` | Any status transition | `task_id`, `old_status`, `new_status` |
+| `agent.session_started` | AI agent begins a session | `task_id`, `agent` |
+| `knowledge.extracted` | Knowledge extracted on archive | `task_id`, `learnings_count`, `decisions_count` |
+
+### Metrics calculation
+
+The `MetricsCalculator` reads all events since a given time and produces an aggregated `Metrics` struct:
+
+| Metric | Derivation |
+|--------|------------|
+| `TasksCreated` | Count of `task.created` events |
+| `TasksCompleted` | Count of `task.completed` events |
+| `TasksByStatus` | Count of `task.status_changed` events grouped by `new_status` |
+| `TasksByType` | Count of `task.created` events grouped by `type` |
+| `AgentSessions` | Count of `agent.session_started` events |
+| `KnowledgeExtracted` | Count of `knowledge.extracted` events |
+| `EventCount` | Total events in the time range |
+| `OldestEvent` / `NewestEvent` | Timestamp boundaries |
+
+### Alert evaluation
+
+The `AlertEngine` reads events, reconstructs current task state, and evaluates four threshold-based conditions:
+
+| Alert Condition | Severity | Default Threshold | Description |
+|----------------|----------|-------------------|-------------|
+| `task_blocked_too_long` | high | 24 hours | A task has been in `blocked` status longer than the threshold |
+| `task_stale` | medium | 3 days | An `in_progress` task has had no activity beyond the threshold |
+| `review_too_long` | medium | 5 days | A task has been in `review` status beyond the threshold |
+| `backlog_too_large` | low | 10 tasks | More tasks in `backlog` status than the configured maximum |
+
+Thresholds are configurable via `.taskconfig`:
+
+```yaml
+notifications:
+  alerts:
+    blocked_threshold_hours: 24
+    stale_threshold_days: 3
+    review_threshold_days: 5
+    max_backlog_size: 10
+```
+
+### Graceful degradation
+
+If the JSONL event log file cannot be opened during `NewApp`, observability is disabled entirely (non-fatal). The `EventLog`, `AlertEngine`, and `MetricsCalculator` fields on `App` are set to `nil`, and the CLI skips observability operations when these are absent. This ensures that a permissions error or full disk never prevents normal task management.
+
+---
+
 ## Storage and Directory Structure
 
-All data is persisted as human-readable files (YAML and Markdown) under a single base directory. There is no database. This design is intentional: files are git-friendly, diff-able, and require no runtime dependencies.
+All data is persisted as human-readable files (YAML, Markdown, and JSONL) under a single base directory. There is no database. This design is intentional: files are git-friendly, diff-able, and require no runtime dependencies.
 
 ```mermaid
 graph TD
@@ -450,7 +634,9 @@ graph TD
     ROOT --> TC[".taskconfig<br/>(global YAML config)"]
     ROOT --> COUNTER[".task_counter<br/>(integer file)"]
     ROOT --> BACKLOG["backlog.yaml<br/>(central task registry)"]
+    ROOT --> EVENTS[".adb_events.jsonl<br/>(observability event log)"]
     ROOT --> CLAUDE["CLAUDE.md / kiro.md<br/>(AI context files)"]
+    ROOT --> MCP[".mcp.json<br/>(MCP server config)"]
 
     ROOT --> TICKETS["tickets/"]
     TICKETS --> T1["TASK-00001/"]
@@ -462,6 +648,10 @@ graph TD
     T1 --> COMMS["communications/"]
     COMMS --> COMM1["2025-01-15-slack-alice-api-design.md"]
     COMMS --> COMM2["2025-01-16-email-bob-review.md"]
+    T1 --> SESSIONS["sessions/"]
+    SESSIONS --> SESS1["2025-01-15-session.md"]
+    T1 --> KNOWLEDGE["knowledge/"]
+    KNOWLEDGE --> KDEC["decisions.yaml"]
 
     ROOT --> REPOS["repos/"]
     REPOS --> PLATFORM["github.com/"]
@@ -469,6 +659,7 @@ graph TD
     ORG --> REPO["repo/"]
     REPO --> WORK["work/"]
     WORK --> WT1["TASK-00001/<br/>(git worktree)"]
+    WT1 --> CLRULES[".claude/rules/<br/>task-context.md"]
 
     ROOT --> DOCS["docs/"]
     DOCS --> WIKI["wiki/<br/>(extracted knowledge)"]
@@ -481,6 +672,9 @@ graph TD
     style TICKETS fill:#e67e22,color:#fff
     style REPOS fill:#2ecc71,color:#fff
     style DOCS fill:#3498db,color:#fff
+    style EVENTS fill:#c0392b,color:#fff
+    style SESSIONS fill:#e67e22,color:#fff
+    style KNOWLEDGE fill:#e67e22,color:#fff
 ```
 
 ### File format reference
@@ -554,6 +748,52 @@ Discussed REST vs GraphQL approach...
 - requirement
 ```
 
+**.adb_events.jsonl** -- Append-only observability event log:
+
+```jsonl
+{"time":"2025-01-15T10:00:00Z","level":"INFO","type":"task.created","msg":"task.created","data":{"task_id":"TASK-00001","type":"feat","branch":"add-auth"}}
+{"time":"2025-01-15T10:05:00Z","level":"INFO","type":"task.status_changed","msg":"task.status_changed","data":{"task_id":"TASK-00001","old_status":"backlog","new_status":"in_progress"}}
+{"time":"2025-01-15T14:30:00Z","level":"INFO","type":"agent.session_started","msg":"agent.session_started","data":{"task_id":"TASK-00001","agent":"claude"}}
+```
+
+Each line is an independent JSON object. The file is opened in append-only mode and writes are mutex-protected. Reads scan line-by-line and skip malformed entries, making the log resilient to partial writes.
+
+**Session summaries** -- Markdown files in `tickets/TASK-XXXXX/sessions/`:
+
+```markdown
+# Session: 2025-01-15
+
+## What was accomplished
+- Implemented authentication middleware
+- Added JWT token validation
+
+## Decisions made
+- Use RS256 for token signing
+
+## Open questions
+- How to handle token refresh for mobile clients?
+
+## Next steps
+- Add refresh token endpoint
+```
+
+Session files are named with timestamps (e.g., `2025-01-15-session.md`) and sorted lexicographically. The AI context generator reads the latest session file per active task to provide continuity across AI assistant sessions.
+
+**Knowledge decisions** -- YAML in `tickets/TASK-XXXXX/knowledge/decisions.yaml`:
+
+```yaml
+- decision: Use RS256 for JWT token signing
+  rationale: Asymmetric keys allow verification without sharing the signing key
+  date: 2025-01-15
+  status: accepted
+```
+
+These per-task decisions are surfaced in the "Critical Decisions" section of the generated AI context files and may be promoted to ADRs during knowledge extraction on archive.
+
+**Per-worktree task context** -- `work/TASK-XXXXX/.claude/rules/task-context.md`:
+
+Generated automatically during bootstrap, this file gives AI assistants immediate awareness of the task they are working on, including task ID, type, branch, and pointers to key files (`context.md`, `notes.md`, `design.md`, `sessions/`, `knowledge/`).
+
 ---
 
 ## Design Decisions
@@ -594,7 +834,31 @@ Property testing catches edge cases that example-based tests miss, particularly 
 
 ### Local interface definitions to avoid import cycles
 
-The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`) that mirror subsets of the storage and integration interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage and integration packages, preventing circular dependencies.
+The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
+
+### JSONL for event logging
+
+The observability event log uses JSON Lines (JSONL) -- one JSON object per line, appended to a single file. This was chosen because:
+
+- **Append-only**: Writes never modify existing data, making the log safe against partial writes and corruption. Malformed lines are silently skipped on read.
+- **Human-inspectable**: Events can be read with standard tools (`cat`, `jq`, `grep`).
+- **No external dependencies**: No need for a time-series database or log aggregation service.
+- **Git-friendly**: While the file grows over time, it can be `.gitignored` for repos that do not want to track operational data.
+
+The tradeoff is that reads scan the entire file (O(n)), which is acceptable for the single-user, local-first design of `adb`. For workspaces with very large event logs, time-based filtering (`EventFilter.Since`) limits the scan window.
+
+### Per-worktree task context files
+
+When a new task is bootstrapped, `generateTaskContext` writes a `.claude/rules/task-context.md` file inside the git worktree. This gives AI coding assistants immediate awareness of the task context without requiring the AI to search for the ticket directory. This is non-fatal: if the write fails (e.g., the worktree is read-only), bootstrap continues normally. The file contains the task ID, type, branch, and pointers to key files.
+
+### Per-task sessions and knowledge directories
+
+Each task ticket now includes `sessions/` and `knowledge/` directories alongside the existing `communications/` directory:
+
+- **sessions/**: Stores markdown session summaries, allowing AI assistants to save progress between sessions and resume with continuity. The AI context generator reads the latest session file to include in generated context.
+- **knowledge/**: Stores structured knowledge artifacts like `decisions.yaml`, which are surfaced in the "Critical Decisions" section of AI context files and fed into the knowledge extraction pipeline on archive.
+
+These directories are created during bootstrap and provide a structured way to accumulate per-task intelligence that was previously only captured informally in `context.md`.
 
 ---
 
@@ -681,6 +945,36 @@ The `KnowledgeExtractor` creates a feedback loop from completed tasks back into 
 
 The `ConflictDetector` scans existing ADRs (`docs/decisions/`), previous task decisions (`tickets/*/design.md`), and stakeholder requirements (`docs/wiki/`) before proposed changes are applied. It uses keyword overlap analysis to flag potential conflicts, categorized by type (`adr_violation`, `previous_decision`, `stakeholder_requirement`) and severity (`high`, `medium`, `low`).
 
+### Observability and alerting
+
+The observability layer is designed for extensibility:
+
+- **Custom event types**: Any component can write events with arbitrary `type` and `data` fields. The `MetricsCalculator` and `AlertEngine` only process known event types; unrecognized types are preserved in the log but do not affect metrics or alerts.
+- **Configurable alert thresholds**: All alert thresholds (`blocked_threshold_hours`, `stale_threshold_days`, `review_threshold_days`, `max_backlog_size`) are configurable in `.taskconfig` under `notifications.alerts`. The `AlertEngine` applies these thresholds at evaluation time.
+- **Notification webhooks**: The alert evaluation results (`[]Alert`) are returned to the CLI layer, which can integrate with external notification systems (Slack webhooks, email, etc.) without changes to the observability package.
+- **Dashboard integration**: The `MetricsCalculator` returns a structured `Metrics` object that can be serialized to JSON and consumed by external dashboards or monitoring tools.
+
+### MCP server configuration
+
+The `.mcp.json` file at the project root configures Model Context Protocol (MCP) servers that AI coding assistants can connect to for enhanced capabilities:
+
+```json
+{
+  "mcpServers": {
+    "aws-knowledge": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}
+```
+
+This is a static configuration file read by AI assistants (e.g., Claude Code). It is not consumed by the `adb` binary itself. Adding new MCP servers is a matter of adding entries to this file.
+
 ---
 
 ## Package Reference
@@ -688,9 +982,10 @@ The `ConflictDetector` scans existing ADRs (`docs/decisions/`), previous task de
 | Package | Responsibility | Key Interfaces |
 |---------|---------------|----------------|
 | `cmd/adb` | Binary entrypoint | -- |
-| `internal` | Composition root, adapters | `App` struct |
+| `internal` | Composition root, adapters | `App` struct, `eventLogAdapter`, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter` |
 | `internal/cli` | Cobra command definitions | -- |
-| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager` |
+| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `EventLogger` |
+| `internal/observability` | Event logging, metrics, alerting | `EventLog`, `MetricsCalculator`, `AlertEngine` |
 | `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager` |
 | `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` |
 | `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision` |

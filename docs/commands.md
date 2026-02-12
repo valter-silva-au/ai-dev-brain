@@ -31,6 +31,12 @@ graph LR
         exec["adb exec"]
         run["adb run"]
     end
+
+    subgraph "Observability"
+        metrics["adb metrics"]
+        alerts["adb alerts"]
+        session["adb session"]
+    end
 ```
 
 ---
@@ -862,6 +868,293 @@ adb run deploy
 
 ---
 
+## Observability Commands
+
+### adb metrics
+
+Display task and agent metrics.
+
+**Synopsis**
+
+```
+adb metrics [flags]
+```
+
+**Description**
+
+Display aggregated metrics derived from the event log (`.adb_events.jsonl`).
+Metrics include task creation and completion counts, tasks grouped by status
+and type, agent session counts, and knowledge extraction counts.
+
+By default, metrics cover the last 7 days. Use `--since` to change the time
+window. Use `--json` to output structured JSON instead of the default table
+format.
+
+**Arguments**
+
+None (takes no positional arguments).
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--json` | bool | `false` | Output metrics as JSON |
+| `--since` | string | `"7d"` | Time window for metrics. Accepts day (`7d`, `30d`) or hour (`24h`) suffixes. |
+
+**Output**
+
+In table format (default):
+
+```
+Metrics (since 2025-01-08)
+
+  Events recorded:         42
+  Tasks created:           5
+  Tasks completed:         3
+  Agent sessions:          12
+  Knowledge extracted:     2
+
+  Tasks by type:
+    feat:                3
+    bug:                 2
+
+  Status transitions:
+    in_progress:         8
+    done:                3
+
+  Oldest event:          2025-01-08T09:15:00Z
+  Newest event:          2025-01-15T14:22:00Z
+```
+
+In JSON format (`--json`):
+
+```json
+{
+  "tasks_created": 5,
+  "tasks_completed": 3,
+  "tasks_by_status": {
+    "in_progress": 8,
+    "done": 3
+  },
+  "tasks_by_type": {
+    "feat": 3,
+    "bug": 2
+  },
+  "agent_sessions": 12,
+  "knowledge_extracted": 2,
+  "event_count": 42,
+  "oldest_event": "2025-01-08T09:15:00Z",
+  "newest_event": "2025-01-15T14:22:00Z"
+}
+```
+
+**Errors**
+
+- If the observability subsystem is not initialized, returns
+  "metrics calculator not initialized (observability may be disabled)".
+- If the `--since` value uses an unsupported format, returns a parse error
+  with usage guidance.
+
+**Examples**
+
+```bash
+# Show metrics for the last 7 days (default)
+adb metrics
+
+# Show metrics for the last 30 days
+adb metrics --since 30d
+
+# Show metrics for the last 24 hours
+adb metrics --since 24h
+
+# Output metrics as JSON (useful for scripting or dashboards)
+adb metrics --json
+
+# Combine JSON output with a custom time window
+adb metrics --json --since 30d
+```
+
+---
+
+### adb alerts
+
+Show active alerts and warnings.
+
+**Synopsis**
+
+```
+adb alerts
+```
+
+**Description**
+
+Evaluate alert conditions against the event log and display any triggered
+alerts. Alerts check for common workflow issues such as blocked tasks,
+stale tasks, long-running reviews, and backlog size.
+
+Each alert includes a severity level (`HIGH`, `MEDIUM`, or `LOW`) and a
+human-readable message describing the condition that triggered it.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+If alerts are active:
+
+```
+3 active alert(s):
+
+  [HIGH] Task TASK-00042 has been blocked for 72 hours
+         triggered at 2025-01-15 10:30 UTC
+
+  [MEDIUM] Task TASK-00015 has been in review for 5 days
+         triggered at 2025-01-15 10:30 UTC
+
+  [LOW] Backlog contains 15 tasks
+         triggered at 2025-01-15 10:30 UTC
+```
+
+If no alerts are active, prints "No active alerts."
+
+**Errors**
+
+- If the observability subsystem is not initialized, returns
+  "alert engine not initialized (observability may be disabled)".
+
+**Examples**
+
+```bash
+# Check for active alerts
+adb alerts
+```
+
+---
+
+### adb session
+
+Manage session summaries for tasks.
+
+**Synopsis**
+
+```
+adb session <subcommand>
+```
+
+**Description**
+
+Parent command for session-related operations. Currently provides the
+`save` subcommand for creating timestamped session summaries.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `save` | Save a session summary for a task |
+
+---
+
+### adb session save
+
+Save a session summary for the current task.
+
+**Synopsis**
+
+```
+adb session save [task-id]
+```
+
+**Description**
+
+Save a structured session summary to the task's `sessions/` directory.
+The session file is timestamped and contains sections for accomplished
+work, decisions, blockers, and next steps. If the task has a `context.md`
+file, its contents are appended as a context snapshot.
+
+If no `task-id` is provided as an argument, the `ADB_TASK_ID` environment
+variable is used. This makes the command convenient to run from within
+an `adb exec` or `adb run` context where the environment variable is
+automatically set.
+
+The generated file is a template intended to be edited by the developer
+after creation.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | No | The task identifier (e.g. `TASK-00042`). Falls back to `ADB_TASK_ID` environment variable if omitted. |
+
+**Flags**
+
+None.
+
+**Output**
+
+On success, prints the path to the created session file and a reminder
+to edit it:
+
+```
+Session saved: /home/user/.adb/tickets/TASK-00042/sessions/2025-01-15T14-30-00Z.md
+Edit the file to fill in session details.
+```
+
+The generated session file contains:
+
+```markdown
+# Session: 2025-01-15T14:30:00Z
+
+**Task:** TASK-00042
+**Date:** 2025-01-15
+
+## Accomplished
+
+- (describe what was completed this session)
+
+## Decisions
+
+- (record any decisions made)
+
+## Blockers
+
+- (note any blockers encountered)
+
+## Next Steps
+
+- (list what should happen next)
+
+## Context Snapshot
+
+(contents of context.md, if present)
+```
+
+**Errors**
+
+- If no task ID is provided and `ADB_TASK_ID` is not set, returns
+  "task ID required: provide as argument or set ADB_TASK_ID".
+- If the task ticket directory does not exist, returns a not-found error.
+
+**Examples**
+
+```bash
+# Save a session summary for a specific task
+adb session save TASK-00042
+
+# Save a session summary using ADB_TASK_ID (set by adb exec/run)
+adb session save
+
+# Typical workflow: save session before ending work
+adb session save TASK-00015
+# Then edit the generated file to fill in details
+```
+
+---
+
 ## Environment Variables
 
 When a task is active, `adb exec` and `adb run` inject the following
@@ -881,6 +1174,15 @@ wiki, etc.).
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ADB_HOME` | Root directory for all adb data | Platform-dependent (typically `~/.adb`) |
+
+### Event Log
+
+The observability commands (`adb metrics`, `adb alerts`) read from the
+event log file `.adb_events.jsonl` located in the adb base directory.
+This file is a newline-delimited JSON log that records task lifecycle
+events, agent sessions, and knowledge extraction events. It is written
+automatically by the observability subsystem and should not be edited
+manually.
 
 ---
 
