@@ -47,7 +47,7 @@ func TestProperty_ArchiveUnarchiveRoundTrip(t *testing.T) {
 		mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil)
 
 		// Create a task.
-		task, err := mgr.CreateTask(taskType, branchName, "")
+		task, err := mgr.CreateTask(taskType, branchName, "", CreateTaskOpts{})
 		if err != nil {
 			t.Fatalf("CreateTask failed: %v", err)
 		}

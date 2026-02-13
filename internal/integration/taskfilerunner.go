@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -28,7 +30,7 @@ type TaskfileRunConfig struct {
 	TaskName string
 	Args     []string
 	TaskCtx  *TaskEnvContext // nil if no active task
-	Dir      string         // directory containing Taskfile.yaml
+	Dir      string          // directory containing Taskfile.yaml
 	Stdout   io.Writer
 	Stderr   io.Writer
 }
@@ -116,12 +118,28 @@ func (r *taskfileRunner) Run(config TaskfileRunConfig) (*CLIExecResult, error) {
 		return &CLIExecResult{ExitCode: 0}, nil
 	}
 
-	// Execute each command in the task sequentially.
+	// Execute each command in the task sequentially through the system shell.
+	// Taskfile commands are shell commands (like the official task tool), so we
+	// delegate to sh -c (or cmd /c on Windows) to handle multi-word commands,
+	// pipes, redirects, and variable expansion.
 	var lastResult *CLIExecResult
 	for _, cmdStr := range task.Commands {
+		// Append any user-provided args to the shell command string.
+		fullCmd := cmdStr
+		if len(config.Args) > 0 {
+			fullCmd = cmdStr + " " + strings.Join(config.Args, " ")
+		}
+
+		shell := "sh"
+		shellArgs := []string{"-c", fullCmd}
+		if runtime.GOOS == "windows" {
+			shell = "cmd"
+			shellArgs = []string{"/c", fullCmd}
+		}
+
 		result, execErr := r.executor.Exec(CLIExecConfig{
-			CLI:     cmdStr,
-			Args:    config.Args,
+			CLI:     shell,
+			Args:    shellArgs,
 			TaskCtx: config.TaskCtx,
 			Stdout:  config.Stdout,
 			Stderr:  config.Stderr,

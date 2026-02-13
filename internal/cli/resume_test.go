@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
 
@@ -100,7 +101,7 @@ type resumeMock struct {
 	resumeTaskFn func(taskID string) (*models.Task, error)
 }
 
-func (m *resumeMock) CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error) {
+func (m *resumeMock) CreateTask(taskType models.TaskType, branchName string, repoPath string, opts core.CreateTaskOpts) (*models.Task, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -146,4 +147,3 @@ func (m *resumeMock) ReorderPriorities(taskIDs []string) error {
 func (m *resumeMock) CleanupWorktree(taskID string) error {
 	return fmt.Errorf("not implemented")
 }
-

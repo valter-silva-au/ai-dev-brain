@@ -412,3 +412,270 @@ func TestLogFailure_AppendsToContext(t *testing.T) {
 		t.Error("context.md missing stderr")
 	}
 }
+
+// --- containsPipe tests ---
+
+func TestContainsPipe_NoPipe(t *testing.T) {
+	if containsPipe([]string{"echo", "hello"}) {
+		t.Error("expected false for args without pipe")
+	}
+}
+
+func TestContainsPipe_WithPipe(t *testing.T) {
+	if !containsPipe([]string{"echo", "hello", "|", "wc", "-l"}) {
+		t.Error("expected true for args with pipe")
+	}
+}
+
+func TestContainsPipe_EmptyArgs(t *testing.T) {
+	if containsPipe(nil) {
+		t.Error("expected false for nil args")
+	}
+	if containsPipe([]string{}) {
+		t.Error("expected false for empty args")
+	}
+}
+
+// --- Exec with pipe ---
+
+func TestExec_WithPipe(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pipe test uses sh -c on non-Windows")
+	}
+	executor := NewCLIExecutor()
+
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:  "echo",
+		Args: []string{"hello world", "|", "wc", "-w"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestExec_CapturesStderr(t *testing.T) {
+	executor := NewCLIExecutor()
+	var errBuf bytes.Buffer
+
+	var cli string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cli = "cmd"
+		args = []string{"/c", "echo stderr_msg>&2"}
+	} else {
+		cli = "sh"
+		args = []string{"-c", "echo stderr_msg >&2"}
+	}
+
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:    cli,
+		Args:   args,
+		Stderr: &errBuf,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result.Stderr, "stderr_msg") {
+		t.Errorf("result.Stderr = %q, want to contain 'stderr_msg'", result.Stderr)
+	}
+	if !strings.Contains(errBuf.String(), "stderr_msg") {
+		t.Errorf("errBuf = %q, want to contain 'stderr_msg'", errBuf.String())
+	}
+}
+
+func TestExec_WithStdin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("stdin test uses cat on non-Windows")
+	}
+	executor := NewCLIExecutor()
+	input := strings.NewReader("input_data\n")
+
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:   "cat",
+		Stdin: input,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Stdout, "input_data") {
+		t.Errorf("stdout = %q, want to contain 'input_data'", result.Stdout)
+	}
+}
+
+// --- LogFailure additional tests ---
+
+func TestLogFailure_InvalidTicketPath_ReturnsError(t *testing.T) {
+	executor := NewCLIExecutor()
+	ctx := &TaskEnvContext{
+		TaskID:     "TASK-00001",
+		TicketPath: "/nonexistent/path/that/does/not/exist",
+	}
+
+	err := executor.LogFailure(ctx, "git", []string{"push"}, &CLIExecResult{
+		ExitCode: 1,
+		Stderr:   "error",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid ticket path")
+	}
+	if !strings.Contains(err.Error(), "opening context file") {
+		t.Errorf("error = %q, want to contain 'opening context file'", err.Error())
+	}
+}
+
+func TestExec_FailingCommand_WithTaskCtx_LogsFailure(t *testing.T) {
+	executor := NewCLIExecutor()
+	ticketDir := t.TempDir()
+
+	ctx := &TaskEnvContext{
+		TaskID:       "TASK-00001",
+		Branch:       "feat/test",
+		WorktreePath: "/worktree",
+		TicketPath:   ticketDir,
+	}
+
+	var cli string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cli = "cmd"
+		args = []string{"/c", "exit 42"}
+	} else {
+		cli = "sh"
+		args = []string{"-c", "exit 42"}
+	}
+
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:     cli,
+		Args:    args,
+		TaskCtx: ctx,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 42 {
+		t.Errorf("exit code = %d, want 42", result.ExitCode)
+	}
+
+	// Verify failure was logged.
+	data, readErr := os.ReadFile(filepath.Join(ticketDir, "context.md"))
+	if readErr != nil {
+		t.Fatalf("failed to read context.md: %v", readErr)
+	}
+	if !strings.Contains(string(data), "CLI Failure") {
+		t.Error("context.md missing 'CLI Failure'")
+	}
+}
+
+func TestExec_FailingCommand_LogFailureError_PrintsWarning(t *testing.T) {
+	// When a command fails and LogFailure also fails (e.g., bad ticket path),
+	// the warning is printed to stderr but the command result is still returned.
+	executor := NewCLIExecutor()
+
+	ctx := &TaskEnvContext{
+		TaskID:       "TASK-00001",
+		Branch:       "feat/test",
+		WorktreePath: "/worktree",
+		TicketPath:   "/nonexistent/path/for/test",
+	}
+
+	var errBuf bytes.Buffer
+
+	var cli string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cli = "cmd"
+		args = []string{"/c", "exit 1"}
+	} else {
+		cli = "sh"
+		args = []string{"-c", "exit 1"}
+	}
+
+	// Redirect os.Stderr temporarily to capture the warning.
+	origStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:     cli,
+		Args:    args,
+		TaskCtx: ctx,
+		Stderr:  &errBuf,
+	})
+
+	_ = w.Close()
+	os.Stderr = origStderr
+
+	warningBuf := make([]byte, 4096)
+	n, _ := r.Read(warningBuf)
+	_ = r.Close()
+	warning := string(warningBuf[:n])
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 1 {
+		t.Errorf("exit code = %d, want 1", result.ExitCode)
+	}
+
+	// The warning about LogFailure should have been printed to stderr.
+	if !strings.Contains(warning, "warning: failed to log CLI failure") {
+		t.Errorf("expected warning about LogFailure, got: %q", warning)
+	}
+}
+
+func TestExec_WithPipe_Windows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-specific test")
+	}
+	executor := NewCLIExecutor()
+
+	// Test pipe handling on Windows (uses cmd /c).
+	result, err := executor.Exec(CLIExecConfig{
+		CLI:  "echo",
+		Args: []string{"hello", "|", "findstr", "hello"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestLogFailure_WriteError(t *testing.T) {
+	// Test LogFailure when WriteString fails due to a closed file.
+	executor := NewCLIExecutor()
+	ticketDir := t.TempDir()
+
+	// Create an initial context.md file.
+	contextPath := filepath.Join(ticketDir, "context.md")
+	if err := os.WriteFile(contextPath, []byte("# Context\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &TaskEnvContext{
+		TaskID:     "TASK-00001",
+		TicketPath: ticketDir,
+	}
+
+	// Make the directory read-only so appending to the file fails.
+	if err := os.Chmod(ticketDir, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(ticketDir, 0o755) }()
+
+	err := executor.LogFailure(ctx, "git", []string{"push"}, &CLIExecResult{
+		ExitCode: 1,
+		Stderr:   "push failed",
+	})
+	if err == nil {
+		t.Fatal("expected error when writing to context file fails")
+	}
+	if !strings.Contains(err.Error(), "opening context file") {
+		t.Errorf("error = %q, want to contain 'opening context file'", err.Error())
+	}
+}

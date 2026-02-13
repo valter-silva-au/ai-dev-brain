@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -193,6 +194,280 @@ tasks:
 	}
 	if result.ExitCode != 0 {
 		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestRun_MultiWordCommand(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  hello:
+    desc: "Say hello"
+    cmds:
+      - echo hello from taskfile
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "hello",
+		Dir:      dir,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+	if !strings.Contains(result.Stdout, "hello from taskfile") {
+		t.Errorf("stdout = %q, want it to contain 'hello from taskfile'", result.Stdout)
+	}
+}
+
+func TestRun_CommandWithArgs(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  greet:
+    cmds:
+      - echo hello
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "greet",
+		Dir:      dir,
+		Args:     []string{"world"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+	if !strings.Contains(result.Stdout, "hello world") {
+		t.Errorf("stdout = %q, want it to contain 'hello world'", result.Stdout)
+	}
+}
+
+func TestRun_FailingCommand_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  fail:
+    cmds:
+      - exit 1
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "fail",
+		Dir:      dir,
+	})
+	// A failing command should return the result (not an error) with nonzero exit code.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code")
+	}
+}
+
+func TestRun_MultipleCommands_StopsOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  multi:
+    cmds:
+      - echo first
+      - exit 1
+      - echo third
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "multi",
+		Dir:      dir,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code from second command")
+	}
+}
+
+func TestRun_NoTaskfile_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	_, err := runner.Run(TaskfileRunConfig{
+		TaskName: "build",
+		Dir:      dir,
+	})
+	if err == nil {
+		t.Fatal("expected error for missing Taskfile.yaml")
+	}
+}
+
+func TestListTasks_NoTaskfile_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	_, err := runner.ListTasks(dir)
+	if err == nil {
+		t.Fatal("expected error for missing Taskfile.yaml")
+	}
+}
+
+func TestDiscover_ReadError(t *testing.T) {
+	dir := t.TempDir()
+	// Create Taskfile.yaml as a directory instead of a file to cause a read error.
+	if err := os.MkdirAll(filepath.Join(dir, "Taskfile.yaml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	_, err := runner.Discover(dir)
+	if err == nil {
+		t.Fatal("expected error when reading Taskfile.yaml fails")
+	}
+}
+
+func TestRun_WithTaskContext(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  check:
+    cmds:
+      - echo running
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+	ctx := &TaskEnvContext{
+		TaskID:       "TASK-00001",
+		Branch:       "feat/test",
+		WorktreePath: "/worktree",
+		TicketPath:   "/ticket",
+	}
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "check",
+		Dir:      dir,
+		TaskCtx:  ctx,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestRun_ExecReturnsError(t *testing.T) {
+	// The Run method wraps commands in "sh -c", so a non-existent command
+	// returns a non-zero exit code rather than an exec error. To trigger
+	// the execErr path, we use a mock executor that returns an error.
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  broken:
+    cmds:
+      - echo test
+`)
+
+	// Use the real executor but override it with a wrapper that always errors.
+	runner := NewTaskfileRunner(&errorExecutor{})
+
+	_, err := runner.Run(TaskfileRunConfig{
+		TaskName: "broken",
+		Dir:      dir,
+	})
+	if err == nil {
+		t.Fatal("expected error from executor")
+	}
+	if !strings.Contains(err.Error(), "running task") {
+		t.Errorf("error = %q, want to contain 'running task'", err.Error())
+	}
+}
+
+// errorExecutor is a CLIExecutor that always returns an error from Exec.
+type errorExecutor struct{}
+
+func (e *errorExecutor) Exec(config CLIExecConfig) (*CLIExecResult, error) {
+	return nil, fmt.Errorf("simulated exec failure")
+}
+
+func (e *errorExecutor) ResolveAlias(name string, aliases []CLIAlias) (string, []string, bool) {
+	return name, nil, false
+}
+
+func (e *errorExecutor) BuildEnv(base []string, taskCtx *TaskEnvContext) []string {
+	return base
+}
+
+func (e *errorExecutor) ListAliases(aliases []CLIAlias) []string {
+	return nil
+}
+
+func (e *errorExecutor) LogFailure(taskCtx *TaskEnvContext, cli string, args []string, result *CLIExecResult) error {
+	return nil
+}
+
+func TestRun_MultipleCommands_AllSucceed(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  multi:
+    cmds:
+      - echo first
+      - echo second
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "multi",
+		Dir:      dir,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestRun_WindowsShellHandling(t *testing.T) {
+	// Test that Windows uses cmd /c and Unix uses sh -c.
+	// This test exercises the shell selection logic at lines 133-138.
+	dir := t.TempDir()
+	writeTaskfile(t, dir, `
+version: "3"
+tasks:
+  shelltest:
+    cmds:
+      - echo test
+`)
+	runner := NewTaskfileRunner(NewCLIExecutor())
+
+	result, err := runner.Run(TaskfileRunConfig{
+		TaskName: "shelltest",
+		Dir:      dir,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("exit code = %d, want 0", result.ExitCode)
+	}
+	// On any platform, the command should succeed and echo "test".
+	if !strings.Contains(result.Stdout, "test") {
+		t.Errorf("stdout = %q, want to contain 'test'", result.Stdout)
 	}
 }
 

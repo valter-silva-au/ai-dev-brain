@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
 
@@ -160,7 +161,7 @@ type archiveMock struct {
 	archiveTaskFn func(taskID string) (*models.HandoffDocument, error)
 }
 
-func (m *archiveMock) CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error) {
+func (m *archiveMock) CreateTask(taskType models.TaskType, branchName string, repoPath string, opts core.CreateTaskOpts) (*models.Task, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

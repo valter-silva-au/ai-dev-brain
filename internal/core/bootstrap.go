@@ -34,6 +34,7 @@ type BootstrapConfig struct {
 	Template   string
 	Priority   models.Priority
 	Owner      string
+	Tags       []string
 	Source     string
 }
 
@@ -136,6 +137,7 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 		Branch:   config.BranchName,
 		Created:  now,
 		Updated:  now,
+		Tags:     config.Tags,
 		Source:   config.Source,
 	}
 

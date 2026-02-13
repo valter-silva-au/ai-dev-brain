@@ -70,7 +70,7 @@ func TestEdgeCase_MissingConfig_AppInitializesWithDefaults(t *testing.T) {
 	}
 
 	// Should be able to create tasks with defaults.
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test-branch", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test-branch", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task without .taskconfig: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestEdgeCase_UpdatePriorityNonExistentTask_ReturnsError(t *testing.T) {
 func TestEdgeCase_DoubleArchive_ReturnsError(t *testing.T) {
 	app := newTestApp(t)
 
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "double-archive", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "double-archive", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestEdgeCase_DoubleArchive_ReturnsError(t *testing.T) {
 func TestEdgeCase_UnarchiveNonArchivedTask_ReturnsError(t *testing.T) {
 	app := newTestApp(t)
 
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeBug, "not-archived", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeBug, "not-archived", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestEdgeCase_UnarchiveNonArchivedTask_ReturnsError(t *testing.T) {
 func TestEdgeCase_UnarchiveInProgressTask_ReturnsError(t *testing.T) {
 	app := newTestApp(t)
 
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "in-progress-task", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "in-progress-task", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestEdgeCase_CreateTaskWithEmptyBranch_StillSucceeds(t *testing.T) {
 
 	// Empty string for branch name -- the system should still create the task
 	// (the bootstrap system doesn't validate branch name content).
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task with empty branch name: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestEdgeCase_CreateTaskWithSpecialChars(t *testing.T) {
 	}
 
 	for _, name := range specialNames {
-		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, name, "")
+		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, name, "", core.CreateTaskOpts{})
 		if err != nil {
 			t.Fatalf("creating task with name %q: %v", name, err)
 		}
@@ -314,8 +314,8 @@ func TestEdgeCase_FilterNoMatches(t *testing.T) {
 	app := newTestApp(t)
 
 	// Create some tasks.
-	_, _ = app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-one", "")
-	_, _ = app.TaskMgr.CreateTask(models.TaskTypeBug, "bug-one", "")
+	_, _ = app.TaskMgr.CreateTask(models.TaskTypeFeat, "feature-one", "", core.CreateTaskOpts{})
+	_, _ = app.TaskMgr.CreateTask(models.TaskTypeBug, "bug-one", "", core.CreateTaskOpts{})
 
 	// Filter for a status that no tasks have.
 	done, err := app.TaskMgr.GetTasksByStatus(models.StatusDone)
@@ -512,7 +512,7 @@ func TestEdgeCase_ReorderPrioritiesWithMoreThanFourTasks(t *testing.T) {
 
 	var taskIDs []string
 	for i := 0; i < 6; i++ {
-		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "task-"+string(rune('a'+i)), "")
+		task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "task-"+string(rune('a'+i)), "", core.CreateTaskOpts{})
 		if err != nil {
 			t.Fatalf("creating task %d: %v", i, err)
 		}
@@ -544,7 +544,7 @@ func TestEdgeCase_ReorderPrioritiesWithMoreThanFourTasks(t *testing.T) {
 func TestEdgeCase_ArchivePreservesPreArchiveStatus(t *testing.T) {
 	app := newTestApp(t)
 
-	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "preserve-status", "")
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "preserve-status", "", core.CreateTaskOpts{})
 	if err != nil {
 		t.Fatalf("creating task: %v", err)
 	}
@@ -622,7 +622,7 @@ func TestEdgeCase_AllTaskTypesCreateSuccessfully(t *testing.T) {
 	}
 
 	for _, taskType := range types {
-		task, err := app.TaskMgr.CreateTask(taskType, "test-"+string(taskType), "")
+		task, err := app.TaskMgr.CreateTask(taskType, "test-"+string(taskType), "", core.CreateTaskOpts{})
 		if err != nil {
 			t.Fatalf("creating %s task: %v", taskType, err)
 		}
