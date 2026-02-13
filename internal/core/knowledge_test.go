@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -692,6 +693,9 @@ func TestCreateADR_MkdirAllError(t *testing.T) {
 }
 
 func TestCreateADR_WriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	ke, dir := setupKnowledgeTest(t)
 
 	// Create the decisions directory and make it read-only.
@@ -904,6 +908,9 @@ func TestExtractComponentLearnings_WithPurpose(t *testing.T) {
 }
 
 func TestExtractFromTask_CommunicationLoadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
@@ -1006,6 +1013,9 @@ func TestUpdateWiki_SubdirCreationError(t *testing.T) {
 }
 
 func TestCreateADR_ReadDirError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)

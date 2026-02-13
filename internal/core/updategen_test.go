@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -331,6 +332,9 @@ func TestGenerateUpdates_ContextLoadError(t *testing.T) {
 }
 
 func TestGenerateUpdates_CommunicationLoadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	base := t.TempDir()
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)

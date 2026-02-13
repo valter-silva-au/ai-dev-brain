@@ -46,8 +46,9 @@ func TestResolveBasePath_FindsTaskConfig(t *testing.T) {
 	os.Unsetenv("ADB_HOME")
 
 	got := ResolveBasePath()
-	// Resolve symlinks so the test passes on macOS where /tmp -> /private/tmp.
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
 	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
 	if got != expected {
 		t.Errorf("ResolveBasePath() = %q, want %q (should find .taskconfig in parent)", got, expected)
 	}
@@ -66,8 +67,9 @@ func TestResolveBasePath_FallbackToCwd(t *testing.T) {
 	os.Unsetenv("ADB_HOME")
 
 	got := ResolveBasePath()
-	// Resolve symlinks so the test passes on macOS where /tmp -> /private/tmp.
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
 	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
 	if got != expected {
 		t.Errorf("ResolveBasePath() = %q, want %q (should fall back to cwd)", got, expected)
 	}

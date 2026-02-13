@@ -2063,8 +2063,9 @@ func TestApp_ResolveBasePath_WalkUpToTaskconfig(t *testing.T) {
 	_ = os.Chdir(deep)
 
 	got := ResolveBasePath()
-	// Resolve symlinks so the test passes on macOS where /tmp -> /private/tmp.
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
 	expected, _ := filepath.EvalSymlinks(root)
+	got, _ = filepath.EvalSymlinks(got)
 	if got != expected {
 		t.Errorf("ResolveBasePath = %q, want %q", got, expected)
 	}
@@ -2080,8 +2081,9 @@ func TestApp_ResolveBasePath_FallbackToCwd(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 
 	got := ResolveBasePath()
-	// Resolve symlinks so the test passes on macOS where /tmp -> /private/tmp.
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
 	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
 	if got != expected {
 		t.Errorf("ResolveBasePath = %q, want %q (cwd fallback)", got, expected)
 	}
@@ -2419,8 +2421,9 @@ func TestApp_ResolveBasePath_EmptyEnv(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 
 	result := ResolveBasePath()
-	// Resolve symlinks so the test passes on macOS where /tmp -> /private/tmp.
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
 	expected, _ := filepath.EvalSymlinks(tmpDir)
+	result, _ = filepath.EvalSymlinks(result)
 	if result != expected {
 		t.Errorf("ResolveBasePath = %q, want %q", result, expected)
 	}

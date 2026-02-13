@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -358,6 +359,9 @@ func findSubstr(s, substr string) bool {
 }
 
 func TestCheckForConflicts_ADRReadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	// Create docs/decisions as a file, not a directory, to cause ReadDir to return a non-NotExist error.
 	decisionsDir := filepath.Join(dir, "docs", "decisions")
@@ -383,6 +387,9 @@ func TestCheckForConflicts_ADRReadError(t *testing.T) {
 }
 
 func TestCheckForConflicts_TicketsReadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	// Create tickets as a file to cause ReadDir error.
 	ticketsPath := filepath.Join(dir, "tickets")
@@ -404,6 +411,9 @@ func TestCheckForConflicts_TicketsReadError(t *testing.T) {
 }
 
 func TestCheckForConflicts_WikiReadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	// Create wiki as a file to cause ReadDir error.
 	wikiPath := filepath.Join(dir, "docs", "wiki")

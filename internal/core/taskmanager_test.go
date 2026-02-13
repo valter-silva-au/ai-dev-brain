@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -1741,6 +1742,9 @@ func TestCleanupWorktree_SaveStatusError(t *testing.T) {
 }
 
 func TestArchiveTask_PreArchiveWriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)
@@ -1850,6 +1854,9 @@ func TestArchiveTask_MkdirAllError(t *testing.T) {
 }
 
 func TestArchiveTask_RenameError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)
@@ -1878,6 +1885,9 @@ func TestArchiveTask_RenameError(t *testing.T) {
 }
 
 func TestUnarchiveTask_MoveFromArchiveError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)

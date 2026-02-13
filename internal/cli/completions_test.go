@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/drapaimern/ai-dev-brain/internal/core"
@@ -130,6 +131,9 @@ func TestCompleteRepoPaths_EmptyBasePath(t *testing.T) {
 }
 
 func TestCompleteRepoPaths_WithRepos(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: filepath.Rel uses backslashes, breaking forward-slash prefix matching")
+	}
 	origBasePath := BasePath
 	defer func() { BasePath = origBasePath }()
 

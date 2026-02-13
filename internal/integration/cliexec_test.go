@@ -647,6 +647,9 @@ func TestExec_WithPipe_Windows(t *testing.T) {
 }
 
 func TestLogFailure_WriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	// Test LogFailure when WriteString fails due to a closed file.
 	executor := NewCLIExecutor()
 	ticketDir := t.TempDir()

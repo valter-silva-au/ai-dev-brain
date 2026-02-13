@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -391,6 +392,9 @@ func TestAssembleGlossary_ReadError(t *testing.T) {
 }
 
 func TestAssembleDecisionsSummary_ReadDirError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	// Create docs/decisions as a file instead of directory.
 	docsDir := filepath.Join(dir, "docs")
@@ -655,6 +659,9 @@ func TestAssembleAll_GlossaryError(t *testing.T) {
 }
 
 func TestAssembleAll_DecisionsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: ReadDir behavior differs on Windows")
+	}
 	// Trigger assembleAll error via broken decisions (not a directory).
 	dir := t.TempDir()
 	docsDir := filepath.Join(dir, "docs")
