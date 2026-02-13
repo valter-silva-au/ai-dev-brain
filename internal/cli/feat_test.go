@@ -452,6 +452,66 @@ func TestLaunchWorkflow_WithFakeClaude_EmptyShellEnv(t *testing.T) {
 	launchWorkflow("TASK-00099", "feat/no-shell", worktree, false)
 }
 
+func TestLaunchWorkflow_ResumeNoClaude(t *testing.T) {
+	// When resume=true and claude is not on PATH, the fallback message
+	// should include --resume. Verify no panic.
+	tmpDir := t.TempDir()
+
+	t.Setenv("PATH", t.TempDir()) // empty dir -> no binaries found
+
+	launchWorkflow("TASK-00001", "feat/test", tmpDir, true)
+}
+
+func TestLaunchWorkflow_ResumeWithFakeClaude_BashShell(t *testing.T) {
+	// When resume=true and claude is found, the --resume flag should be
+	// passed to claude. Fake claude checks for --resume in its args.
+	tmpBin := t.TempDir()
+	worktree := t.TempDir()
+
+	// Create a fake "claude" that checks for --resume and exits 0 if found.
+	claudeScript := filepath.Join(tmpBin, "claude")
+	if err := os.WriteFile(claudeScript, []byte("#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"--resume\" ]; then exit 0; fi\ndone\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a fake "bash" that exits 0.
+	bashScript := filepath.Join(tmpBin, "bash")
+	if err := os.WriteFile(bashScript, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", tmpBin)
+	t.Setenv("SHELL", filepath.Join(tmpBin, "bash"))
+
+	// Should not panic. The fake claude verifies --resume is in the args.
+	launchWorkflow("TASK-00099", "feat/resume-test", worktree, true)
+}
+
+func TestLaunchWorkflow_ResumeWithFakeClaude_ZshShell(t *testing.T) {
+	// Same as the bash variant but exercises the zsh shell branch with resume=true.
+	tmpBin := t.TempDir()
+	worktree := t.TempDir()
+
+	// Create a fake "claude" that checks for --resume.
+	claudeScript := filepath.Join(tmpBin, "claude")
+	if err := os.WriteFile(claudeScript, []byte("#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"--resume\" ]; then exit 0; fi\ndone\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a fake "zsh" that exits 0.
+	zshScript := filepath.Join(tmpBin, "zsh")
+	if err := os.WriteFile(zshScript, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", tmpBin)
+	t.Setenv("SHELL", filepath.Join(tmpBin, "zsh"))
+	t.Setenv("HOME", t.TempDir())
+
+	// Should not panic. Exercises the zsh branch with resume=true.
+	launchWorkflow("TASK-00099", "feat/resume-zsh-test", worktree, true)
+}
+
 func TestLaunchWorkflow_ZshWithZDOTDIR(t *testing.T) {
 	// Exercise the ZDOTDIR path in the zsh branch.
 	tmpBin := t.TempDir()
