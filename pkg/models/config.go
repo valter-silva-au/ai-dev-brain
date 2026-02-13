@@ -7,16 +7,37 @@ type CLIAliasConfig struct {
 	DefaultArgs []string `yaml:"default_args,omitempty" mapstructure:"default_args"`
 }
 
+// SlackConfig holds Slack notification settings.
+type SlackConfig struct {
+	WebhookURL string `yaml:"webhook_url" mapstructure:"webhook_url"`
+}
+
+// AlertThresholds configures when alerts should fire.
+type AlertThresholds struct {
+	BlockedHours   int `yaml:"blocked_threshold_hours" mapstructure:"blocked_threshold_hours"`
+	StaleDays      int `yaml:"stale_threshold_days" mapstructure:"stale_threshold_days"`
+	ReviewDays     int `yaml:"review_threshold_days" mapstructure:"review_threshold_days"`
+	MaxBacklogSize int `yaml:"max_backlog_size" mapstructure:"max_backlog_size"`
+}
+
+// NotificationConfig holds notification and alerting settings.
+type NotificationConfig struct {
+	Enabled bool            `yaml:"enabled" mapstructure:"enabled"`
+	Slack   SlackConfig     `yaml:"slack,omitempty" mapstructure:"slack"`
+	Alerts  AlertThresholds `yaml:"alerts,omitempty" mapstructure:"alerts"`
+}
+
 // GlobalConfig holds system-wide settings read from .taskconfig via Viper.
 type GlobalConfig struct {
-	DefaultAI        string           `yaml:"default_ai" mapstructure:"default_ai"`
-	TaskIDPrefix     string           `yaml:"task_id_prefix" mapstructure:"task_id_prefix"`
-	TaskIDCounter    int              `yaml:"task_id_counter" mapstructure:"task_id_counter"`
-	DefaultPriority  Priority         `yaml:"default_priority" mapstructure:"default_priority"`
-	DefaultOwner     string           `yaml:"default_owner" mapstructure:"default_owner"`
-	ScreenshotHotkey string           `yaml:"screenshot_hotkey" mapstructure:"screenshot_hotkey"`
-	OfflineMode      bool             `yaml:"offline_mode" mapstructure:"offline_mode"`
-	CLIAliases       []CLIAliasConfig `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
+	DefaultAI        string             `yaml:"default_ai" mapstructure:"default_ai"`
+	TaskIDPrefix     string             `yaml:"task_id_prefix" mapstructure:"task_id_prefix"`
+	TaskIDCounter    int                `yaml:"task_id_counter" mapstructure:"task_id_counter"`
+	DefaultPriority  Priority           `yaml:"default_priority" mapstructure:"default_priority"`
+	DefaultOwner     string             `yaml:"default_owner" mapstructure:"default_owner"`
+	ScreenshotHotkey string             `yaml:"screenshot_hotkey" mapstructure:"screenshot_hotkey"`
+	OfflineMode      bool               `yaml:"offline_mode" mapstructure:"offline_mode"`
+	CLIAliases       []CLIAliasConfig   `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
+	Notifications    NotificationConfig `yaml:"notifications,omitempty" mapstructure:"notifications"`
 }
 
 // RepoConfig holds per-repository settings read from .taskrc files.

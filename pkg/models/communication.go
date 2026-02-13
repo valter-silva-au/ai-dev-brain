@@ -18,8 +18,8 @@ const (
 type Communication struct {
 	Date    time.Time          `yaml:"date"`
 	Source  string             `yaml:"source"`
-	Contact string            `yaml:"contact"`
-	Topic   string            `yaml:"topic"`
-	Content string            `yaml:"content"`
+	Contact string             `yaml:"contact"`
+	Topic   string             `yaml:"topic"`
+	Content string             `yaml:"content"`
 	Tags    []CommunicationTag `yaml:"tags"`
 }

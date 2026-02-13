@@ -94,10 +94,10 @@ func TestScaffoldDocs_CreatesDirectoryStructure(t *testing.T) {
 
 	// Check files exist with content.
 	files := map[string]string{
-		"docs/stakeholders.md":            "# Stakeholders",
-		"docs/contacts.md":                "# Contacts",
-		"docs/glossary.md":                "# Glossary",
-		"docs/decisions/ADR-TEMPLATE.md":  "ADR-XXXX",
+		"docs/stakeholders.md":           "# Stakeholders",
+		"docs/contacts.md":               "# Contacts",
+		"docs/glossary.md":               "# Glossary",
+		"docs/decisions/ADR-TEMPLATE.md": "ADR-XXXX",
 	}
 	for path, expectedContent := range files {
 		data, err := os.ReadFile(filepath.Join(base, path))

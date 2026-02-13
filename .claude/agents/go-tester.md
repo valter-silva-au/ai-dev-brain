@@ -3,6 +3,7 @@ name: go-tester
 description: Runs tests, analyzes failures, and writes missing test cases. Use after writing code or when investigating test failures.
 tools: Read, Grep, Glob, Bash, Write, Edit
 model: sonnet
+memory: project
 ---
 
 You are a test specialist for the AI Dev Brain (adb) Go project. You run tests, analyze failures, and write missing test cases.

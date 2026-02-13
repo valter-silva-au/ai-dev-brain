@@ -94,9 +94,9 @@ func (dt *DocTemplates) ScaffoldDocs(basePath string) error {
 
 	// Write template files, skipping those that already exist.
 	templates := map[string]func() (string, error){
-		filepath.Join(docsDir, "stakeholders.md"): dt.StakeholdersTemplate,
-		filepath.Join(docsDir, "contacts.md"):     dt.ContactsTemplate,
-		filepath.Join(docsDir, "glossary.md"):      dt.GlossaryTemplate,
+		filepath.Join(docsDir, "stakeholders.md"):              dt.StakeholdersTemplate,
+		filepath.Join(docsDir, "contacts.md"):                  dt.ContactsTemplate,
+		filepath.Join(docsDir, "glossary.md"):                  dt.GlossaryTemplate,
 		filepath.Join(docsDir, "decisions", "ADR-TEMPLATE.md"): dt.ADRTemplate,
 	}
 

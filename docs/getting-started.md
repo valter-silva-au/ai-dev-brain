@@ -8,14 +8,14 @@ Before installing `adb`, make sure you have the following tools available:
 
 | Tool | Minimum Version | Purpose |
 |------|-----------------|---------|
-| Go   | 1.23+           | Required to build from source |
+| Go   | 1.26+           | Required to build from source |
 | Git  | 2.20+           | Required for worktree support (`git worktree` was stabilized in 2.20) |
 
 Verify your versions:
 
 ```bash
 go version
-# go version go1.23.0 linux/amd64
+# go version go1.26.0 linux/amd64
 
 git --version
 # git version 2.43.0
@@ -34,7 +34,7 @@ git --version
 sudo apt update
 sudo apt install -y golang-go git
 
-# Verify Go version is 1.23+
+# Verify Go version is 1.26+
 go version
 
 # Install adb from source
@@ -372,6 +372,8 @@ This command does the following:
 ```
 tickets/TASK-00001/
   communications/     # Slack threads, email summaries, meeting notes
+  sessions/           # Session summaries (timestamped markdown files)
+  knowledge/          # Extracted decisions and facts (decisions.yaml)
   context.md          # Running context for AI assistants
   design.md           # Technical design document
   notes.md            # Requirements, acceptance criteria, implementation notes
@@ -612,6 +614,20 @@ All task creation commands (`feat`, `bug`, `spike`, `refactor`) accept these fla
 | `--priority` | Task priority (P0-P3) | `--priority P1` |
 | `--owner` | Task owner | `--owner @alice` |
 | `--tags` | Comma-separated tags | `--tags auth,backend` |
+
+---
+
+## Observability
+
+`adb` includes built-in observability through an append-only event log (`.adb_events.jsonl`) that records task lifecycle events, agent sessions, and knowledge extraction. Three commands expose this data:
+
+| Command | Description |
+|---------|-------------|
+| `adb metrics [--json] [--since 7d]` | Aggregated metrics: tasks created/completed, by status/type, agent sessions |
+| `adb alerts` | Active alerts for blocked tasks, stale tasks, long reviews, backlog size |
+| `adb session save [task-id]` | Save a timestamped session summary to the task's `sessions/` directory |
+
+Observability is non-fatal -- if the event log cannot be created, all core task management commands continue to work normally. See [Commands Reference](commands.md) for full details on each command.
 
 ---
 

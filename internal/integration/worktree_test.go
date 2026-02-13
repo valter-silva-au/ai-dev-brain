@@ -15,7 +15,7 @@ import (
 
 func TestParseRepoPath_Valid(t *testing.T) {
 	tests := []struct {
-		input                          string
+		input                           string
 		wantPlatform, wantOrg, wantRepo string
 	}{
 		{"github.com/org/repo", "github.com", "org", "repo"},
