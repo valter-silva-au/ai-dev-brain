@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.3.0...v1.4.0) (2026-02-13)
+
+
+### Features
+
+* add Phase 3 advanced features - TUI dashboard, MCP server, Slack notifications ([#14](https://github.com/valter-silva-au/ai-dev-brain/issues/14)) ([917f622](https://github.com/valter-silva-au/ai-dev-brain/commit/917f622afcb726996108be4ba4d75f3560875d6d))
+* pass --resume to Claude Code when resuming a task ([65b4504](https://github.com/valter-silva-au/ai-dev-brain/commit/65b4504e5feb0fc867a538b3c02d9c810cb53eef))
+* wire priority/owner/tags flags, fix taskfile commands, push tes… ([#18](https://github.com/valter-silva-au/ai-dev-brain/issues/18)) ([db09fc8](https://github.com/valter-silva-au/ai-dev-brain/commit/db09fc8a68803787acf8dce3fb4e6c50a6718f06))
+
+
+### Bug Fixes
+
+* prevent agent team hang by guarding Stop hook and making Teammat… ([#19](https://github.com/valter-silva-au/ai-dev-brain/issues/19)) ([3729297](https://github.com/valter-silva-au/ai-dev-brain/commit/3729297e7b2b09928f81acffb06039d5d30dcd9c))
+
 ## [1.3.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.2.0...v1.3.0) (2026-02-13)
 
 
