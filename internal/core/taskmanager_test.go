@@ -394,8 +394,20 @@ func TestArchiveTask(t *testing.T) {
 		t.Error("handoff summary should not be empty")
 	}
 
-	// Verify handoff.md was created.
-	handoffPath := filepath.Join(dir, "tickets", created.ID, "handoff.md")
+	// Verify ticket was moved to _archived/.
+	archivedDir := filepath.Join(dir, "tickets", "_archived", created.ID)
+	if _, err := os.Stat(archivedDir); err != nil {
+		t.Fatalf("archived ticket directory should exist: %v", err)
+	}
+
+	// Verify original ticket directory was removed.
+	activeDir := filepath.Join(dir, "tickets", created.ID)
+	if _, err := os.Stat(activeDir); !os.IsNotExist(err) {
+		t.Error("original ticket directory should no longer exist after archive")
+	}
+
+	// Verify handoff.md was created in the archived location.
+	handoffPath := filepath.Join(archivedDir, "handoff.md")
 	if _, err := os.Stat(handoffPath); err != nil {
 		t.Fatalf("handoff.md should exist: %v", err)
 	}
@@ -408,7 +420,7 @@ func TestArchiveTask(t *testing.T) {
 		t.Error("handoff.md should mention Archived status")
 	}
 
-	// Verify status changed to archived.
+	// Verify status changed to archived (loadable from _archived).
 	task, err := mgr.GetTask(created.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -423,8 +435,8 @@ func TestArchiveTask(t *testing.T) {
 		t.Errorf("backlog should show archived, got %s", entry.Status)
 	}
 
-	// Verify pre-archive status was saved.
-	preArchivePath := filepath.Join(dir, "tickets", created.ID, ".pre_archive_status")
+	// Verify pre-archive status was saved in the archived location.
+	preArchivePath := filepath.Join(archivedDir, ".pre_archive_status")
 	preArchiveData, err := os.ReadFile(preArchivePath)
 	if err != nil {
 		t.Fatalf("pre-archive status file should exist: %v", err)

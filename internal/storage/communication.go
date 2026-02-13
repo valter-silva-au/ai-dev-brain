@@ -29,7 +29,7 @@ func NewCommunicationManager(basePath string) CommunicationManager {
 }
 
 func (m *fileCommunicationManager) commsDir(taskID string) string {
-	return filepath.Join(m.basePath, "tickets", taskID, "communications")
+	return filepath.Join(resolveTicketDir(m.basePath, taskID), "communications")
 }
 
 // sanitizeForFilename replaces non-alphanumeric characters with hyphens

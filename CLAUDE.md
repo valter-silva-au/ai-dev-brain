@@ -36,8 +36,9 @@ internal/
     root.go                   # Root command and version
     feat.go                   # feat/bug/spike/refactor task creation
     resume.go                 # Resume a task
-    archive.go                # Archive a task (generates handoff.md)
-    unarchive.go              # Restore archived task
+    archive.go                # Archive a task (generates handoff.md, moves to _archived/)
+    unarchive.go              # Restore archived task (moves back from _archived/)
+    migratearchive.go         # Migrate existing archived tasks to _archived/
     status.go                 # Update task status
     priority.go               # Update task priority
     update.go                 # Generate stakeholder update plan
@@ -52,6 +53,7 @@ internal/
     config.go                 # ConfigurationManager (Viper-based)
     bootstrap.go              # BootstrapSystem (task init, directory scaffold incl. sessions/ and knowledge/)
     taskmanager.go            # TaskManager (lifecycle: create, resume, archive)
+    ticketpath.go             # Ticket path resolution (active vs _archived/)
     taskid.go                 # TaskIDGenerator (sequential TASK-XXXXX IDs)
     templates.go              # TemplateManager (notes.md, design.md per type)
     doctemplates.go           # Built-in template content (unused alias)
@@ -66,6 +68,7 @@ internal/
     backlog.go                # BacklogManager (backlog.yaml CRUD)
     context.go                # ContextManager (per-task context.md, notes.md)
     communication.go          # CommunicationManager (per-task comms as .md files)
+    ticketpath.go             # Ticket path resolution for storage layer
   integration/
     worktree.go               # GitWorktreeManager (git worktree operations)
     cliexec.go                # CLIExecutor (external tool invocation, alias resolution)
@@ -241,9 +244,10 @@ Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d,
 - `adb spike <branch>` -- Create a spike task
 - `adb refactor <branch>` -- Create a refactor task
 - `adb resume <task-id>` -- Resume a task (promotes backlog to in_progress)
-- `adb archive <task-id>` -- Archive a task (generates handoff.md, removes worktree)
-- `adb unarchive <task-id>` -- Restore an archived task
+- `adb archive <task-id>` -- Archive a task (generates handoff.md, moves ticket to _archived/, removes worktree)
+- `adb unarchive <task-id>` -- Restore an archived task (moves ticket back from _archived/)
 - `adb cleanup <task-id>` -- Remove a task's git worktree without archiving
+- `adb migrate-archive` -- Move existing archived tasks to tickets/_archived/
 - `adb status <task-id> <status>` -- Update task status
 - `adb priority <task-id> <priority>` -- Update task priority
 - `adb update <task-id>` -- Generate stakeholder update plan

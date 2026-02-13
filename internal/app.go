@@ -46,6 +46,7 @@ type App struct {
 	ScreenPipe  integration.ScreenshotPipeline
 	Executor    integration.CLIExecutor
 	Runner      integration.TaskfileRunner
+	RepoSyncMgr *integration.RepoSyncManager
 
 	// Observability
 	EventLog    observability.EventLog
@@ -83,6 +84,7 @@ func NewApp(basePath string) (*App, error) {
 	app.ScreenPipe = integration.NewScreenshotPipeline(basePath)
 	app.Executor = integration.NewCLIExecutor()
 	app.Runner = integration.NewTaskfileRunner(app.Executor)
+	app.RepoSyncMgr = integration.NewRepoSyncManager(basePath)
 
 	// --- Observability ---
 	eventLogPath := filepath.Join(basePath, ".adb_events.jsonl")
@@ -143,6 +145,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.Executor = app.Executor
 	cli.Runner = app.Runner
 	cli.ProjectInit = app.ProjectInit
+	cli.RepoSyncMgr = app.RepoSyncMgr
 
 	cli.EventLog = app.EventLog
 	cli.AlertEngine = app.AlertEngine

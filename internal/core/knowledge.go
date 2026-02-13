@@ -83,7 +83,7 @@ func (ke *knowledgeExtractor) ExtractFromTask(taskID string) (*models.ExtractedK
 	}
 
 	// Extract knowledge from design.md if it exists.
-	designDocPath := filepath.Join(ke.basePath, "tickets", taskID, "design.md")
+	designDocPath := filepath.Join(resolveTicketDir(ke.basePath, taskID), "design.md")
 	if designData, err := os.ReadFile(designDocPath); err == nil {
 		designContent := string(designData)
 
@@ -157,7 +157,7 @@ func (ke *knowledgeExtractor) GenerateHandoff(taskID string) (*models.HandoffDoc
 	handoff.Learnings = knowledge.Learnings
 
 	// Write handoff.md.
-	handoffPath := filepath.Join(ke.basePath, "tickets", taskID, "handoff.md")
+	handoffPath := filepath.Join(resolveTicketDir(ke.basePath, taskID), "handoff.md")
 	content := formatHandoff(handoff, knowledge)
 	if err := os.WriteFile(handoffPath, []byte(content), 0o600); err != nil {
 		return nil, fmt.Errorf("generating handoff for %s: writing handoff.md: %w", taskID, err)

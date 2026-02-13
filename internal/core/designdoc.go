@@ -72,7 +72,7 @@ func NewTaskDesignDocGenerator(basePath string, commMgr storage.CommunicationMan
 }
 
 func (g *taskDesignDocGenerator) designDocPath(taskID string) string {
-	return filepath.Join(g.basePath, "tickets", taskID, "design.md")
+	return filepath.Join(resolveTicketDir(g.basePath, taskID), "design.md")
 }
 
 const designDocTemplate = `# Technical Design: %s

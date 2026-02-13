@@ -655,12 +655,11 @@ graph TD
     ROOT --> MCP[".mcp.json<br/>(MCP server config)"]
 
     ROOT --> TICKETS["tickets/"]
-    TICKETS --> T1["TASK-00001/"]
+    TICKETS --> T1["TASK-00001/<br/>(active task)"]
     T1 --> STATUS["status.yaml"]
     T1 --> CONTEXT["context.md"]
     T1 --> NOTES["notes.md"]
     T1 --> DESIGN["design.md"]
-    T1 --> HANDOFF["handoff.md<br/>(generated on archive)"]
     T1 --> COMMS["communications/"]
     COMMS --> COMM1["2025-01-15-slack-alice-api-design.md"]
     COMMS --> COMM2["2025-01-16-email-bob-review.md"]
@@ -668,6 +667,12 @@ graph TD
     SESSIONS --> SESS1["2025-01-15-session.md"]
     T1 --> KNOWLEDGE["knowledge/"]
     KNOWLEDGE --> KDEC["decisions.yaml"]
+
+    TICKETS --> ARCHIVED["_archived/"]
+    ARCHIVED --> AT1["TASK-00002/<br/>(archived task)"]
+    AT1 --> ASTATUS["status.yaml"]
+    AT1 --> AHANDOFF["handoff.md"]
+    AT1 --> ADESIGN["design.md"]
 
     ROOT --> REPOS["repos/"]
     REPOS --> PLATFORM["github.com/"]
@@ -686,6 +691,7 @@ graph TD
 
     style ROOT fill:#34495e,color:#fff
     style TICKETS fill:#e67e22,color:#fff
+    style ARCHIVED fill:#95a5a6,color:#fff
     style REPOS fill:#2ecc71,color:#fff
     style DOCS fill:#3498db,color:#fff
     style EVENTS fill:#c0392b,color:#fff

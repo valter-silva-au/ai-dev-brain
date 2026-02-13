@@ -52,7 +52,7 @@ func NewContextManager(basePath string) ContextManager {
 }
 
 func (m *fileContextManager) ticketDir(taskID string) string {
-	return filepath.Join(m.basePath, "tickets", taskID)
+	return resolveTicketDir(m.basePath, taskID)
 }
 
 func (m *fileContextManager) contextPath(taskID string) string {

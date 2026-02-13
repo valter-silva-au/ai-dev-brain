@@ -202,6 +202,7 @@ func (g *aiContextGenerator) AssembleDirectoryStructure() (string, error) {
 	var sb strings.Builder
 	sb.WriteString("- `docs/` - Organizational knowledge (wiki, ADRs, runbooks, contacts)\n")
 	sb.WriteString("- `tickets/` - Task folders with context, communications, and design docs\n")
+	sb.WriteString("- `tickets/_archived/` - Archived task folders (moved here on archive, restored on unarchive)\n")
 	sb.WriteString("- `repos/` - Git worktrees organized by platform/org/repo\n")
 	sb.WriteString("- `backlog.yaml` - Central task registry")
 	return sb.String(), nil
