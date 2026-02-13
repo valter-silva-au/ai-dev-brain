@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -203,6 +204,9 @@ func TestLoadQueue_EmptyFile_ReturnsEmpty(t *testing.T) {
 }
 
 func TestLoadQueue_UnreadableFile_ReturnsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	queueFile := filepath.Join(dir, ".offline_queue.json")
 	if err := os.WriteFile(queueFile, []byte("[]"), 0644); err != nil {
@@ -316,6 +320,9 @@ func TestIsOnline_ReturnsBool(t *testing.T) {
 }
 
 func TestSaveQueue_ReadOnlyDir_ReturnsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	// Make directory read-only so WriteFile fails.
 	if err := os.Chmod(dir, 0o444); err != nil {
@@ -380,6 +387,9 @@ func TestSaveQueue_MarshalError(t *testing.T) {
 }
 
 func TestSyncPendingOperations_SaveQueueErrorAfterSync(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	// When SyncPendingOperations processes all operations and then tries to
 	// save an empty queue (via saveQueue(nil)), if that save fails, it should
 	// still return the result with the synced count but also an error.

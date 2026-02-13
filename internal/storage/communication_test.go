@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -276,6 +277,9 @@ func TestAddCommunication_MkdirError(t *testing.T) {
 }
 
 func TestAddCommunication_WriteFileError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	mgr := NewCommunicationManager(dir).(*fileCommunicationManager)
 	comm := sampleCommunication()
@@ -304,6 +308,9 @@ func TestAddCommunication_WriteFileError(t *testing.T) {
 }
 
 func TestSearchCommunications_GetAllError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	mgr := NewCommunicationManager(dir).(*fileCommunicationManager)
 
@@ -369,6 +376,9 @@ func TestMatchesCommunication_AllFields(t *testing.T) {
 }
 
 func TestGetAllCommunications_ReadDirError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ReadDir behavior differs on Windows")
+	}
 	dir := t.TempDir()
 	mgr := NewCommunicationManager(dir).(*fileCommunicationManager)
 

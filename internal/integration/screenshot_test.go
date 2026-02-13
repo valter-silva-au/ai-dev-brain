@@ -3,6 +3,7 @@ package integration
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -146,6 +147,9 @@ func TestFileContent_AllCategories(t *testing.T) {
 }
 
 func TestFileContent_MkdirAllFails_ReturnsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	basePath := t.TempDir()
 	// Create the parent directory as read-only to prevent MkdirAll.
 	readOnlyDir := filepath.Join(basePath, "tasks")
@@ -174,6 +178,9 @@ func TestFileContent_MkdirAllFails_ReturnsError(t *testing.T) {
 }
 
 func TestFileContent_WriteFileFails_ReturnsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	basePath := t.TempDir()
 	// Create the target directory but make it read-only after creation
 	// so MkdirAll succeeds but WriteFile fails.
