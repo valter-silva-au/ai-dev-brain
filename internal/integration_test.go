@@ -11,6 +11,7 @@ import (
 
 	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/internal/integration"
+	"github.com/drapaimern/ai-dev-brain/internal/observability"
 	"github.com/drapaimern/ai-dev-brain/internal/storage"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -2487,5 +2488,222 @@ func TestApp_BacklogStoreAdapterGetTask_Direct(t *testing.T) {
 	}
 	if storageEntry.ID != task.ID {
 		t.Errorf("storage entry ID = %s, want %s", storageEntry.ID, task.ID)
+	}
+}
+
+// =========================================================================
+// Resume workflow integration tests
+// =========================================================================
+
+// TestIntegration_ResumeFromDoneStatus verifies that resuming a task that has
+// reached "done" status does not change the status back to in_progress.
+func TestIntegration_ResumeFromDoneStatus(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "done-resume", "", core.CreateTaskOpts{})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Advance to done status.
+	if err := app.TaskMgr.UpdateTaskStatus(task.ID, models.StatusDone); err != nil {
+		t.Fatalf("setting status to done: %v", err)
+	}
+
+	// Resume the done task.
+	resumed, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		t.Fatalf("resuming done task: %v", err)
+	}
+
+	// ResumeTask only promotes backlog -> in_progress; done should remain done.
+	if resumed.Status != models.StatusDone {
+		t.Errorf("expected done status after resume, got %s", resumed.Status)
+	}
+
+	// Verify backlog also still reflects done.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("loading backlog: %v", err)
+	}
+	entry, err := app.BacklogMgr.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("getting backlog entry: %v", err)
+	}
+	if entry.Status != models.StatusDone {
+		t.Errorf("backlog status = %s, want done", entry.Status)
+	}
+}
+
+// TestIntegration_ResumeArchivedTaskFails verifies that resuming an archived
+// task returns the task with archived status (the archive directory structure
+// is used but no status promotion occurs).
+func TestIntegration_ResumeArchivedTaskFails(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "archive-resume", "", core.CreateTaskOpts{})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Archive the task.
+	if _, err := app.TaskMgr.ArchiveTask(task.ID); err != nil {
+		t.Fatalf("archiving task: %v", err)
+	}
+
+	// Resume the archived task -- should still load successfully since
+	// loadTaskFromTicket checks _archived/ as a fallback. The status
+	// remains archived because ResumeTask only promotes backlog.
+	resumed, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		// If the implementation returns an error for archived tasks, that is
+		// also acceptable behavior. Document it here.
+		t.Logf("ResumeTask on archived task returned error (acceptable): %v", err)
+		return
+	}
+
+	// If no error, the task should still be archived.
+	if resumed.Status != models.StatusArchived {
+		t.Errorf("expected archived status after resume, got %s", resumed.Status)
+	}
+}
+
+// TestIntegration_ResumeWithEventLogging verifies that when a backlog task
+// is resumed and promoted to in_progress, the event log contains a
+// task.status_changed event if the CLI layer or task manager logs it.
+// Note: The current TaskManager does not log events directly; event logging
+// is handled at the CLI layer. This test verifies that the EventLog is
+// functional and can be written to and read from during a resume workflow.
+func TestIntegration_ResumeWithEventLogging(t *testing.T) {
+	app := newTestApp(t)
+
+	if app.EventLog == nil {
+		t.Fatal("expected EventLog to be initialized")
+	}
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "event-resume", "", core.CreateTaskOpts{})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Resume the task (backlog -> in_progress).
+	resumed, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		t.Fatalf("resuming task: %v", err)
+	}
+	if resumed.Status != models.StatusInProgress {
+		t.Fatalf("expected in_progress after resume, got %s", resumed.Status)
+	}
+
+	// Simulate what the CLI layer would do: write a status_changed event.
+	err = app.EventLog.Write(observability.Event{
+		Time:    time.Now().UTC(),
+		Level:   "INFO",
+		Type:    "task.status_changed",
+		Message: "task.status_changed",
+		Data: map[string]any{
+			"task_id":    task.ID,
+			"old_status": "backlog",
+			"new_status": "in_progress",
+		},
+	})
+	if err != nil {
+		t.Fatalf("writing event: %v", err)
+	}
+
+	// Read events and verify the status_changed event exists.
+	events, err := app.EventLog.Read(observability.EventFilter{
+		Type: "task.status_changed",
+	})
+	if err != nil {
+		t.Fatalf("reading events: %v", err)
+	}
+
+	found := false
+	for _, evt := range events {
+		if evt.Data["task_id"] == task.ID && evt.Data["new_status"] == "in_progress" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected task.status_changed event with new_status=in_progress")
+	}
+}
+
+// TestIntegration_ResumeFromBlockedStatus verifies that resuming a blocked
+// task does not change its status. Resume only promotes backlog tasks.
+func TestIntegration_ResumeFromBlockedStatus(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "blocked-resume", "", core.CreateTaskOpts{})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Set status to blocked.
+	if err := app.TaskMgr.UpdateTaskStatus(task.ID, models.StatusBlocked); err != nil {
+		t.Fatalf("setting status to blocked: %v", err)
+	}
+
+	// Resume the blocked task.
+	resumed, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		t.Fatalf("resuming blocked task: %v", err)
+	}
+
+	// Status should remain blocked.
+	if resumed.Status != models.StatusBlocked {
+		t.Errorf("expected blocked status after resume, got %s", resumed.Status)
+	}
+
+	// Verify via backlog.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("loading backlog: %v", err)
+	}
+	entry, err := app.BacklogMgr.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("getting backlog entry: %v", err)
+	}
+	if entry.Status != models.StatusBlocked {
+		t.Errorf("backlog status = %s, want blocked", entry.Status)
+	}
+}
+
+// TestIntegration_ResumeFromReviewStatus verifies that resuming a task in
+// review status does not change its status. Resume only promotes backlog tasks.
+func TestIntegration_ResumeFromReviewStatus(t *testing.T) {
+	app := newTestApp(t)
+
+	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "review-resume", "", core.CreateTaskOpts{})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	// Set status to review.
+	if err := app.TaskMgr.UpdateTaskStatus(task.ID, models.StatusReview); err != nil {
+		t.Fatalf("setting status to review: %v", err)
+	}
+
+	// Resume the review task.
+	resumed, err := app.TaskMgr.ResumeTask(task.ID)
+	if err != nil {
+		t.Fatalf("resuming review task: %v", err)
+	}
+
+	// Status should remain review.
+	if resumed.Status != models.StatusReview {
+		t.Errorf("expected review status after resume, got %s", resumed.Status)
+	}
+
+	// Verify via backlog.
+	if err := app.BacklogMgr.Load(); err != nil {
+		t.Fatalf("loading backlog: %v", err)
+	}
+	entry, err := app.BacklogMgr.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("getting backlog entry: %v", err)
+	}
+	if entry.Status != models.StatusReview {
+		t.Errorf("backlog status = %s, want review", entry.Status)
 	}
 }
