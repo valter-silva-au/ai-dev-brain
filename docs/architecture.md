@@ -6,7 +6,7 @@ This document describes the internal architecture of AI Dev Brain (`adb`), cover
 
 ## System Overview
 
-AI Dev Brain is organized into five layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic. The integration layer communicates with external systems (git, OS tools, Taskfile). The storage layer persists data to the local filesystem. The observability layer provides event logging, metrics derivation, and alerting. A shared `pkg/models` package defines the data structures used across layers.
+AI Dev Brain is organized into five layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic, including the feedback loop orchestrator, knowledge manager, and channel registry. The integration layer communicates with external systems (git, OS tools, Taskfile, file-based channels). The storage layer persists data to the local filesystem, including the long-term knowledge store. The observability layer provides event logging, metrics derivation, and alerting. A shared `pkg/models` package defines the data structures used across layers.
 
 ```mermaid
 graph TD
@@ -25,6 +25,9 @@ graph TD
         TDG[TaskDesignDocGenerator]
         IDG[TaskIDGenerator]
         TMPL[TemplateManager]
+        KM[KnowledgeManager]
+        FL[FeedbackLoopOrchestrator]
+        CR[ChannelRegistry]
     end
 
     subgraph "Observability Layer"
@@ -40,16 +43,18 @@ graph TD
         SP[ScreenshotPipeline]
         EXEC[CLIExecutor]
         TFR[TaskfileRunner]
+        FCA[FileChannelAdapter]
     end
 
     subgraph "Storage Layer"
         BM[BacklogManager]
         CTX[ContextManager]
         COMM[CommunicationManager]
+        KS[KnowledgeStoreManager]
     end
 
     subgraph "Shared Models"
-        MDL["pkg/models<br/>(Task, Config, Knowledge, Communication)"]
+        MDL["pkg/models<br/>(Task, Config, Knowledge,<br/>Communication, Channel)"]
     end
 
     CLI --> TM
@@ -60,6 +65,9 @@ graph TD
     CLI --> EL
     CLI --> MC
     CLI --> AE
+    CLI --> FL
+    CLI --> CR
+    CLI --> KM
 
     TM --> BS
     TM --> BM
@@ -73,8 +81,15 @@ graph TD
     UG --> CTX
     UG --> COMM
     ACG --> BM
+    ACG --> KM
     TDG --> COMM
     CD --> MDL
+
+    FL --> CR
+    FL --> KM
+    FL --> BM
+    CR --> FCA
+    KM --> KS
 
     MC --> EL
     AE --> EL
@@ -96,6 +111,9 @@ graph TD
     style TDG fill:#7b68ee,color:#fff
     style IDG fill:#7b68ee,color:#fff
     style TMPL fill:#7b68ee,color:#fff
+    style KM fill:#7b68ee,color:#fff
+    style FL fill:#7b68ee,color:#fff
+    style CR fill:#7b68ee,color:#fff
     style EL fill:#e74c3c,color:#fff
     style MC fill:#e74c3c,color:#fff
     style AE fill:#e74c3c,color:#fff
@@ -105,9 +123,11 @@ graph TD
     style SP fill:#2ecc71,color:#fff
     style EXEC fill:#2ecc71,color:#fff
     style TFR fill:#2ecc71,color:#fff
+    style FCA fill:#2ecc71,color:#fff
     style BM fill:#e67e22,color:#fff
     style CTX fill:#e67e22,color:#fff
     style COMM fill:#e67e22,color:#fff
+    style KS fill:#e67e22,color:#fff
     style MDL fill:#95a5a6,color:#fff
 ```
 

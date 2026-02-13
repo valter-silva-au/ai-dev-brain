@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/internal/observability"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
@@ -20,7 +21,7 @@ func (m *mockDashboardTaskMgr) GetAllTasks() ([]*models.Task, error) {
 	return m.tasks, m.err
 }
 
-func (m *mockDashboardTaskMgr) CreateTask(_ models.TaskType, _ string, _ string) (*models.Task, error) {
+func (m *mockDashboardTaskMgr) CreateTask(_ models.TaskType, _ string, _ string, _ core.CreateTaskOpts) (*models.Task, error) {
 	return nil, nil
 }
 func (m *mockDashboardTaskMgr) ResumeTask(_ string) (*models.Task, error) { return nil, nil }

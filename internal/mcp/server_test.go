@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/internal/observability"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,7 +26,7 @@ func newFakeTaskManager(tasks ...*models.Task) *fakeTaskManager {
 	return m
 }
 
-func (f *fakeTaskManager) CreateTask(_ models.TaskType, _ string, _ string) (*models.Task, error) {
+func (f *fakeTaskManager) CreateTask(_ models.TaskType, _ string, _ string, _ core.CreateTaskOpts) (*models.Task, error) {
 	return nil, nil
 }
 
