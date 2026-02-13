@@ -22,8 +22,20 @@ linters:
         linters:
           - gosec
           - unparam
+          - errcheck
       # G304 (file inclusion via variable) is not meaningful for this CLI tool
       # because all file paths are constructed from the managed data directory.
       - linters:
           - gosec
         text: "G304"
+      # G301/G302/G306: This CLI tool manages its own data directory.
+      # Project convention is 0o644 for files and 0o755 for directories
+      # (see go-standards.md), which gosec flags as "too permissive".
+      - linters:
+          - gosec
+        text: "G301|G302|G306"
+      # G204: The CLI tool constructs commands from internal data
+      # (branch names, paths from its own config), not user input.
+      - linters:
+          - gosec
+        text: "G204"

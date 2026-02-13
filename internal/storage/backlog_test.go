@@ -509,7 +509,7 @@ func TestFilterTasks_NoMatchReturnsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result != nil && len(result) != 0 {
+	if len(result) != 0 {
 		t.Fatalf("expected nil or empty result, got %d", len(result))
 	}
 }

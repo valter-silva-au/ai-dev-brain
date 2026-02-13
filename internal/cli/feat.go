@@ -118,10 +118,10 @@ func detectGitRoot() string {
 func setTerminalTitle(title string) {
 	seq := fmt.Sprintf("\033]0;%s\007", title)
 	if tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
-		fmt.Fprint(tty, seq)
-		tty.Close()
+		_, _ = fmt.Fprint(tty, seq)
+		_ = tty.Close()
 	} else {
-		fmt.Fprint(os.Stderr, seq)
+		_, _ = fmt.Fprint(os.Stderr, seq)
 	}
 }
 
@@ -195,7 +195,7 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 		// the terminal title on every prompt.
 		tmpDir, mkErr := os.MkdirTemp("", "adb-zsh-*")
 		if mkErr == nil {
-			defer os.RemoveAll(tmpDir)
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 
 			realZDOTDIR := os.Getenv("ZDOTDIR")
 			if realZDOTDIR == "" {

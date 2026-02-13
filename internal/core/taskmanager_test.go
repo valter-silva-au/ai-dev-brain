@@ -741,7 +741,7 @@ func TestCreateTask_BootstrapError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem("/nonexistent/path/that/should/fail", idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.CreateTask(models.TaskTypeFeat, "feat/fail", "", CreateTaskOpts{})
 	if err == nil {
@@ -759,7 +759,7 @@ func TestCreateTask_BacklogLoadError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.loadErr = fmt.Errorf("load failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.CreateTask(models.TaskTypeFeat, "feat/load-err", "", CreateTaskOpts{})
 	if err == nil {
@@ -777,7 +777,7 @@ func TestCreateTask_BacklogAddError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.addErr = fmt.Errorf("add failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.CreateTask(models.TaskTypeFeat, "feat/add-err", "", CreateTaskOpts{})
 	if err == nil {
@@ -795,7 +795,7 @@ func TestCreateTask_BacklogSaveError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.saveErr = fmt.Errorf("save failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.CreateTask(models.TaskTypeFeat, "feat/save-err", "", CreateTaskOpts{})
 	if err == nil {
@@ -812,7 +812,7 @@ func TestCreateTask_LoadStatusError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	// Create a task successfully first to get the ticket directory created.
 	task, err := mgr.CreateTask(models.TaskTypeFeat, "feat/first", "", CreateTaskOpts{})
@@ -850,7 +850,7 @@ func TestResumeTask_ContextLoadError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
 	ctxStore := &failingContextStore{}
-	mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil)
+	mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/ctx-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -872,7 +872,7 @@ func TestResumeTask_SaveStatusError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/save-fail", "", CreateTaskOpts{})
 	if err != nil {
@@ -906,7 +906,7 @@ func TestResumeTask_BacklogUpdateError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/backlog-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -932,7 +932,7 @@ func TestResumeTask_NilContextStore(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
 	// nil ctxStore should skip context loading.
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/nil-ctx", "", CreateTaskOpts{})
 	if err != nil {
@@ -966,7 +966,7 @@ func TestArchiveTask_SaveStatusError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/archive-save-fail", "", CreateTaskOpts{})
 	if err != nil {
@@ -992,9 +992,10 @@ func TestArchiveTask_SaveStatusError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from save status failure")
 	}
-	if !strings.Contains(err.Error(), "saving pre-archive status") || !strings.Contains(err.Error(), "archiving task") {
-		// The pre-archive status write or the status save itself could fail.
-		// Both are valid error paths.
+	// The pre-archive status write or the status save itself could fail.
+	// Both are valid error paths.
+	if !strings.Contains(err.Error(), "saving pre-archive status") && !strings.Contains(err.Error(), "archiving task") {
+		t.Fatalf("unexpected error message: %v", err)
 	}
 }
 
@@ -1004,7 +1005,7 @@ func TestArchiveTask_BacklogUpdateError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/archive-backlog-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1041,7 +1042,7 @@ func TestUnarchiveTask_SaveStatusError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/unarchive-save-fail", "", CreateTaskOpts{})
 	if err != nil {
@@ -1072,7 +1073,7 @@ func TestUnarchiveTask_BacklogUpdateError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/unarchive-backlog-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1103,7 +1104,7 @@ func TestGetTasksByStatus_BacklogLoadError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.loadErr = fmt.Errorf("load failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.GetTasksByStatus(models.StatusBacklog)
 	if err == nil {
@@ -1121,7 +1122,7 @@ func TestGetTasksByStatus_FilterError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.filterErr = fmt.Errorf("filter failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.GetTasksByStatus(models.StatusBacklog)
 	if err == nil {
@@ -1139,7 +1140,7 @@ func TestGetAllTasks_BacklogLoadError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.loadErr = fmt.Errorf("load failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.GetAllTasks()
 	if err == nil {
@@ -1157,7 +1158,7 @@ func TestGetAllTasks_GetAllError(t *testing.T) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
 	backlog.getAllErr = fmt.Errorf("get all failure")
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.GetAllTasks()
 	if err == nil {
@@ -1186,7 +1187,7 @@ func TestUpdateTaskStatus_SaveError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/status-save-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1218,7 +1219,7 @@ func TestUpdateTaskStatus_BacklogError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/status-backlog-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1255,7 +1256,7 @@ func TestUpdateTaskPriority_SaveError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/prio-save-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1287,7 +1288,7 @@ func TestUpdateTaskPriority_BacklogLoadError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/prio-load-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1312,7 +1313,7 @@ func TestUpdateTaskPriority_BacklogUpdateError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/prio-update-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1337,7 +1338,7 @@ func TestUpdateTaskPriority_BacklogSaveError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/prio-save-backlog-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1507,7 +1508,7 @@ func TestSaveTaskStatus_WriteFileError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil).(*taskManager)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil).(*taskManager)
 
 	// Create a task.
 	task, err := mgr.CreateTask(models.TaskTypeFeat, "feat/test", "", CreateTaskOpts{})
@@ -1538,7 +1539,7 @@ func TestUpdateBacklogStatus_Errors(t *testing.T) {
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newFailingBacklog()
-		mgr := NewTaskManager(dir, bs, backlog, nil, nil).(*taskManager)
+		mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil).(*taskManager)
 
 		backlog.loadErr = fmt.Errorf("load error")
 		err := mgr.updateBacklogStatus("TASK-00001", models.StatusDone)
@@ -1553,7 +1554,7 @@ func TestUpdateBacklogStatus_Errors(t *testing.T) {
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newFailingBacklog()
-		mgr := NewTaskManager(dir, bs, backlog, nil, nil).(*taskManager)
+		mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil).(*taskManager)
 
 		backlog.updateErr = fmt.Errorf("update error")
 		err := mgr.updateBacklogStatus("TASK-00001", models.StatusDone)
@@ -1570,7 +1571,7 @@ func TestUpdateBacklogStatus_Errors(t *testing.T) {
 		backlog := newFailingBacklog()
 		// Add a task so update succeeds.
 		_ = backlog.AddTask(BacklogStoreEntry{ID: "TASK-00001", Status: models.StatusBacklog})
-		mgr := NewTaskManager(dir, bs, backlog, nil, nil).(*taskManager)
+		mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil).(*taskManager)
 
 		backlog.saveErr = fmt.Errorf("save error")
 		err := mgr.updateBacklogStatus("TASK-00001", models.StatusDone)
@@ -1606,7 +1607,7 @@ func TestCreateTask_LoadStatusYAMLError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	// Pre-create the next task's directory with invalid status.yaml.
 	// The counter starts at 0, so next task will be TASK-00001.
@@ -1640,7 +1641,7 @@ func TestLoadTaskFromTicket_InvalidYAML(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	_, err := mgr.GetTask(taskID)
 	if err == nil {
@@ -1657,7 +1658,7 @@ func TestGetTasksByStatus_SkipsMissingTickets(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	// Create one real task.
 	task, err := mgr.CreateTask(models.TaskTypeFeat, "feat/real", "", CreateTaskOpts{})
@@ -1687,7 +1688,7 @@ func TestGetAllTasks_SkipsMissingTickets(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, nil, nil)
+	mgr := NewTaskManager(dir, bs, backlog, nil, nil, nil)
 
 	// Create one real task.
 	task, err := mgr.CreateTask(models.TaskTypeFeat, "feat/real", "", CreateTaskOpts{})
@@ -1745,7 +1746,7 @@ func TestArchiveTask_PreArchiveWriteError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/pre-archive-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1772,7 +1773,7 @@ func TestArchiveTask_HandoffWriteError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/handoff-write-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1798,7 +1799,7 @@ func TestArchiveTask_SaveStatusErrorAfterHandoff(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/archive-save-err2", "", CreateTaskOpts{})
 	if err != nil {
@@ -1828,7 +1829,7 @@ func TestArchiveTask_MkdirAllError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/mkdir-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1854,7 +1855,7 @@ func TestArchiveTask_RenameError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/rename-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1882,7 +1883,7 @@ func TestUnarchiveTask_MoveFromArchiveError(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/move-from-err", "", CreateTaskOpts{})
 	if err != nil {
@@ -1914,7 +1915,7 @@ func TestUnarchiveTask_SaveStatusErrorAfterMove(t *testing.T) {
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
-	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil)
+	mgr := NewTaskManager(dir, bs, backlog, newMockContextStore(), nil, nil)
 
 	created, err := mgr.CreateTask(models.TaskTypeFeat, "feat/unarchive-save-err2", "", CreateTaskOpts{})
 	if err != nil {
