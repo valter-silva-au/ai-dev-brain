@@ -314,6 +314,123 @@ func TestGenerateUpdates_DeduplicatesContacts(t *testing.T) {
 	}
 }
 
+func TestGenerateUpdates_ContextLoadError(t *testing.T) {
+	base := t.TempDir()
+	ctxMgr := storage.NewContextManager(base)
+	commMgr := storage.NewCommunicationManager(base)
+	gen := NewUpdateGenerator(ctxMgr, commMgr)
+
+	// Task does not exist, so loading context will fail.
+	_, err := gen.GenerateUpdates("TASK-NONEXISTENT")
+	if err == nil {
+		t.Fatal("expected error when task context does not exist")
+	}
+	if !strings.Contains(err.Error(), "loading context") {
+		t.Errorf("expected loading context error, got: %v", err)
+	}
+}
+
+func TestGenerateUpdates_CommunicationLoadError(t *testing.T) {
+	base := t.TempDir()
+	ctxMgr := storage.NewContextManager(base)
+	commMgr := storage.NewCommunicationManager(base)
+
+	// Create task context so it loads successfully.
+	if _, err := ctxMgr.InitializeContext("TASK-00001"); err != nil {
+		t.Fatalf("initializing context: %v", err)
+	}
+
+	// Create communications/ as a file to cause GetAllCommunications to fail.
+	commsPath := filepath.Join(base, "tickets", "TASK-00001", "communications")
+	os.RemoveAll(commsPath) // Remove existing dir.
+	if err := os.WriteFile(commsPath, []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("failed to write blocker file: %v", err)
+	}
+
+	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	_, err := gen.GenerateUpdates("TASK-00001")
+	if err == nil {
+		t.Fatal("expected error when communications dir is not valid")
+	}
+	if !strings.Contains(err.Error(), "loading communications") {
+		t.Errorf("expected loading communications error, got: %v", err)
+	}
+}
+
+func TestPriorityRank(t *testing.T) {
+	tests := []struct {
+		name     string
+		priority MessagePriority
+		want     int
+	}{
+		{"high", MsgPriorityHigh, 0},
+		{"normal", MsgPriorityNormal, 1},
+		{"low", MsgPriorityLow, 2},
+		{"unknown", MessagePriority("unknown"), 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := priorityRank(tt.priority)
+			if got != tt.want {
+				t.Errorf("priorityRank(%q) = %d, want %d", tt.priority, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChannelFromSource(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   MessageChannel
+	}{
+		{"slack", "Slack", ChannelSlack},
+		{"email", "Email", ChannelEmail},
+		{"teams", "Teams", ChannelTeams},
+		{"unknown", "phone", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := channelFromSource(tt.source)
+			if got != tt.want {
+				t.Errorf("channelFromSource(%q) = %q, want %q", tt.source, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindRelevantContact_NoMatch(t *testing.T) {
+	comms := []models.Communication{
+		{Contact: "@alice", Topic: "API design", Content: "REST endpoints"},
+		{Contact: "@bob", Topic: "Database schema", Content: "PostgreSQL tables"},
+	}
+	// Text that does not match any topic or content.
+	contact := findRelevantContact("completely unrelated thing", comms)
+	// Should return the most recent contact as fallback.
+	if contact != "@bob" {
+		t.Errorf("expected fallback to most recent contact @bob, got %q", contact)
+	}
+}
+
+func TestFindRelevantContact_Empty(t *testing.T) {
+	contact := findRelevantContact("anything", nil)
+	if contact != "" {
+		t.Errorf("expected empty string for no comms, got %q", contact)
+	}
+}
+
+func TestFindRelevantContact_MatchesTopic(t *testing.T) {
+	comms := []models.Communication{
+		{Contact: "@alice", Topic: "API design", Content: "REST endpoints"},
+		{Contact: "@bob", Topic: "Database schema", Content: "PostgreSQL tables"},
+	}
+	// "database schema" matches @bob's topic.
+	contact := findRelevantContact("database schema", comms)
+	if contact != "@bob" {
+		t.Errorf("expected @bob for topic match, got %q", contact)
+	}
+}
+
 func TestGenerateUpdates_MessagesOrderedByPriority(t *testing.T) {
 	// This test verifies Property 18: messages are ordered by priority.
 	base := t.TempDir()

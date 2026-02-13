@@ -23,7 +23,7 @@ func NewRepoSyncManager(basePath string) *RepoSyncManager {
 
 // RepoSyncResult captures the outcome of synchronising a single repository.
 type RepoSyncResult struct {
-	RepoPath        string   // Relative path like "github.com/org/repo"
+	RepoPath        string // Relative path like "github.com/org/repo"
 	DefaultBranch   string
 	Fetched         bool
 	BranchesDeleted []string

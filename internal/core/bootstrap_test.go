@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -258,5 +259,198 @@ func TestGenerateTaskID_ViaBootstrap(t *testing.T) {
 	}
 	if id != "TASK-00001" {
 		t.Errorf("expected TASK-00001, got %s", id)
+	}
+}
+
+// mockFailingIDGenerator always returns an error from GenerateTaskID.
+type mockFailingIDGenerator struct{}
+
+func (m *mockFailingIDGenerator) GenerateTaskID() (string, error) {
+	return "", fmt.Errorf("ID generation failed")
+}
+
+func TestBootstrap_IDGenerationError(t *testing.T) {
+	dir := t.TempDir()
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, &mockFailingIDGenerator{}, nil, tmplMgr)
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:  models.TaskTypeFeat,
+		Title: "Test",
+	})
+	if err == nil {
+		t.Fatal("expected error when ID generation fails")
+	}
+	if !strings.Contains(err.Error(), "generating task ID") {
+		t.Errorf("expected generating task ID error, got: %v", err)
+	}
+}
+
+func TestBootstrap_MkdirAllError(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
+
+	// Create a file where tickets/ should be a directory.
+	if err := os.WriteFile(filepath.Join(dir, "tickets"), []byte("blocker"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:  models.TaskTypeFeat,
+		Title: "Test",
+	})
+	if err == nil {
+		t.Fatal("expected error when tickets/ is a file")
+	}
+	if !strings.Contains(err.Error(), "creating directory") {
+		t.Errorf("expected creating directory error, got: %v", err)
+	}
+}
+
+// mockFailingTemplateManager always returns an error from ApplyTemplate.
+type mockFailingTemplateManager struct{}
+
+func (m *mockFailingTemplateManager) ApplyTemplate(_ string, _ models.TaskType) error {
+	return fmt.Errorf("template apply failed")
+}
+func (m *mockFailingTemplateManager) GetTemplate(_ models.TaskType) (string, error) {
+	return "", nil
+}
+func (m *mockFailingTemplateManager) RegisterTemplate(_ models.TaskType, _ string) error {
+	return nil
+}
+
+func TestBootstrap_TemplateApplyError(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	bs := NewBootstrapSystem(dir, idGen, nil, &mockFailingTemplateManager{})
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:  models.TaskTypeFeat,
+		Title: "Test",
+	})
+	if err == nil {
+		t.Fatal("expected error when template apply fails")
+	}
+	if !strings.Contains(err.Error(), "applying template") {
+		t.Errorf("expected applying template error, got: %v", err)
+	}
+}
+
+func TestBootstrap_ContextWriteError(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
+
+	// To trigger the context.md write error, we need to make the directory
+	// write succeed but make the context.md file write fail.
+	// We can do this by making context.md a directory.
+	// First, generate a task ID to predict the next one.
+	nextID := "TASK-00001"
+	ticketPath := filepath.Join(dir, "tickets", nextID)
+	if err := os.MkdirAll(filepath.Join(ticketPath, "communications"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create context.md as a directory so WriteFile will fail.
+	if err := os.MkdirAll(filepath.Join(ticketPath, "context.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:  models.TaskTypeFeat,
+		Title: "Test",
+	})
+	if err == nil {
+		t.Fatal("expected error when context.md cannot be written")
+	}
+	if !strings.Contains(err.Error(), "writing context.md") {
+		t.Errorf("expected writing context.md error, got: %v", err)
+	}
+}
+
+func TestBootstrap_WorktreeCreationError(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	mockWt := &mockWorktreeCreator{err: fmt.Errorf("worktree creation failed")}
+	bs := NewBootstrapSystem(dir, idGen, mockWt, tmplMgr)
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:       models.TaskTypeFeat,
+		Title:      "Test",
+		RepoPath:   "github.com/org/repo",
+		BranchName: "feat/test",
+	})
+	if err == nil {
+		t.Fatal("expected error when worktree creation fails")
+	}
+	if !strings.Contains(err.Error(), "creating worktree") {
+		t.Errorf("expected creating worktree error, got: %v", err)
+	}
+}
+
+func TestBootstrap_StatusYAMLWriteError(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
+
+	// Pre-create the ticket directory structure so bootstrap proceeds normally
+	// until status.yaml write. Make status.yaml a directory so it fails.
+	nextID := "TASK-00001"
+	ticketPath := filepath.Join(dir, "tickets", nextID)
+	if err := os.MkdirAll(filepath.Join(ticketPath, "communications"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create status.yaml as a directory.
+	if err := os.MkdirAll(filepath.Join(ticketPath, "status.yaml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := bs.Bootstrap(BootstrapConfig{
+		Type:  models.TaskTypeFeat,
+		Title: "Test",
+	})
+	if err == nil {
+		t.Fatal("expected error when status.yaml cannot be written")
+	}
+	if !strings.Contains(err.Error(), "writing status.yaml") {
+		t.Errorf("expected writing status.yaml error, got: %v", err)
+	}
+}
+
+func TestBootstrap_StoresTagsAndSource(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK")
+	tmplMgr := NewTemplateManager(dir)
+	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
+
+	result, err := bs.Bootstrap(BootstrapConfig{
+		Type:   models.TaskTypeFeat,
+		Title:  "Tagged task",
+		Tags:   []string{"backend", "api"},
+		Source: "slack",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Read status.yaml and verify tags and source.
+	statusData, err := os.ReadFile(filepath.Join(result.TicketPath, "status.yaml"))
+	if err != nil {
+		t.Fatalf("status.yaml should exist: %v", err)
+	}
+	var task models.Task
+	if err := yaml.Unmarshal(statusData, &task); err != nil {
+		t.Fatalf("failed to parse status.yaml: %v", err)
+	}
+	if len(task.Tags) != 2 || task.Tags[0] != "backend" || task.Tags[1] != "api" {
+		t.Errorf("expected tags [backend api], got %v", task.Tags)
+	}
+	if task.Source != "slack" {
+		t.Errorf("expected source 'slack', got %q", task.Source)
 	}
 }
