@@ -334,7 +334,7 @@ func TestSetTerminalTitle(t *testing.T) {
 func TestLaunchWorkflow_NonExistentWorktree(t *testing.T) {
 	// When worktree path doesn't exist, launchWorkflow returns early.
 	// This should not panic.
-	launchWorkflow("TASK-00001", "feat/test", "/nonexistent/path/that/does/not/exist")
+	launchWorkflow("TASK-00001", "feat/test", "/nonexistent/path/that/does/not/exist", false)
 }
 
 func TestLaunchWorkflow_ExistingDirNoClaude(t *testing.T) {
@@ -347,7 +347,7 @@ func TestLaunchWorkflow_ExistingDirNoClaude(t *testing.T) {
 
 	// launchWorkflow should not panic; claude not found triggers the fallback print.
 	// We can't easily capture stdout here, so just verify no panic.
-	launchWorkflow("TASK-00001", "feat/test", tmpDir)
+	launchWorkflow("TASK-00001", "feat/test", tmpDir, false)
 
 	// Restore PATH.
 	t.Setenv("PATH", origPath)
@@ -404,7 +404,7 @@ func TestLaunchWorkflow_WithFakeClaude_BashShell(t *testing.T) {
 	t.Setenv("SHELL", filepath.Join(tmpBin, "bash"))
 
 	// Should not panic. Exercises lines 148-170 and the else branch (bash) at lines 221-227, plus 229-234.
-	launchWorkflow("TASK-00099", "feat/test", worktree)
+	launchWorkflow("TASK-00099", "feat/test", worktree, false)
 }
 
 func TestLaunchWorkflow_WithFakeClaude_ZshShell(t *testing.T) {
@@ -430,7 +430,7 @@ func TestLaunchWorkflow_WithFakeClaude_ZshShell(t *testing.T) {
 
 	// Should not panic. Exercises the zsh branch at lines 184-220 and the
 	// claude error path at lines 155-158.
-	launchWorkflow("TASK-00099", "feat/zsh-test", worktree)
+	launchWorkflow("TASK-00099", "feat/zsh-test", worktree, false)
 }
 
 func TestLaunchWorkflow_WithFakeClaude_EmptyShellEnv(t *testing.T) {
@@ -449,7 +449,7 @@ func TestLaunchWorkflow_WithFakeClaude_EmptyShellEnv(t *testing.T) {
 
 	// Exercises the SHELL=="" -> "/bin/bash" fallback at lines 165-168.
 	// /bin/bash is expected to fail or run briefly (no stdin).
-	launchWorkflow("TASK-00099", "feat/no-shell", worktree)
+	launchWorkflow("TASK-00099", "feat/no-shell", worktree, false)
 }
 
 func TestLaunchWorkflow_ZshWithZDOTDIR(t *testing.T) {
@@ -473,5 +473,5 @@ func TestLaunchWorkflow_ZshWithZDOTDIR(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	// Exercises ZDOTDIR != "" path at line 192.
-	launchWorkflow("TASK-00099", "feat/zdotdir-test", worktree)
+	launchWorkflow("TASK-00099", "feat/zdotdir-test", worktree, false)
 }

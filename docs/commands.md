@@ -264,6 +264,19 @@ restores the working environment, and promotes the task to `in_progress`
 status if it was in `backlog`. Tasks in any other status retain their current
 status.
 
+After restoring task state, `adb resume` launches Claude Code in the
+task's worktree directory with `--dangerously-skip-permissions --resume`.
+The `--resume` flag makes Claude Code continue from the most recent
+conversation in that directory, preserving context from prior sessions.
+
+This differs from task creation commands (`adb feat`, `adb bug`,
+`adb spike`, `adb refactor`), which launch Claude Code **without**
+`--resume` since there is no prior conversation to continue.
+
+After Claude Code exits, the user is dropped into an interactive shell
+in the worktree directory with `ADB_*` environment variables set, so
+they can continue working without manually navigating to the worktree.
+
 **Arguments**
 
 | Argument | Required | Description |
@@ -277,7 +290,34 @@ None.
 **Output**
 
 Prints the resumed task details: ID, type, status, branch, worktree path
-(if present), and ticket path.
+(if present), and ticket path. Then launches Claude Code with `--resume`
+in the worktree directory (if a worktree exists).
+
+#### Post-resume Workflow
+
+When the task has a worktree, the following workflow executes automatically
+after the task is resumed:
+
+1. **Terminal tab renamed** to `{task-id} ({branch})` (e.g.,
+   `TASK-00042 (add-user-auth)`) using ANSI OSC 0 escape sequences.
+2. **Claude Code launched** in `work/TASK-XXXXX/` with
+   `--dangerously-skip-permissions --resume`. The `--resume` flag
+   continues the most recent Claude conversation in that directory.
+3. **After Claude exits**, the user is dropped into an interactive shell
+   in the worktree directory. The shell has `ADB_TASK_ID`, `ADB_BRANCH`,
+   and `ADB_WORKTREE_PATH` environment variables set. The terminal title
+   is maintained across prompts via `PROMPT_COMMAND` (bash) or a `precmd`
+   hook (zsh). Type `exit` to return to the original directory.
+4. **If the `claude` binary is not found**, no subprocess is launched.
+   Instead, a manual command is printed for the user to run:
+   ```
+   cd /path/to/worktree
+   claude --dangerously-skip-permissions --resume
+   ```
+
+The same workflow runs for task creation commands (`adb feat`, `adb bug`,
+`adb spike`, `adb refactor`), except Claude Code is launched **without**
+`--resume` (since no prior conversation exists).
 
 **Examples**
 
