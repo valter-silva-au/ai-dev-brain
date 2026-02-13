@@ -25,6 +25,7 @@ graph LR
         priority["adb priority"]
         update["adb update"]
         syncctx["adb sync-context"]
+        migrate["adb migrate-archive"]
     end
 
     subgraph "External Tools"
@@ -301,8 +302,13 @@ adb archive <task-id> [flags]
 
 Archive a task, generating a handoff document that captures learnings,
 decisions, and open items for future reference. The handoff document is
-written to `tickets/<task-id>/handoff.md` and the task status changes to
+written to the task's ticket folder and the task status changes to
 `archived`.
+
+On archive, the ticket folder is moved from `tickets/<task-id>/` to
+`tickets/_archived/<task-id>/` to keep the VS Code file explorer clean.
+The `_archived/` directory groups all archived tasks together, separate
+from active work.
 
 By default, the task's git worktree is also removed. Use `--keep-worktree`
 to preserve it.
@@ -368,6 +374,9 @@ Restore a previously archived task. The task is returned to its pre-archive
 status (the status it had before `adb archive` was called), allowing work
 to continue where it left off. If the pre-archive status cannot be
 determined, the task defaults to `backlog`.
+
+If the ticket folder was moved to `tickets/_archived/`, it is moved back
+to `tickets/` as part of the unarchive operation.
 
 **Arguments**
 
@@ -677,6 +686,55 @@ adb sync-context
 
 # Typically run after making wiki or ADR changes
 adb sync-context
+```
+
+---
+
+### adb migrate-archive
+
+Move archived task folders into `tickets/_archived/`.
+
+**Synopsis**
+
+```
+adb migrate-archive [flags]
+```
+
+**Description**
+
+Scan the backlog for archived tasks whose ticket folders are still in
+`tickets/` and move them to `tickets/_archived/`. This is a one-time
+migration command for transitioning to the new directory structure where
+archived tasks are separated from active tasks.
+
+Use `--dry-run` to preview which tasks would be moved without making
+any changes.
+
+Tasks that are already in `tickets/_archived/` are skipped.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | `false` | Preview changes without moving any files |
+
+**Output**
+
+Lists each task being moved (or that would be moved in dry-run mode)
+and prints a summary count.
+
+**Examples**
+
+```bash
+# Preview which tasks would be moved
+adb migrate-archive --dry-run
+
+# Move all archived tasks to tickets/_archived/
+adb migrate-archive
 ```
 
 ---

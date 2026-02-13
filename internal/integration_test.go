@@ -130,8 +130,19 @@ func TestIntegration_TaskLifecycle_CreateResumeArchiveUnarchive(t *testing.T) {
 		t.Fatalf("expected handoff task ID %s, got %s", taskID, handoff.TaskID)
 	}
 
-	// Verify handoff.md was created.
-	handoffPath := filepath.Join(ticketDir, "handoff.md")
+	// Verify ticket was moved to _archived/.
+	archivedTicketDir := filepath.Join(app.BasePath, "tickets", "_archived", taskID)
+	if _, err := os.Stat(archivedTicketDir); err != nil {
+		t.Fatalf("archived ticket directory should exist: %v", err)
+	}
+
+	// Verify original ticket directory no longer exists.
+	if _, err := os.Stat(ticketDir); !os.IsNotExist(err) {
+		t.Fatal("original ticket directory should be removed after archive")
+	}
+
+	// Verify handoff.md was created in the archived location.
+	handoffPath := filepath.Join(archivedTicketDir, "handoff.md")
 	handoffData, err := os.ReadFile(handoffPath)
 	if err != nil {
 		t.Fatalf("reading handoff.md: %v", err)
@@ -143,7 +154,7 @@ func TestIntegration_TaskLifecycle_CreateResumeArchiveUnarchive(t *testing.T) {
 		t.Fatal("handoff.md should contain 'Archived'")
 	}
 
-	// Verify status is archived.
+	// Verify status is archived (loadable from _archived).
 	archived, err := app.TaskMgr.GetTask(taskID)
 	if err != nil {
 		t.Fatalf("getting archived task: %v", err)
@@ -152,8 +163,8 @@ func TestIntegration_TaskLifecycle_CreateResumeArchiveUnarchive(t *testing.T) {
 		t.Fatalf("expected archived status, got %s", archived.Status)
 	}
 
-	// Verify .pre_archive_status was saved.
-	preArchivePath := filepath.Join(ticketDir, ".pre_archive_status")
+	// Verify .pre_archive_status was saved in the archived location.
+	preArchivePath := filepath.Join(archivedTicketDir, ".pre_archive_status")
 	preData, err := os.ReadFile(preArchivePath)
 	if err != nil {
 		t.Fatalf("reading .pre_archive_status: %v", err)
@@ -171,8 +182,19 @@ func TestIntegration_TaskLifecycle_CreateResumeArchiveUnarchive(t *testing.T) {
 		t.Fatalf("expected in_progress after unarchive (restored), got %s", unarchived.Status)
 	}
 
-	// Verify .pre_archive_status was cleaned up.
-	if _, err := os.Stat(preArchivePath); !os.IsNotExist(err) {
+	// Verify ticket was moved back to active location.
+	if _, err := os.Stat(ticketDir); err != nil {
+		t.Fatalf("ticket should be back in active location after unarchive: %v", err)
+	}
+
+	// Verify _archived directory no longer contains this task.
+	if _, err := os.Stat(archivedTicketDir); !os.IsNotExist(err) {
+		t.Fatal("archived ticket directory should be removed after unarchive")
+	}
+
+	// Verify .pre_archive_status was cleaned up from active location.
+	activePreArchivePath := filepath.Join(ticketDir, ".pre_archive_status")
+	if _, err := os.Stat(activePreArchivePath); !os.IsNotExist(err) {
 		t.Fatal("expected .pre_archive_status to be removed after unarchive")
 	}
 
@@ -969,8 +991,8 @@ func TestIntegration_BacklogFilter_StatusAndPriority(t *testing.T) {
 	}
 
 	// Change statuses.
-	_, _ = app.TaskMgr.ResumeTask(task1.ID)    // -> in_progress
-	_, _ = app.TaskMgr.ArchiveTask(task2.ID)   // -> archived
+	_, _ = app.TaskMgr.ResumeTask(task1.ID)  // -> in_progress
+	_, _ = app.TaskMgr.ArchiveTask(task2.ID) // -> archived
 	// task3 stays in backlog
 
 	// Filter by in_progress.
@@ -1499,9 +1521,9 @@ func TestIntegration_TemplateManager_AllTaskTypes(t *testing.T) {
 	tmplMgr := core.NewTemplateManager(dir)
 
 	types := []struct {
-		typ        models.TaskType
-		notesKW    string
-		designKW   string
+		typ      models.TaskType
+		notesKW  string
+		designKW string
 	}{
 		{models.TaskTypeFeat, "Feature Notes", "Technical Design"},
 		{models.TaskTypeBug, "Bug Notes", "Root Cause"},

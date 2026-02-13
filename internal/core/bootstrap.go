@@ -174,9 +174,9 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 }
 
 // ApplyTemplate delegates to the TemplateManager, applying the type-specific
-// template to the task's ticket folder.
+// template to the task's ticket folder. Checks both active and archived locations.
 func (bs *bootstrapSystem) ApplyTemplate(taskID string, templateType models.TaskType) error {
-	ticketPath := filepath.Join(bs.basePath, "tickets", taskID)
+	ticketPath := resolveTicketDir(bs.basePath, taskID)
 	return bs.tmplMgr.ApplyTemplate(ticketPath, templateType)
 }
 

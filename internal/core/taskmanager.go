@@ -181,8 +181,10 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 		return nil, fmt.Errorf("archiving task %s: task is already archived", taskID)
 	}
 
+	ticketDir := resolveTicketDir(tm.basePath, taskID)
+
 	// Save the pre-archive status so unarchive can restore it.
-	preArchivePath := filepath.Join(tm.basePath, "tickets", taskID, ".pre_archive_status")
+	preArchivePath := filepath.Join(ticketDir, ".pre_archive_status")
 	if err := os.WriteFile(preArchivePath, []byte(string(task.Status)), 0o600); err != nil {
 		return nil, fmt.Errorf("archiving task %s: saving pre-archive status: %w", taskID, err)
 	}
@@ -195,7 +197,7 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 	if err != nil {
 		return nil, fmt.Errorf("archiving task %s: rendering handoff: %w", taskID, err)
 	}
-	handoffPath := filepath.Join(tm.basePath, "tickets", taskID, "handoff.md")
+	handoffPath := filepath.Join(ticketDir, "handoff.md")
 	if err := os.WriteFile(handoffPath, []byte(handoffContent), 0o600); err != nil {
 		return nil, fmt.Errorf("archiving task %s: writing handoff.md: %w", taskID, err)
 	}
@@ -211,10 +213,27 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 		return nil, fmt.Errorf("archiving task %s: updating backlog: %w", taskID, err)
 	}
 
+	// Move ticket directory to _archived/.
+	destDir := archivedTicketDir(tm.basePath, taskID)
+	if err := os.MkdirAll(filepath.Dir(destDir), 0o755); err != nil {
+		return nil, fmt.Errorf("archiving task %s: creating archive directory: %w", taskID, err)
+	}
+	if err := os.Rename(ticketDir, destDir); err != nil {
+		return nil, fmt.Errorf("archiving task %s: moving to archive: %w", taskID, err)
+	}
+
+	// Update TicketPath in the moved status.yaml.
+	task.TicketPath = destDir
+	movedStatusPath := filepath.Join(destDir, "status.yaml")
+	if statusData, marshalErr := yaml.Marshal(task); marshalErr == nil {
+		_ = os.WriteFile(movedStatusPath, statusData, 0o600)
+	}
+
 	return handoff, nil
 }
 
 // UnarchiveTask restores a previously archived task to its pre-archive status.
+// If the ticket was moved to _archived/, it is moved back to the active tickets/ directory.
 func (tm *taskManager) UnarchiveTask(taskID string) (*models.Task, error) {
 	task, err := tm.loadTaskFromTicket(taskID)
 	if err != nil {
@@ -225,16 +244,26 @@ func (tm *taskManager) UnarchiveTask(taskID string) (*models.Task, error) {
 		return nil, fmt.Errorf("unarchiving task %s: task is not archived (status: %s)", taskID, task.Status)
 	}
 
-	// Read the pre-archive status.
-	preArchivePath := filepath.Join(tm.basePath, "tickets", taskID, ".pre_archive_status")
+	// Read the pre-archive status from the current location.
+	currentDir := resolveTicketDir(tm.basePath, taskID)
+	preArchivePath := filepath.Join(currentDir, ".pre_archive_status")
 	previousStatus := models.StatusBacklog
 	data, err := os.ReadFile(preArchivePath)
 	if err == nil {
 		previousStatus = models.TaskStatus(strings.TrimSpace(string(data)))
 	}
 
+	// Move ticket directory back to active tickets/ if it's in _archived/.
+	activeDir := activeTicketDir(tm.basePath, taskID)
+	if currentDir != activeDir {
+		if err := os.Rename(currentDir, activeDir); err != nil {
+			return nil, fmt.Errorf("unarchiving task %s: moving from archive: %w", taskID, err)
+		}
+	}
+
 	task.Status = previousStatus
 	task.Updated = time.Now().UTC()
+	task.TicketPath = activeDir
 
 	if err := tm.saveTaskStatus(task); err != nil {
 		return nil, fmt.Errorf("unarchiving task %s: saving status: %w", taskID, err)
@@ -244,27 +273,28 @@ func (tm *taskManager) UnarchiveTask(taskID string) (*models.Task, error) {
 	}
 
 	// Clean up the pre-archive status file.
-	_ = os.Remove(preArchivePath)
+	_ = os.Remove(filepath.Join(activeDir, ".pre_archive_status"))
 
 	return task, nil
 }
 
 // buildHandoffDocument creates a HandoffDocument from the task's files.
 func (tm *taskManager) buildHandoffDocument(taskID string, task *models.Task) *models.HandoffDocument {
+	ticketDir := resolveTicketDir(tm.basePath, taskID)
 	handoff := &models.HandoffDocument{
 		TaskID:      taskID,
 		GeneratedAt: time.Now().UTC(),
 	}
 
 	// Extract content from notes.md.
-	notesPath := filepath.Join(tm.basePath, "tickets", taskID, "notes.md")
+	notesPath := filepath.Join(ticketDir, "notes.md")
 	if notesData, err := os.ReadFile(notesPath); err == nil {
 		handoff.Summary = fmt.Sprintf("Task %s (%s): %s", taskID, task.Type, task.Title)
 		handoff.Learnings = extractMarkdownListItems(string(notesData))
 	}
 
 	// Extract context for open items.
-	contextPath := filepath.Join(tm.basePath, "tickets", taskID, "context.md")
+	contextPath := filepath.Join(ticketDir, "context.md")
 	if contextData, err := os.ReadFile(contextPath); err == nil {
 		content := string(contextData)
 		handoff.OpenItems = extractSectionList(content, "## Open Questions")
@@ -272,7 +302,7 @@ func (tm *taskManager) buildHandoffDocument(taskID string, task *models.Task) *m
 	}
 
 	// List related docs.
-	designPath := filepath.Join(tm.basePath, "tickets", taskID, "design.md")
+	designPath := filepath.Join(ticketDir, "design.md")
 	if _, err := os.Stat(designPath); err == nil {
 		handoff.RelatedDocs = append(handoff.RelatedDocs, filepath.Join("tickets", taskID, "design.md"))
 	}
@@ -517,9 +547,11 @@ func (tm *taskManager) CleanupWorktree(taskID string) error {
 	return nil
 }
 
-// loadTaskFromTicket reads a task from its tickets/{taskID}/status.yaml file.
+// loadTaskFromTicket reads a task from its status.yaml file, checking both
+// the active (tickets/{taskID}) and archived (tickets/_archived/{taskID}) locations.
 func (tm *taskManager) loadTaskFromTicket(taskID string) (*models.Task, error) {
-	statusPath := filepath.Join(tm.basePath, "tickets", taskID, "status.yaml")
+	ticketDir := resolveTicketDir(tm.basePath, taskID)
+	statusPath := filepath.Join(ticketDir, "status.yaml")
 	data, err := os.ReadFile(statusPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading status.yaml for %s: %w", taskID, err)
@@ -533,9 +565,11 @@ func (tm *taskManager) loadTaskFromTicket(taskID string) (*models.Task, error) {
 	return &task, nil
 }
 
-// saveTaskStatus writes the task back to its status.yaml file.
+// saveTaskStatus writes the task back to its status.yaml file, checking both
+// the active and archived locations to find the correct directory.
 func (tm *taskManager) saveTaskStatus(task *models.Task) error {
-	statusPath := filepath.Join(tm.basePath, "tickets", task.ID, "status.yaml")
+	ticketDir := resolveTicketDir(tm.basePath, task.ID)
+	statusPath := filepath.Join(ticketDir, "status.yaml")
 	data, err := yaml.Marshal(task)
 	if err != nil {
 		return fmt.Errorf("marshalling status.yaml for %s: %w", task.ID, err)

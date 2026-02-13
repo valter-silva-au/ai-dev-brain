@@ -12,11 +12,11 @@ import (
 
 // TaskContext represents the persistent context for a task's AI session.
 type TaskContext struct {
-	TaskID         string                `yaml:"task_id"`
-	Notes          string                `yaml:"notes"`
-	Context        string                `yaml:"context"`
+	TaskID         string                 `yaml:"task_id"`
+	Notes          string                 `yaml:"notes"`
+	Context        string                 `yaml:"context"`
 	Communications []models.Communication `yaml:"communications"`
-	LastUpdated    time.Time             `yaml:"last_updated"`
+	LastUpdated    time.Time              `yaml:"last_updated"`
 }
 
 // AIContext is the summarized context assembled for AI assistant consumption.
@@ -52,7 +52,7 @@ func NewContextManager(basePath string) ContextManager {
 }
 
 func (m *fileContextManager) ticketDir(taskID string) string {
-	return filepath.Join(m.basePath, "tickets", taskID)
+	return resolveTicketDir(m.basePath, taskID)
 }
 
 func (m *fileContextManager) contextPath(taskID string) string {
