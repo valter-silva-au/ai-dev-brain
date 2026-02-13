@@ -2,6 +2,14 @@
 # Hook: Stop - Checks for uncommitted changes and basic build/vet
 set -euo pipefail
 
+# Read hook input from stdin
+INPUT=$(cat)
+
+# Prevent infinite loop: if this hook already triggered a continuation, allow stop
+if [ "$(echo "$INPUT" | jq -r '.stop_hook_active')" = "true" ]; then
+    exit 0
+fi
+
 cd "$(git rev-parse --show-toplevel)"
 
 echo "Checking for uncommitted changes..."
