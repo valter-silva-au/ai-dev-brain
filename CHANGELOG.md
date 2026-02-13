@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.2.0...v1.3.0) (2026-02-13)
+
+
+### Features
+
+* add Phase 3 advanced features - TUI dashboard, MCP server, Slack notifications ([#14](https://github.com/valter-silva-au/ai-dev-brain/issues/14)) ([917f622](https://github.com/valter-silva-au/ai-dev-brain/commit/917f622afcb726996108be4ba4d75f3560875d6d))
+* pass --resume to Claude Code when resuming a task ([65b4504](https://github.com/valter-silva-au/ai-dev-brain/commit/65b4504e5feb0fc867a538b3c02d9c810cb53eef))
+* wire priority/owner/tags flags, fix taskfile commands, push test coverage to 97% ([605dc34](https://github.com/valter-silva-au/ai-dev-brain/commit/605dc34dd5aa426ad0c4a30fb4dc079b5a005991))
+
 ## [1.2.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.1.0...v1.2.0) (2026-02-13)
 
 
