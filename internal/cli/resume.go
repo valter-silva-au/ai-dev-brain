@@ -34,9 +34,9 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 		}
 		fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
-		// Post-resume workflow: rename terminal tab and launch Claude Code.
+		// Post-resume workflow: rename terminal tab and launch Claude Code with --resume.
 		if task.WorktreePath != "" {
-			launchWorkflow(task.ID, task.Branch, task.WorktreePath)
+			launchWorkflow(task.ID, task.Branch, task.WorktreePath, true)
 		}
 
 		return nil

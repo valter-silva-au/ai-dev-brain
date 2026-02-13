@@ -5,10 +5,12 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/drapaimern/ai-dev-brain/internal/cli"
 	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/internal/integration"
+	"github.com/drapaimern/ai-dev-brain/internal/observability"
 	"github.com/drapaimern/ai-dev-brain/internal/storage"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
@@ -45,6 +47,12 @@ type App struct {
 	Executor    integration.CLIExecutor
 	Runner      integration.TaskfileRunner
 	RepoSyncMgr *integration.RepoSyncManager
+
+	// Observability
+	EventLog    observability.EventLog
+	AlertEngine observability.AlertEngine
+	MetricsCalc observability.MetricsCalculator
+	Notifier    observability.Notifier
 }
 
 // NewApp creates and wires all components of the AI Dev Brain system.
@@ -79,6 +87,34 @@ func NewApp(basePath string) (*App, error) {
 	app.Runner = integration.NewTaskfileRunner(app.Executor)
 	app.RepoSyncMgr = integration.NewRepoSyncManager(basePath)
 
+	// --- Observability ---
+	eventLogPath := filepath.Join(basePath, ".adb_events.jsonl")
+	app.EventLog, err = observability.NewJSONLEventLog(eventLogPath)
+	if err != nil {
+		// Non-fatal: disable observability if log can't be created.
+		app.EventLog = nil
+	}
+	if app.EventLog != nil {
+		thresholds := observability.DefaultAlertThresholds()
+		if globalCfg.Notifications.Alerts.BlockedHours > 0 {
+			thresholds.BlockedHours = globalCfg.Notifications.Alerts.BlockedHours
+		}
+		if globalCfg.Notifications.Alerts.StaleDays > 0 {
+			thresholds.StaleDays = globalCfg.Notifications.Alerts.StaleDays
+		}
+		if globalCfg.Notifications.Alerts.ReviewDays > 0 {
+			thresholds.ReviewDays = globalCfg.Notifications.Alerts.ReviewDays
+		}
+		if globalCfg.Notifications.Alerts.MaxBacklogSize > 0 {
+			thresholds.MaxBacklogSize = globalCfg.Notifications.Alerts.MaxBacklogSize
+		}
+		app.AlertEngine = observability.NewAlertEngine(app.EventLog, thresholds)
+		app.MetricsCalc = observability.NewMetricsCalculator(app.EventLog)
+	}
+	if globalCfg.Notifications.Enabled && globalCfg.Notifications.Slack.WebhookURL != "" {
+		app.Notifier = observability.NewSlackNotifier(globalCfg.Notifications.Slack.WebhookURL)
+	}
+
 	// --- Core services ---
 	prefix := globalCfg.TaskIDPrefix
 	if prefix == "" {
@@ -96,7 +132,11 @@ func NewApp(basePath string) (*App, error) {
 	blAdapter := &backlogStoreAdapter{mgr: app.BacklogMgr}
 	ctxAdapter := &contextStoreAdapter{mgr: app.ContextMgr}
 	wtRemoveAdapter := &worktreeRemoverAdapter{mgr: app.WorktreeMgr}
-	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter)
+	var evtAdapter core.EventLogger
+	if app.EventLog != nil {
+		evtAdapter = &eventLogAdapter{log: app.EventLog}
+	}
+	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter, evtAdapter)
 
 	app.UpdateGen = core.NewUpdateGenerator(app.ContextMgr, app.CommMgr)
 	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr)
@@ -114,6 +154,11 @@ func NewApp(basePath string) (*App, error) {
 	cli.Runner = app.Runner
 	cli.ProjectInit = app.ProjectInit
 	cli.RepoSyncMgr = app.RepoSyncMgr
+
+	cli.EventLog = app.EventLog
+	cli.AlertEngine = app.AlertEngine
+	cli.MetricsCalc = app.MetricsCalc
+	cli.Notifier = app.Notifier
 
 	// Convert CLIAliasConfig to integration.CLIAlias.
 	aliases := make([]integration.CLIAlias, len(globalCfg.CLIAliases))
@@ -282,4 +327,19 @@ type contextStoreAdapter struct {
 
 func (a *contextStoreAdapter) LoadContext(taskID string) (interface{}, error) {
 	return a.mgr.LoadContext(taskID)
+}
+
+// eventLogAdapter adapts observability.EventLog to core.EventLogger.
+type eventLogAdapter struct {
+	log observability.EventLog
+}
+
+func (a *eventLogAdapter) LogEvent(eventType string, data map[string]any) error {
+	return a.log.Write(observability.Event{
+		Time:    time.Now().UTC(),
+		Level:   "INFO",
+		Type:    eventType,
+		Message: eventType,
+		Data:    data,
+	})
 }

@@ -108,7 +108,7 @@ func setupTaskManager(t *testing.T) (string, TaskManager, *inMemoryBacklog) {
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
 	ctxStore := newMockContextStore()
-	mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil)
+	mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil, nil)
 	return dir, mgr, backlog
 }
 
@@ -554,7 +554,7 @@ func setupTaskManagerWithWorktreeRemover(t *testing.T) (string, TaskManager, *in
 	backlog := newInMemoryBacklog()
 	ctxStore := newMockContextStore()
 	wtRm := &mockWorktreeRemover{}
-	mgr := NewTaskManager(dir, bs, backlog, ctxStore, wtRm)
+	mgr := NewTaskManager(dir, bs, backlog, ctxStore, wtRm, nil)
 	return dir, mgr, backlog, wtRm
 }
 
