@@ -12,7 +12,9 @@ var alertsCmd = &cobra.Command{
 	Short: "Show active alerts and warnings",
 	Long: `Evaluate alert conditions against the event log and display any triggered alerts.
 
-Alerts check for blocked tasks, stale tasks, long-running reviews, and backlog size.`,
+Alerts check for blocked tasks, stale tasks, long-running reviews, and backlog size.
+
+Use --notify to send alerts to configured notification channels (e.g. Slack).`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if AlertEngine == nil {
@@ -36,10 +38,22 @@ Alerts check for blocked tasks, stale tasks, long-running reviews, and backlog s
 			fmt.Printf("         triggered at %s\n\n", alert.TriggeredAt.Format("2006-01-02 15:04 UTC"))
 		}
 
+		notify, _ := cmd.Flags().GetBool("notify")
+		if notify {
+			if Notifier == nil {
+				return fmt.Errorf("notifier not configured (set notifications.enabled and slack.webhook_url in .taskconfig)")
+			}
+			if err := Notifier.Notify(alerts); err != nil {
+				return fmt.Errorf("sending notifications: %w", err)
+			}
+			fmt.Println("Notifications sent.")
+		}
+
 		return nil
 	},
 }
 
 func init() {
+	alertsCmd.Flags().Bool("notify", false, "Send alerts to configured notification channels")
 	rootCmd.AddCommand(alertsCmd)
 }

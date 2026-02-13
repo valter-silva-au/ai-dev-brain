@@ -87,22 +87,24 @@ type TaskManager interface {
 // taskManager implements TaskManager by coordinating the BootstrapSystem,
 // BacklogStore, and ContextStore.
 type taskManager struct {
-	basePath   string
-	bootstrap  BootstrapSystem
-	backlog    BacklogStore
-	ctxStore   ContextStore
-	worktreeRm WorktreeRemover
+	basePath    string
+	bootstrap   BootstrapSystem
+	backlog     BacklogStore
+	ctxStore    ContextStore
+	worktreeRm  WorktreeRemover
+	eventLogger EventLogger
 }
 
 // NewTaskManager creates a new TaskManager with all dependencies injected.
-// worktreeRm may be nil if worktree cleanup is not needed.
-func NewTaskManager(basePath string, bootstrap BootstrapSystem, backlog BacklogStore, ctxStore ContextStore, worktreeRm WorktreeRemover) TaskManager {
+// worktreeRm and eventLogger may be nil if not needed.
+func NewTaskManager(basePath string, bootstrap BootstrapSystem, backlog BacklogStore, ctxStore ContextStore, worktreeRm WorktreeRemover, eventLogger EventLogger) TaskManager {
 	return &taskManager{
-		basePath:   basePath,
-		bootstrap:  bootstrap,
-		backlog:    backlog,
-		ctxStore:   ctxStore,
-		worktreeRm: worktreeRm,
+		basePath:    basePath,
+		bootstrap:   bootstrap,
+		backlog:     backlog,
+		ctxStore:    ctxStore,
+		worktreeRm:  worktreeRm,
+		eventLogger: eventLogger,
 	}
 }
 
@@ -150,6 +152,12 @@ func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, r
 		return nil, fmt.Errorf("creating task: saving backlog: %w", err)
 	}
 
+	tm.logEvent("task.created", map[string]any{
+		"task_id": task.ID,
+		"type":    string(task.Type),
+		"branch":  task.Branch,
+	})
+
 	return task, nil
 }
 
@@ -168,6 +176,7 @@ func (tm *taskManager) ResumeTask(taskID string) (*models.Task, error) {
 	}
 
 	if task.Status == models.StatusBacklog {
+		oldStatus := string(task.Status)
 		task.Status = models.StatusInProgress
 		task.Updated = time.Now().UTC()
 		if err := tm.saveTaskStatus(task); err != nil {
@@ -176,6 +185,11 @@ func (tm *taskManager) ResumeTask(taskID string) (*models.Task, error) {
 		if err := tm.updateBacklogStatus(taskID, models.StatusInProgress); err != nil {
 			return nil, fmt.Errorf("resuming task %s: updating backlog: %w", taskID, err)
 		}
+		tm.logEvent("task.status_changed", map[string]any{
+			"task_id":    taskID,
+			"old_status": oldStatus,
+			"new_status": string(models.StatusInProgress),
+		})
 	}
 
 	return task, nil
@@ -473,6 +487,7 @@ func (tm *taskManager) UpdateTaskStatus(taskID string, status models.TaskStatus)
 		return fmt.Errorf("updating task status %s: %w", taskID, err)
 	}
 
+	oldStatus := string(task.Status)
 	task.Status = status
 	task.Updated = time.Now().UTC()
 
@@ -482,6 +497,18 @@ func (tm *taskManager) UpdateTaskStatus(taskID string, status models.TaskStatus)
 
 	if err := tm.updateBacklogStatus(taskID, status); err != nil {
 		return fmt.Errorf("updating task status %s: backlog: %w", taskID, err)
+	}
+
+	tm.logEvent("task.status_changed", map[string]any{
+		"task_id":    taskID,
+		"old_status": oldStatus,
+		"new_status": string(status),
+	})
+
+	if status == models.StatusDone {
+		tm.logEvent("task.completed", map[string]any{
+			"task_id": taskID,
+		})
 	}
 
 	return nil
@@ -557,6 +584,14 @@ func (tm *taskManager) CleanupWorktree(taskID string) error {
 	}
 
 	return nil
+}
+
+// logEvent emits an event if an EventLogger is configured. Errors are silently
+// ignored since event logging is non-critical.
+func (tm *taskManager) logEvent(eventType string, data map[string]any) {
+	if tm.eventLogger != nil {
+		_ = tm.eventLogger.LogEvent(eventType, data)
+	}
 }
 
 // loadTaskFromTicket reads a task from its status.yaml file, checking both
