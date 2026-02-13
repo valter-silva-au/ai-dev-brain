@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
@@ -549,5 +550,91 @@ func TestLoadGlobalConfig_DefaultsHaveNoCLIAliases(t *testing.T) {
 
 	if len(cfg.CLIAliases) != 0 {
 		t.Errorf("default CLIAliases count = %d, want 0", len(cfg.CLIAliases))
+	}
+}
+
+func TestLoadRepoConfig_InvalidYAML_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".taskrc.yaml", `
+build_command: [invalid yaml
+broken: {
+`)
+	cm := NewConfigurationManager(dir)
+	_, err := cm.LoadRepoConfig(dir)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML in .taskrc")
+	}
+	if !strings.Contains(err.Error(), ".taskrc") {
+		t.Errorf("expected error to mention .taskrc, got: %v", err)
+	}
+}
+
+func TestGetMergedConfig_GlobalLoadError(t *testing.T) {
+	dir := t.TempDir()
+	// Write invalid YAML to cause global config load to fail.
+	writeFile(t, dir, ".taskconfig.yaml", `
+defaults:
+  ai: [invalid
+  broken: {
+`)
+	cm := NewConfigurationManager(dir)
+	_, err := cm.GetMergedConfig("")
+	if err == nil {
+		t.Fatal("expected error when global config is invalid")
+	}
+	if !strings.Contains(err.Error(), "loading global config for merge") {
+		t.Errorf("expected global config merge error, got: %v", err)
+	}
+}
+
+func TestGetMergedConfig_RepoLoadError(t *testing.T) {
+	globalDir := t.TempDir()
+	repoDir := t.TempDir()
+	// Write invalid YAML to cause repo config load to fail.
+	writeFile(t, repoDir, ".taskrc.yaml", `
+build_command: [invalid yaml
+`)
+	cm := NewConfigurationManager(globalDir)
+	_, err := cm.GetMergedConfig(repoDir)
+	if err == nil {
+		t.Fatal("expected error when repo config is invalid")
+	}
+	if !strings.Contains(err.Error(), "loading repo config for merge") {
+		t.Errorf("expected repo config merge error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_MergedConfig_NilRepo(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	merged := &models.MergedConfig{
+		GlobalConfig: models.GlobalConfig{
+			DefaultAI:       "kiro",
+			TaskIDPrefix:    "TASK",
+			DefaultPriority: models.P2,
+		},
+		Repo: nil,
+	}
+	if err := cm.ValidateConfig(merged); err != nil {
+		t.Errorf("expected no error for merged config with nil Repo, got: %v", err)
+	}
+}
+
+func TestValidateGlobalConfig_NilConfig_ReturnsError(t *testing.T) {
+	err := validateGlobalConfig(nil)
+	if err == nil {
+		t.Fatal("expected error for nil global config")
+	}
+	if !strings.Contains(err.Error(), "global configuration is nil") {
+		t.Errorf("expected nil config error, got: %v", err)
+	}
+}
+
+func TestValidateRepoConfig_NilConfig_ReturnsError(t *testing.T) {
+	err := validateRepoConfig(nil)
+	if err == nil {
+		t.Fatal("expected error for nil repo config")
+	}
+	if !strings.Contains(err.Error(), "repo configuration is nil") {
+		t.Errorf("expected nil config error, got: %v", err)
 	}
 }

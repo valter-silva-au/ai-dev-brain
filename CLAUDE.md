@@ -134,6 +134,7 @@ pkg/models/
 - **JSONL event logging**: `internal/observability/` uses append-only JSONL files (`.adb_events.jsonl`) for structured event persistence. Events are JSON-encoded with time, level, type, message, and data fields. Metrics and alerts are derived on-demand from the event log.
 - **Graceful degradation**: Observability is non-fatal. If the event log file cannot be created, observability features are disabled without affecting core functionality.
 - **Task context generation**: Bootstrap creates `.claude/rules/task-context.md` inside worktrees so AI assistants have immediate task awareness.
+- **Post-command workflow**: `launchWorkflow` in `internal/cli/feat.go` renames the terminal tab, launches Claude Code in the worktree, then drops the user into an interactive shell. Accepts a `resume bool` parameter: task creation commands pass `false` (launches Claude Code without `--resume`), while `adb resume` passes `true` (launches with `--resume` to continue the most recent conversation).
 
 ## Task Types and Statuses
 
@@ -243,7 +244,7 @@ Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d,
 - `adb bug <branch>` -- Create a bug task
 - `adb spike <branch>` -- Create a spike task
 - `adb refactor <branch>` -- Create a refactor task
-- `adb resume <task-id>` -- Resume a task (promotes backlog to in_progress)
+- `adb resume <task-id>` -- Resume a task (promotes backlog to in_progress, launches Claude Code with `--resume`)
 - `adb archive <task-id>` -- Archive a task (generates handoff.md, moves ticket to _archived/, removes worktree)
 - `adb unarchive <task-id>` -- Restore an archived task (moves ticket back from _archived/)
 - `adb cleanup <task-id>` -- Remove a task's git worktree without archiving

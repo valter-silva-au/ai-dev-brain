@@ -61,9 +61,17 @@ type WorktreeRemover interface {
 	RemoveWorktree(worktreePath string) error
 }
 
+// CreateTaskOpts holds optional parameters for task creation that are passed
+// through to the bootstrap system and backlog entry.
+type CreateTaskOpts struct {
+	Priority models.Priority
+	Owner    string
+	Tags     []string
+}
+
 // TaskManager defines the interface for task lifecycle operations.
 type TaskManager interface {
-	CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error)
+	CreateTask(taskType models.TaskType, branchName string, repoPath string, opts CreateTaskOpts) (*models.Task, error)
 	ResumeTask(taskID string) (*models.Task, error)
 	ArchiveTask(taskID string) (*models.HandoffDocument, error)
 	UnarchiveTask(taskID string) (*models.Task, error)
@@ -102,12 +110,15 @@ func NewTaskManager(basePath string, bootstrap BootstrapSystem, backlog BacklogS
 
 // CreateTask orchestrates creating a new task: generates ID, bootstraps
 // directory structure, creates worktree, and adds to the backlog.
-func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error) {
+func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, repoPath string, opts CreateTaskOpts) (*models.Task, error) {
 	result, err := tm.bootstrap.Bootstrap(BootstrapConfig{
 		Type:       taskType,
 		Title:      branchName,
 		BranchName: branchName,
 		RepoPath:   repoPath,
+		Priority:   opts.Priority,
+		Owner:      opts.Owner,
+		Tags:       opts.Tags,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating task: %w", err)
@@ -128,6 +139,7 @@ func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, r
 		Branch:   task.Branch,
 		Created:  task.Created.Format(time.RFC3339),
 		Source:   task.Source,
+		Tags:     task.Tags,
 	}
 
 	if err := tm.backlog.Load(); err != nil {

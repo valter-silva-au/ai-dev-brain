@@ -56,7 +56,11 @@ files, and registers the task in the backlog.`, taskType),
 				}
 			}
 
-			task, err := TaskMgr.CreateTask(taskType, branchName, repoPath)
+			task, err := TaskMgr.CreateTask(taskType, branchName, repoPath, core.CreateTaskOpts{
+				Priority: models.Priority(flags.priority),
+				Owner:    flags.owner,
+				Tags:     flags.tags,
+			})
 			if err != nil {
 				return fmt.Errorf("creating %s task: %w", taskType, err)
 			}
@@ -74,7 +78,7 @@ files, and registers the task in the backlog.`, taskType),
 
 			// Post-create workflow: rename terminal tab and launch Claude Code.
 			if task.WorktreePath != "" {
-				launchWorkflow(task.ID, task.Branch, task.WorktreePath)
+				launchWorkflow(task.ID, task.Branch, task.WorktreePath, false)
 			}
 
 			return nil
@@ -124,7 +128,7 @@ func setTerminalTitle(title string) {
 // launchWorkflow renames the terminal tab, launches Claude Code in the
 // worktree directory, and then drops the user into a shell in the worktree
 // so they remain in the work directory after Claude exits.
-func launchWorkflow(taskID, branch, worktreePath string) {
+func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 	// Check if worktree directory exists.
 	if _, err := os.Stat(worktreePath); err != nil {
 		return
@@ -137,12 +141,20 @@ func launchWorkflow(taskID, branch, worktreePath string) {
 	// Look for claude binary.
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
-		fmt.Printf("\nTo start working, run:\n  cd %s\n  claude --dangerously-skip-permissions\n", worktreePath)
+		if resume {
+			fmt.Printf("\nTo start working, run:\n  cd %s\n  claude --dangerously-skip-permissions --resume\n", worktreePath)
+		} else {
+			fmt.Printf("\nTo start working, run:\n  cd %s\n  claude --dangerously-skip-permissions\n", worktreePath)
+		}
 		return
 	}
 
 	fmt.Printf("\nLaunching Claude Code in %s...\n", worktreePath)
-	claudeCmd := exec.Command(claudePath, "--dangerously-skip-permissions")
+	claudeArgs := []string{"--dangerously-skip-permissions"}
+	if resume {
+		claudeArgs = append(claudeArgs, "--resume")
+	}
+	claudeCmd := exec.Command(claudePath, claudeArgs...)
 	claudeCmd.Dir = worktreePath
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout

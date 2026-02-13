@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
 
@@ -165,7 +166,7 @@ type statusMock struct {
 	getTasksByStatusFn func(status models.TaskStatus) ([]*models.Task, error)
 }
 
-func (m *statusMock) CreateTask(taskType models.TaskType, branchName string, repoPath string) (*models.Task, error) {
+func (m *statusMock) CreateTask(taskType models.TaskType, branchName string, repoPath string, opts core.CreateTaskOpts) (*models.Task, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

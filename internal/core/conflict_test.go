@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -354,4 +355,355 @@ func findSubstr(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestCheckForConflicts_ADRReadError(t *testing.T) {
+	dir := t.TempDir()
+	// Create docs/decisions as a file, not a directory, to cause ReadDir to return a non-NotExist error.
+	decisionsDir := filepath.Join(dir, "docs", "decisions")
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Write a file where a directory is expected.
+	if err := os.WriteFile(decisionsDir, []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Ensure tickets and wiki dirs don't exist to avoid errors from other checks.
+	cd := NewConflictDetector(dir)
+	_, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err == nil {
+		t.Fatal("expected error when decisions dir is a file, not a directory")
+	}
+	if !strings.Contains(err.Error(), "checking ADR conflicts") {
+		t.Errorf("expected ADR conflict error, got: %v", err)
+	}
+}
+
+func TestCheckForConflicts_TicketsReadError(t *testing.T) {
+	dir := t.TempDir()
+	// Create tickets as a file to cause ReadDir error.
+	ticketsPath := filepath.Join(dir, "tickets")
+	if err := os.WriteFile(ticketsPath, []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	_, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err == nil {
+		t.Fatal("expected error when tickets is a file, not a directory")
+	}
+	if !strings.Contains(err.Error(), "checking previous decisions") {
+		t.Errorf("expected previous decisions error, got: %v", err)
+	}
+}
+
+func TestCheckForConflicts_WikiReadError(t *testing.T) {
+	dir := t.TempDir()
+	// Create wiki as a file to cause ReadDir error.
+	wikiPath := filepath.Join(dir, "docs", "wiki")
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(wikiPath, []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	_, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err == nil {
+		t.Fatal("expected error when wiki is a file, not a directory")
+	}
+	if !strings.Contains(err.Error(), "checking stakeholder requirements") {
+		t.Errorf("expected stakeholder requirements error, got: %v", err)
+	}
+}
+
+func TestCheckADRConflicts_SkipsDirectories(t *testing.T) {
+	dir := t.TempDir()
+	decisionsDir := filepath.Join(dir, "docs", "decisions")
+	if err := os.MkdirAll(decisionsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a subdirectory inside decisions/ (should be skipped).
+	if err := os.MkdirAll(filepath.Join(decisionsDir, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a non-.md file (should be skipped).
+	if err := os.WriteFile(filepath.Join(decisionsDir, "README.txt"), []byte("readme"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conflicts) != 0 {
+		t.Errorf("expected no conflicts, got %d", len(conflicts))
+	}
+}
+
+func TestCheckADRConflicts_SkipsADRWithNoDecisionSection(t *testing.T) {
+	dir := t.TempDir()
+	decisionsDir := filepath.Join(dir, "docs", "decisions")
+	if err := os.MkdirAll(decisionsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// ADR with status Accepted but no ## Decision section.
+	adrContent := `# ADR-0005: Something
+**Status:** Accepted
+
+## Context
+Context but no decision section here.
+`
+	if err := os.WriteFile(filepath.Join(decisionsDir, "ADR-0005.md"), []byte(adrContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "something with context here",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// No conflict because there is no Decision section.
+	for _, c := range conflicts {
+		if c.Type == ConflictADRViolation && c.Source == "ADR-0005.md" {
+			t.Error("should not flag conflict for ADR without Decision section")
+		}
+	}
+}
+
+func TestCheckPreviousDecisions_SkipsNonDirEntries(t *testing.T) {
+	dir := t.TempDir()
+	ticketsDir := filepath.Join(dir, "tickets")
+	if err := os.MkdirAll(ticketsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a file inside tickets/ (not a directory).
+	if err := os.WriteFile(filepath.Join(ticketsDir, "README.md"), []byte("readme"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything readme here",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, c := range conflicts {
+		if c.Type == ConflictPreviousDecision {
+			t.Error("should not flag conflicts from non-directory entries in tickets/")
+		}
+	}
+}
+
+func TestCheckPreviousDecisions_SkipsTaskWithNoDesignMd(t *testing.T) {
+	dir := t.TempDir()
+	ticketDir := filepath.Join(dir, "tickets", "TASK-00050")
+	if err := os.MkdirAll(ticketDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// No design.md, just an empty directory.
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, c := range conflicts {
+		if c.Type == ConflictPreviousDecision && c.Source == "TASK-00050" {
+			t.Error("should not flag conflict for task with no design.md")
+		}
+	}
+}
+
+func TestCheckPreviousDecisions_SkipsDesignWithNoDecisionsSection(t *testing.T) {
+	dir := t.TempDir()
+	ticketDir := filepath.Join(dir, "tickets", "TASK-00050")
+	if err := os.MkdirAll(ticketDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// design.md without ## Decisions section.
+	designContent := `# Technical Design
+## Overview
+Some overview without decisions section.
+`
+	if err := os.WriteFile(filepath.Join(ticketDir, "design.md"), []byte(designContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "overview some technical design",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, c := range conflicts {
+		if c.Type == ConflictPreviousDecision && c.Source == "TASK-00050" {
+			t.Error("should not flag conflict for task without Decisions section")
+		}
+	}
+}
+
+func TestCheckStakeholderRequirements_SkipsDirectories(t *testing.T) {
+	dir := t.TempDir()
+	wikiDir := filepath.Join(dir, "docs", "wiki")
+	if err := os.MkdirAll(wikiDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a subdirectory (should be skipped).
+	if err := os.MkdirAll(filepath.Join(wikiDir, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a non-.md file (should be skipped).
+	if err := os.WriteFile(filepath.Join(wikiDir, "notes.txt"), []byte("notes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything notes here",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conflicts) != 0 {
+		t.Errorf("expected no conflicts from non-.md files, got %d", len(conflicts))
+	}
+}
+
+func TestCheckStakeholderRequirements_FallsBackToFilenameWhenNoTitle(t *testing.T) {
+	dir := t.TempDir()
+	wikiDir := filepath.Join(dir, "docs", "wiki")
+	if err := os.MkdirAll(wikiDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wiki file with no heading (no "# Title" line) -- title should fall back to filename.
+	reqContent := `All user authentication tokens must expire within 24 hours.
+Password storage must use bcrypt with minimum cost factor 12.
+`
+	if err := os.WriteFile(filepath.Join(wikiDir, "security-req.md"), []byte(reqContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "Change authentication tokens to never expire and use bcrypt with storage",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should find a conflict since there are overlapping keywords.
+	found := false
+	for _, c := range conflicts {
+		if c.Type == ConflictStakeholderRequirement && c.Source == "security-req.md" {
+			found = true
+			// The title should fall back to the filename since there's no heading.
+			if !strings.Contains(c.Description, "security-req.md") {
+				t.Errorf("description should mention filename, got: %s", c.Description)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected stakeholder requirement conflict for file without heading")
+	}
+}
+
+func TestExtractSection_NotFound(t *testing.T) {
+	content := "# Title\n\nSome content."
+	section := extractSection(content, "## Missing")
+	if section != "" {
+		t.Errorf("expected empty section for missing heading, got %q", section)
+	}
+}
+
+func TestExtractTitle_NoHeading(t *testing.T) {
+	content := "Some content without any heading."
+	title := extractTitle(content)
+	if title != "" {
+		t.Errorf("expected empty title for content without heading, got %q", title)
+	}
+}
+
+func TestExtractTitle_WithHeading(t *testing.T) {
+	content := "## Sub heading\n# Main Title\n"
+	title := extractTitle(content)
+	if title != "Main Title" {
+		t.Errorf("expected 'Main Title', got %q", title)
+	}
+}
+
+func TestCheckADRConflicts_UnreadableFile(t *testing.T) {
+	dir := t.TempDir()
+	decisionsDir := filepath.Join(dir, "docs", "decisions")
+	if err := os.MkdirAll(decisionsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a broken symlink that will be returned by ReadDir but fail on ReadFile.
+	symlinkPath := filepath.Join(decisionsDir, "broken-link.md")
+	if err := os.Symlink(filepath.Join(dir, "nonexistent-target"), symlinkPath); err != nil {
+		t.Skip("symlinks not supported on this OS")
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should not crash, just skip the unreadable file.
+	_ = conflicts
+}
+
+func TestCheckStakeholderRequirements_UnreadableFile(t *testing.T) {
+	dir := t.TempDir()
+	wikiDir := filepath.Join(dir, "docs", "wiki")
+	if err := os.MkdirAll(wikiDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a broken symlink.
+	symlinkPath := filepath.Join(wikiDir, "broken-link.md")
+	if err := os.Symlink(filepath.Join(dir, "nonexistent-target"), symlinkPath); err != nil {
+		t.Skip("symlinks not supported on this OS")
+	}
+
+	cd := NewConflictDetector(dir)
+	conflicts, err := cd.CheckForConflicts(ConflictContext{
+		TaskID:          "TASK-00001",
+		ProposedChanges: "anything",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_ = conflicts
 }
