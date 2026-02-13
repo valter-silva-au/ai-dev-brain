@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.1.0...v1.2.0) (2026-02-13)
+
+
+### Features
+
+* add observability infrastructure with metrics, alerts, and session tracking ([#14](https://github.com/valter-silva-au/ai-dev-brain/issues/14)) ([2598c62](https://github.com/valter-silva-au/ai-dev-brain/commit/2598c62d3d514b167ddbb1671a6003aafad52a93))
+* move archived tickets to tickets/_archived/ for cleaner navigation ([49190e8](https://github.com/valter-silva-au/ai-dev-brain/commit/49190e85e498504c822f93a4c47a9dda5e72002b))
+
 ## [1.1.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.0.1...v1.1.0) (2026-02-13)
 
 
