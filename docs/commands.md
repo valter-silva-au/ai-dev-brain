@@ -33,6 +33,12 @@ graph LR
         run["adb run"]
     end
 
+    subgraph "Knowledge & Channels"
+        knowledge["adb knowledge"]
+        channel["adb channel"]
+        loop["adb loop"]
+    end
+
     subgraph "Observability"
         metrics["adb metrics"]
         alerts["adb alerts"]
@@ -1285,6 +1291,296 @@ This file is a newline-delimited JSON log that records task lifecycle
 events, agent sessions, and knowledge extraction events. It is written
 automatically by the observability subsystem and should not be edited
 manually.
+
+---
+
+## Knowledge Commands
+
+### adb knowledge
+
+Parent command for querying and managing accumulated project knowledge.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `query` | Search accumulated knowledge |
+| `add` | Manually add a knowledge entry |
+| `topics` | List knowledge topics and their relationships |
+| `timeline` | Show chronological knowledge trail |
+
+---
+
+### adb knowledge query
+
+Search across all knowledge entries by keyword, topic, entity, or tag.
+
+**Synopsis**
+
+```
+adb knowledge query <search-term> [flags]
+```
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `search-term` | Yes | The term to search for |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--type` | string | `""` | Query type: `topic`, `entity`, `tag`, or empty for keyword search |
+
+**Examples**
+
+```bash
+# Keyword search across all knowledge
+adb knowledge query "authentication"
+
+# Search by topic
+adb knowledge query "auth" --type topic
+
+# Search by entity (person, system)
+adb knowledge query "gmail-api" --type entity
+
+# Search by tag
+adb knowledge query "security" --type tag
+```
+
+---
+
+### adb knowledge add
+
+Manually add a knowledge entry to the long-term store.
+
+**Synopsis**
+
+```
+adb knowledge add <summary> [flags]
+```
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `summary` | Yes | Brief summary of the knowledge entry |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--type` | string | `"learning"` | Entry type: `decision`, `learning`, `pattern`, `gotcha`, `relationship` |
+| `--topic` | string | `""` | Topic/theme for this entry |
+| `--detail` | string | `""` | Detailed description |
+| `--tags` | string | `""` | Comma-separated tags |
+| `--entities` | string | `""` | Comma-separated entities (people, systems) |
+| `--task` | string | `""` | Source task ID |
+
+**Examples**
+
+```bash
+# Add a simple learning
+adb knowledge add "Gmail API requires exponential backoff for rate limits"
+
+# Add a decision with topic and tags
+adb knowledge add "Use RS256 for JWT signing" \
+  --type decision --topic authentication --tags "security,backend"
+
+# Add with entities and task reference
+adb knowledge add "Redis caching reduces API latency by 80%" \
+  --type pattern --entities "redis,api-gateway" --task TASK-00042
+```
+
+---
+
+### adb knowledge topics
+
+List all knowledge topics and their relationships.
+
+**Synopsis**
+
+```
+adb knowledge topics
+```
+
+**Output**
+
+```
+3 topic(s):
+
+  TOPIC                     DESCRIPTION                              ENTRIES  TASKS
+  -----                     -----------                              -------  -----
+  authentication            All auth-related decisions and...        5        TASK-00001, TASK-00015
+  email-processing          Email sync, classification, di...        3        TASK-00021
+  observability             Event logging, metrics, and al...        2        TASK-00024
+```
+
+---
+
+### adb knowledge timeline
+
+Show a chronological trail of knowledge accumulation.
+
+**Synopsis**
+
+```
+adb knowledge timeline [flags]
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--since` | string | `"30d"` | Time window: `7d`, `30d`, `24h` |
+
+**Examples**
+
+```bash
+# Show last 30 days (default)
+adb knowledge timeline
+
+# Show last 7 days
+adb knowledge timeline --since 7d
+```
+
+---
+
+## Channel Commands
+
+### adb channel
+
+Parent command for managing input/output channels.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List registered channel adapters |
+| `inbox` | Show pending items from a channel or all channels |
+| `send` | Send an output item to a channel |
+
+---
+
+### adb channel list
+
+List all registered channel adapters.
+
+**Synopsis**
+
+```
+adb channel list
+```
+
+**Output**
+
+```
+NAME                 TYPE
+--------------------  ----------
+file-inbox           file
+```
+
+---
+
+### adb channel inbox
+
+Show pending items from one or all channel adapters.
+
+**Synopsis**
+
+```
+adb channel inbox [adapter-name]
+```
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `adapter-name` | No | Specific adapter to fetch from. If omitted, fetches from all adapters. |
+
+**Output**
+
+```
+ID                   CHANNEL    PRIORITY   FROM                 SUBJECT
+--------------------  ---------- ---------- -------------------- ------------------------------
+msg-001              file       medium     alice@example.com    Review API design for TASK-00042
+msg-002              file       high       bob@example.com      Urgent: deploy blocker
+```
+
+---
+
+### adb channel send
+
+Send an output item to a channel adapter.
+
+**Synopsis**
+
+```
+adb channel send <adapter-name> <destination> <subject> <content>
+```
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `adapter-name` | Yes | The channel adapter to send through |
+| `destination` | Yes | Recipient (email, channel name, etc.) |
+| `subject` | Yes | Subject line |
+| `content` | Yes | Message body content |
+
+**Examples**
+
+```bash
+# Send a message via the file channel
+adb channel send file-inbox alice@example.com "Update on TASK-00042" "Auth migration is complete."
+```
+
+---
+
+## Feedback Loop Commands
+
+### adb loop
+
+Execute a full feedback loop cycle: fetch items from channels, classify and
+route each item, deliver outputs, and record knowledge.
+
+**Synopsis**
+
+```
+adb loop [flags]
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | `false` | Show what would happen without processing or delivering |
+| `--channel` | string | `""` | Only process items from a specific channel adapter |
+
+**Output**
+
+```
+Feedback loop completed:
+  Items fetched:      5
+  Items processed:    3
+  Outputs delivered:  2
+  Knowledge added:    3
+  Skipped:            2
+```
+
+**Examples**
+
+```bash
+# Run the full feedback loop
+adb loop
+
+# Preview what would happen
+adb loop --dry-run
+
+# Process only file channel items
+adb loop --channel file-inbox
+```
 
 ---
 
