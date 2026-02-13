@@ -58,6 +58,7 @@ func TestEdgeCase_MissingConfig_AppInitializesWithDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp should succeed without .taskconfig: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	if app.TaskMgr == nil {
 		t.Fatal("TaskMgr should be initialized even without .taskconfig")

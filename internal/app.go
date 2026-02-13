@@ -174,6 +174,15 @@ func NewApp(basePath string) (*App, error) {
 	return app, nil
 }
 
+// Close releases resources held by the App, such as the event log file handle.
+// It is safe to call Close on an App whose EventLog is nil.
+func (a *App) Close() error {
+	if a.EventLog != nil {
+		return a.EventLog.Close()
+	}
+	return nil
+}
+
 // resolveBasePath determines the base path for the AI Dev Brain data directory.
 // It checks for ADB_HOME env var, then falls back to the current directory.
 func ResolveBasePath() string {
