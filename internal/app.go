@@ -52,6 +52,7 @@ type App struct {
 	EventLog    observability.EventLog
 	AlertEngine observability.AlertEngine
 	MetricsCalc observability.MetricsCalculator
+	Notifier    observability.Notifier
 }
 
 // NewApp creates and wires all components of the AI Dev Brain system.
@@ -110,6 +111,9 @@ func NewApp(basePath string) (*App, error) {
 		app.AlertEngine = observability.NewAlertEngine(app.EventLog, thresholds)
 		app.MetricsCalc = observability.NewMetricsCalculator(app.EventLog)
 	}
+	if globalCfg.Notifications.Enabled && globalCfg.Notifications.Slack.WebhookURL != "" {
+		app.Notifier = observability.NewSlackNotifier(globalCfg.Notifications.Slack.WebhookURL)
+	}
 
 	// --- Core services ---
 	prefix := globalCfg.TaskIDPrefix
@@ -128,7 +132,11 @@ func NewApp(basePath string) (*App, error) {
 	blAdapter := &backlogStoreAdapter{mgr: app.BacklogMgr}
 	ctxAdapter := &contextStoreAdapter{mgr: app.ContextMgr}
 	wtRemoveAdapter := &worktreeRemoverAdapter{mgr: app.WorktreeMgr}
-	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter)
+	var evtAdapter core.EventLogger
+	if app.EventLog != nil {
+		evtAdapter = &eventLogAdapter{log: app.EventLog}
+	}
+	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter, evtAdapter)
 
 	app.UpdateGen = core.NewUpdateGenerator(app.ContextMgr, app.CommMgr)
 	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr)
@@ -150,6 +158,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.EventLog = app.EventLog
 	cli.AlertEngine = app.AlertEngine
 	cli.MetricsCalc = app.MetricsCalc
+	cli.Notifier = app.Notifier
 
 	// Convert CLIAliasConfig to integration.CLIAlias.
 	aliases := make([]integration.CLIAlias, len(globalCfg.CLIAliases))

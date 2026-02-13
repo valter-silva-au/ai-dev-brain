@@ -44,7 +44,7 @@ func TestProperty_ArchiveUnarchiveRoundTrip(t *testing.T) {
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newInMemoryBacklog()
 		ctxStore := newMockContextStore()
-		mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil)
+		mgr := NewTaskManager(dir, bs, backlog, ctxStore, nil, nil)
 
 		// Create a task.
 		task, err := mgr.CreateTask(taskType, branchName, "")

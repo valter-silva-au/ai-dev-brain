@@ -7,4 +7,5 @@ var (
 	EventLog    observability.EventLog
 	AlertEngine observability.AlertEngine
 	MetricsCalc observability.MetricsCalculator
+	Notifier    observability.Notifier
 )
