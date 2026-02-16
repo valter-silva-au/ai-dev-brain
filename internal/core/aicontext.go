@@ -51,6 +51,7 @@ type AIContextSections struct {
 	ActiveTaskSummaries string
 	CriticalDecisions   string
 	RecentSessions      string
+	KnowledgeSummary    string
 	StakeholderLinks    string
 	ContactLinks        string
 }
@@ -69,16 +70,19 @@ type AIContextGenerator interface {
 }
 
 type aiContextGenerator struct {
-	basePath   string
-	backlogMgr storage.BacklogManager
-	sections   AIContextSections
+	basePath     string
+	backlogMgr   storage.BacklogManager
+	knowledgeMgr KnowledgeManager
+	sections     AIContextSections
 }
 
 // NewAIContextGenerator creates a new AIContextGenerator.
-func NewAIContextGenerator(basePath string, backlogMgr storage.BacklogManager) AIContextGenerator {
+// knowledgeMgr may be nil if knowledge features are not available.
+func NewAIContextGenerator(basePath string, backlogMgr storage.BacklogManager, knowledgeMgr KnowledgeManager) AIContextGenerator {
 	return &aiContextGenerator{
-		basePath:   basePath,
-		backlogMgr: backlogMgr,
+		basePath:     basePath,
+		backlogMgr:   backlogMgr,
+		knowledgeMgr: knowledgeMgr,
 	}
 }
 
@@ -188,6 +192,7 @@ func (g *aiContextGenerator) assembleAll() error {
 	if err != nil {
 		return err
 	}
+	g.sections.KnowledgeSummary = g.assembleKnowledgeSummary()
 	g.sections.StakeholderLinks = g.assembleStakeholders()
 	g.sections.ContactLinks = g.assembleContacts()
 
@@ -447,6 +452,20 @@ func (g *aiContextGenerator) assembleRecentSessions() (string, error) {
 	return sb.String(), nil
 }
 
+// assembleKnowledgeSummary queries the KnowledgeManager for accumulated
+// knowledge and returns a markdown summary. Returns empty string if the
+// knowledge manager is not available or the store is empty.
+func (g *aiContextGenerator) assembleKnowledgeSummary() string {
+	if g.knowledgeMgr == nil {
+		return ""
+	}
+	summary, err := g.knowledgeMgr.AssembleKnowledgeSummary(20)
+	if err != nil {
+		return ""
+	}
+	return summary
+}
+
 func (g *aiContextGenerator) renderContextFile() string {
 	now := time.Now().Format(time.RFC3339)
 
@@ -485,6 +504,12 @@ func (g *aiContextGenerator) renderContextFile() string {
 	sb.WriteString("## Recent Sessions\n\n")
 	sb.WriteString(g.sections.RecentSessions)
 	sb.WriteString("\n\n")
+
+	if g.sections.KnowledgeSummary != "" {
+		sb.WriteString("## Accumulated Knowledge\n\n")
+		sb.WriteString(g.sections.KnowledgeSummary)
+		sb.WriteString("\n\n")
+	}
 
 	sb.WriteString("## Key Contacts\n\n")
 	sb.WriteString(g.sections.StakeholderLinks)

@@ -51,6 +51,18 @@ Without --force, archiving an active task will return an error.`,
 			}
 		}
 
+		// Extract and ingest knowledge before archiving (non-fatal).
+		if KnowledgeX != nil && KnowledgeMgr != nil {
+			if extracted, extractErr := KnowledgeX.ExtractFromTask(taskID); extractErr == nil && extracted != nil {
+				ids, ingestErr := KnowledgeMgr.IngestFromExtraction(extracted)
+				if ingestErr != nil {
+					fmt.Printf("  Warning: knowledge ingestion failed: %v\n", ingestErr)
+				} else if len(ids) > 0 {
+					fmt.Printf("Extracted %d knowledge entries from %s\n", len(ids), taskID)
+				}
+			}
+		}
+
 		handoff, err := TaskMgr.ArchiveTask(taskID)
 		if err != nil {
 			return fmt.Errorf("archiving task: %w", err)

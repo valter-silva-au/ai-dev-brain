@@ -16,7 +16,7 @@ func setupAIContextTest(t *testing.T) (AIContextGenerator, string) {
 	t.Helper()
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 	return gen, dir
 }
 
@@ -280,7 +280,7 @@ func TestSyncContext_ReflectsChanges(t *testing.T) {
 // --- Additional tests for full coverage ---
 
 func TestFilenameForAI_Default(t *testing.T) {
-	gen := NewAIContextGenerator(t.TempDir(), storage.NewBacklogManager(t.TempDir())).(*aiContextGenerator)
+	gen := NewAIContextGenerator(t.TempDir(), storage.NewBacklogManager(t.TempDir()), nil).(*aiContextGenerator)
 
 	// Test the default case (unknown AI type).
 	result := gen.filenameForAI(AIType("unknown"))
@@ -303,7 +303,7 @@ func TestGenerateContextFile_WriteError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -320,7 +320,7 @@ func TestSyncContext_WriteError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	err := gen.SyncContext()
 	if err == nil {
@@ -338,7 +338,7 @@ func TestAssembleConventions_FromWikiFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(wikiDir, "coding-conventions.md"), []byte("Custom conventions"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -361,7 +361,7 @@ func TestAssembleConventions_NonMatchingWikiFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(wikiDir, "other-topic.md"), []byte("Other content"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -380,7 +380,7 @@ func TestAssembleGlossary_ReadError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.AssembleGlossary()
 	if err == nil {
@@ -402,7 +402,7 @@ func TestAssembleDecisionsSummary_ReadDirError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.AssembleDecisionsSummary()
 	if err == nil {
@@ -423,7 +423,7 @@ func TestAssembleDecisionsSummary_NonAcceptedADR(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-draft.md"), []byte(draftADR), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -444,7 +444,7 @@ func TestAssembleDecisionsSummary_AcceptedWithoutSource(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-no-source.md"), []byte(adr), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -470,7 +470,7 @@ func TestAssembleDecisionsSummary_WithSubdirsAndNonMd(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "README.txt"), []byte("text"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -487,7 +487,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "docs", "stakeholders.md"), []byte("# Stakeholders"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
 	if !strings.Contains(result, "stakeholders.md") {
@@ -498,7 +498,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 func TestAssembleStakeholders_NoFile(t *testing.T) {
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
 	if !strings.Contains(result, "No stakeholders file found") {
@@ -512,7 +512,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "docs", "contacts.md"), []byte("# Contacts"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
 	if !strings.Contains(result, "contacts.md") {
@@ -523,7 +523,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 func TestAssembleContacts_NoFile(t *testing.T) {
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
 	if !strings.Contains(result, "No contacts file found") {
@@ -537,7 +537,7 @@ func TestAssembleActiveTaskSummaries_LoadError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -577,7 +577,7 @@ func TestAssembleActiveTaskSummaries_FilterTasksError(t *testing.T) {
 	fbm := &failingBacklogManager{
 		filterErr: fmt.Errorf("filter failure"),
 	}
-	gen := NewAIContextGenerator(dir, fbm)
+	gen := NewAIContextGenerator(dir, fbm, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -596,7 +596,7 @@ func TestAssembleConventions_ReadDirError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "wiki"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -614,7 +614,7 @@ func TestGenerateContextFile_AssembleAllError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -631,7 +631,7 @@ func TestSyncContext_AssembleAllError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	err := gen.SyncContext()
 	if err == nil {
@@ -650,7 +650,7 @@ func TestAssembleAll_GlossaryError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -669,7 +669,7 @@ func TestAssembleAll_DecisionsError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -689,7 +689,7 @@ func TestAssembleDecisionsSummary_UnreadableADR(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-test.md"), []byte(adr), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -698,5 +698,93 @@ func TestAssembleDecisionsSummary_UnreadableADR(t *testing.T) {
 	// Should still find the valid ADR.
 	if !strings.Contains(summary, "ADR-0001") {
 		t.Error("should include valid ADR despite broken .md")
+	}
+}
+
+func TestRenderContextFile_IncludesKnowledgeSummary(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+
+	// Create a knowledge manager with test data.
+	store := newInMemoryKnowledgeStore()
+	store.topics["auth"] = models.Topic{
+		Name: "auth", Description: "Authentication decisions", EntryCount: 2, Tasks: []string{"TASK-00001"},
+	}
+	store.timeline = []models.TimelineEntry{
+		{Date: "2025-01-15", KnowledgeID: "K-00001", Event: "decision: Use JWT", Task: "TASK-00001"},
+	}
+	km := NewKnowledgeManager(store)
+
+	gen := NewAIContextGenerator(dir, backlogMgr, km)
+
+	path, err := gen.GenerateContextFile(AITypeClaude)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading generated file: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "## Accumulated Knowledge") {
+		t.Error("expected '## Accumulated Knowledge' section in generated context file")
+	}
+	if !strings.Contains(content, "auth") {
+		t.Error("expected 'auth' topic in knowledge summary")
+	}
+	if !strings.Contains(content, "Use JWT") {
+		t.Error("expected 'Use JWT' timeline entry in knowledge summary")
+	}
+}
+
+func TestRenderContextFile_NilKnowledgeManager(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+
+	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+
+	path, err := gen.GenerateContextFile(AITypeClaude)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading generated file: %v", err)
+	}
+	content := string(data)
+
+	// Should NOT include the knowledge section when manager is nil.
+	if strings.Contains(content, "## Accumulated Knowledge") {
+		t.Error("should not include knowledge section when knowledge manager is nil")
+	}
+}
+
+func TestRenderContextFile_EmptyKnowledgeStore(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+
+	// Empty knowledge store.
+	store := newInMemoryKnowledgeStore()
+	km := NewKnowledgeManager(store)
+
+	gen := NewAIContextGenerator(dir, backlogMgr, km)
+
+	path, err := gen.GenerateContextFile(AITypeClaude)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading generated file: %v", err)
+	}
+	content := string(data)
+
+	// Should NOT include the knowledge section when store is empty.
+	if strings.Contains(content, "## Accumulated Knowledge") {
+		t.Error("should not include knowledge section when store is empty")
 	}
 }

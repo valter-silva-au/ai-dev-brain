@@ -76,6 +76,11 @@ files, and registers the task in the backlog.`, taskType),
 			}
 			fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
+			// Inject accumulated project knowledge into task context.
+			if task.WorktreePath != "" {
+				appendKnowledgeToTaskContext(task.WorktreePath)
+			}
+
 			// Post-create workflow: rename terminal tab and launch Claude Code.
 			if task.WorktreePath != "" {
 				launchWorkflow(task.ID, task.Branch, task.WorktreePath, false)

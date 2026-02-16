@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.6.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.5.0...v1.6.0) (2026-02-13)
+
+
+### Features
+
+* add feedback loop, knowledge store, and channel adapter system ([#21](https://github.com/valter-silva-au/ai-dev-brain/issues/21)) ([455b44b](https://github.com/valter-silva-au/ai-dev-brain/commit/455b44bac3ab2cf932c737a67662be2d98d33c9f))
+* wire priority/owner/tags flags, fix taskfile commands, push tes… ([#18](https://github.com/valter-silva-au/ai-dev-brain/issues/18)) ([db09fc8](https://github.com/valter-silva-au/ai-dev-brain/commit/db09fc8a68803787acf8dce3fb4e6c50a6718f06))
+
+
+### Bug Fixes
+
+* prevent agent team hang by guarding Stop hook and making Teammat… ([#19](https://github.com/valter-silva-au/ai-dev-brain/issues/19)) ([3729297](https://github.com/valter-silva-au/ai-dev-brain/commit/3729297e7b2b09928f81acffb06039d5d30dcd9c))
+
+## [1.5.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.4.0...v1.5.0) (2026-02-13)
+
+
+### Features
+
+* add feedback loop, knowledge store, and channel adapter system ([#21](https://github.com/valter-silva-au/ai-dev-brain/issues/21)) ([455b44b](https://github.com/valter-silva-au/ai-dev-brain/commit/455b44bac3ab2cf932c737a67662be2d98d33c9f))
+* wire priority/owner/tags flags, fix taskfile commands, push tes… ([#18](https://github.com/valter-silva-au/ai-dev-brain/issues/18)) ([db09fc8](https://github.com/valter-silva-au/ai-dev-brain/commit/db09fc8a68803787acf8dce3fb4e6c50a6718f06))
+
+
+### Bug Fixes
+
+* prevent agent team hang by guarding Stop hook and making Teammat… ([#19](https://github.com/valter-silva-au/ai-dev-brain/issues/19)) ([3729297](https://github.com/valter-silva-au/ai-dev-brain/commit/3729297e7b2b09928f81acffb06039d5d30dcd9c))
+
 ## [1.4.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.3.0...v1.4.0) (2026-02-13)
 
 

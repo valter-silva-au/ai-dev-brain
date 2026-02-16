@@ -28,16 +28,24 @@ type App struct {
 	CommMgr    storage.CommunicationManager
 
 	// Core services
-	TaskMgr     core.TaskManager
-	Bootstrap   core.BootstrapSystem
-	IDGen       core.TaskIDGenerator
-	TmplMgr     core.TemplateManager
-	UpdateGen   core.UpdateGenerator
-	AICtxGen    core.AIContextGenerator
-	DesignGen   core.TaskDesignDocGenerator
-	KnowledgeX  core.KnowledgeExtractor
-	ConflictDt  core.ConflictDetector
-	ProjectInit core.ProjectInitializer
+	TaskMgr      core.TaskManager
+	Bootstrap    core.BootstrapSystem
+	IDGen        core.TaskIDGenerator
+	TmplMgr      core.TemplateManager
+	UpdateGen    core.UpdateGenerator
+	AICtxGen     core.AIContextGenerator
+	DesignGen    core.TaskDesignDocGenerator
+	KnowledgeX   core.KnowledgeExtractor
+	KnowledgeMgr core.KnowledgeManager
+	ConflictDt   core.ConflictDetector
+	ProjectInit  core.ProjectInitializer
+
+	// Storage layer (knowledge)
+	KnowledgeStore storage.KnowledgeStoreManager
+
+	// Channel adapters
+	ChannelReg   core.ChannelRegistry
+	FeedbackLoop core.FeedbackLoopOrchestrator
 
 	// Integration services
 	WorktreeMgr integration.GitWorktreeManager
@@ -86,6 +94,17 @@ func NewApp(basePath string) (*App, error) {
 	app.Executor = integration.NewCLIExecutor()
 	app.Runner = integration.NewTaskfileRunner(app.Executor)
 	app.RepoSyncMgr = integration.NewRepoSyncManager(basePath)
+
+	// --- Channel adapters ---
+	app.ChannelReg = core.NewChannelRegistry()
+	channelDir := filepath.Join(basePath, "channels")
+	fileAdapter, fileAdapterErr := integration.NewFileChannelAdapter(integration.FileChannelConfig{
+		Name:    "file",
+		BaseDir: channelDir,
+	})
+	if fileAdapterErr == nil {
+		_ = app.ChannelReg.Register(fileAdapter) // Non-fatal if registration fails.
+	}
 
 	// --- Observability ---
 	eventLogPath := filepath.Join(basePath, ".adb_events.jsonl")
@@ -139,9 +158,26 @@ func NewApp(basePath string) (*App, error) {
 	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter, evtAdapter)
 
 	app.UpdateGen = core.NewUpdateGenerator(app.ContextMgr, app.CommMgr)
-	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr)
 	app.DesignGen = core.NewTaskDesignDocGenerator(basePath, app.CommMgr)
 	app.KnowledgeX = core.NewKnowledgeExtractor(basePath, app.ContextMgr, app.CommMgr)
+
+	// --- Knowledge store ---
+	app.KnowledgeStore = storage.NewKnowledgeStoreManager(basePath)
+	_ = app.KnowledgeStore.Load() // Non-fatal: empty store on first use.
+	ksAdapter := &knowledgeStoreAdapter{mgr: app.KnowledgeStore}
+	app.KnowledgeMgr = core.NewKnowledgeManager(ksAdapter)
+
+	// --- Feedback loop orchestrator ---
+	app.FeedbackLoop = core.NewFeedbackLoopOrchestrator(
+		app.ChannelReg,
+		app.KnowledgeMgr,
+		blAdapter,
+		evtAdapter,
+	)
+
+	// AIContextGenerator depends on KnowledgeManager for the knowledge summary section.
+	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr, app.KnowledgeMgr)
+
 	app.ConflictDt = core.NewConflictDetector(basePath)
 	app.ProjectInit = core.NewProjectInitializer()
 
@@ -154,6 +190,11 @@ func NewApp(basePath string) (*App, error) {
 	cli.Runner = app.Runner
 	cli.ProjectInit = app.ProjectInit
 	cli.RepoSyncMgr = app.RepoSyncMgr
+
+	cli.ChannelReg = app.ChannelReg
+	cli.KnowledgeMgr = app.KnowledgeMgr
+	cli.KnowledgeX = app.KnowledgeX
+	cli.FeedbackLoop = app.FeedbackLoop
 
 	cli.EventLog = app.EventLog
 	cli.AlertEngine = app.AlertEngine
@@ -351,4 +392,81 @@ func (a *eventLogAdapter) LogEvent(eventType string, data map[string]any) error 
 		Message: eventType,
 		Data:    data,
 	})
+}
+
+// knowledgeStoreAdapter adapts storage.KnowledgeStoreManager to core.KnowledgeStoreAccess.
+type knowledgeStoreAdapter struct {
+	mgr storage.KnowledgeStoreManager
+}
+
+func (a *knowledgeStoreAdapter) AddEntry(entry models.KnowledgeEntry) (string, error) {
+	return a.mgr.AddEntry(entry)
+}
+
+func (a *knowledgeStoreAdapter) GetEntry(id string) (*models.KnowledgeEntry, error) {
+	return a.mgr.GetEntry(id)
+}
+
+func (a *knowledgeStoreAdapter) GetAllEntries() ([]models.KnowledgeEntry, error) {
+	return a.mgr.GetAllEntries()
+}
+
+func (a *knowledgeStoreAdapter) QueryByTopic(topic string) ([]models.KnowledgeEntry, error) {
+	return a.mgr.QueryByTopic(topic)
+}
+
+func (a *knowledgeStoreAdapter) QueryByEntity(entity string) ([]models.KnowledgeEntry, error) {
+	return a.mgr.QueryByEntity(entity)
+}
+
+func (a *knowledgeStoreAdapter) QueryByTags(tags []string) ([]models.KnowledgeEntry, error) {
+	return a.mgr.QueryByTags(tags)
+}
+
+func (a *knowledgeStoreAdapter) Search(query string) ([]models.KnowledgeEntry, error) {
+	return a.mgr.Search(query)
+}
+
+func (a *knowledgeStoreAdapter) GetTopics() (*models.TopicGraph, error) {
+	return a.mgr.GetTopics()
+}
+
+func (a *knowledgeStoreAdapter) AddTopic(topic models.Topic) error {
+	return a.mgr.AddTopic(topic)
+}
+
+func (a *knowledgeStoreAdapter) GetTopic(name string) (*models.Topic, error) {
+	return a.mgr.GetTopic(name)
+}
+
+func (a *knowledgeStoreAdapter) GetEntities() (*models.EntityRegistry, error) {
+	return a.mgr.GetEntities()
+}
+
+func (a *knowledgeStoreAdapter) AddEntity(entity models.Entity) error {
+	return a.mgr.AddEntity(entity)
+}
+
+func (a *knowledgeStoreAdapter) GetEntity(name string) (*models.Entity, error) {
+	return a.mgr.GetEntity(name)
+}
+
+func (a *knowledgeStoreAdapter) GetTimeline(since time.Time) ([]models.TimelineEntry, error) {
+	return a.mgr.GetTimeline(since)
+}
+
+func (a *knowledgeStoreAdapter) AddTimelineEntry(entry models.TimelineEntry) error {
+	return a.mgr.AddTimelineEntry(entry)
+}
+
+func (a *knowledgeStoreAdapter) GenerateID() (string, error) {
+	return a.mgr.GenerateID()
+}
+
+func (a *knowledgeStoreAdapter) Load() error {
+	return a.mgr.Load()
+}
+
+func (a *knowledgeStoreAdapter) Save() error {
+	return a.mgr.Save()
 }
