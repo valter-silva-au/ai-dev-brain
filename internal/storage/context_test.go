@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -398,6 +399,9 @@ func TestLoadContext_MissingNotes(t *testing.T) {
 }
 
 func TestLoadContext_CommunicationsLoadError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ReadDir behavior differs on Windows")
+	}
 	mgr, _ := newTestContextManager(t)
 	_, _ = mgr.InitializeContext("TASK-00001")
 	mgr.contexts = make(map[string]*TaskContext)
@@ -448,6 +452,9 @@ func TestLoadCommunications_NoDir(t *testing.T) {
 }
 
 func TestLoadCommunications_ReadDirError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ReadDir behavior differs on Windows")
+	}
 	mgr, _ := newTestContextManager(t)
 	_, _ = mgr.InitializeContext("TASK-00001")
 

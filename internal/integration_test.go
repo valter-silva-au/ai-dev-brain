@@ -22,6 +22,7 @@ import (
 // ---------------------------------------------------------------------------
 
 // newTestApp creates a fully wired App in a temporary directory.
+// The event log is closed automatically when the test finishes.
 func newTestApp(t *testing.T) *App {
 	t.Helper()
 	dir := t.TempDir()
@@ -29,10 +30,12 @@ func newTestApp(t *testing.T) *App {
 	if err != nil {
 		t.Fatalf("creating test app: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 	return app
 }
 
 // newTestAppWithConfig creates a fully wired App with a custom .taskconfig.
+// The event log is closed automatically when the test finishes.
 func newTestAppWithConfig(t *testing.T, configYAML string) *App {
 	t.Helper()
 	dir := t.TempDir()
@@ -45,6 +48,7 @@ func newTestAppWithConfig(t *testing.T, configYAML string) *App {
 	if err != nil {
 		t.Fatalf("creating test app: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 	return app
 }
 
@@ -1598,6 +1602,7 @@ func TestIntegration_AppInitialization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	components := []struct {
 		name string
@@ -2058,8 +2063,11 @@ func TestApp_ResolveBasePath_WalkUpToTaskconfig(t *testing.T) {
 	_ = os.Chdir(deep)
 
 	got := ResolveBasePath()
-	if got != root {
-		t.Errorf("ResolveBasePath = %q, want %q", got, root)
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
+	expected, _ := filepath.EvalSymlinks(root)
+	got, _ = filepath.EvalSymlinks(got)
+	if got != expected {
+		t.Errorf("ResolveBasePath = %q, want %q", got, expected)
 	}
 }
 
@@ -2073,8 +2081,11 @@ func TestApp_ResolveBasePath_FallbackToCwd(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 
 	got := ResolveBasePath()
-	if got != tmpDir {
-		t.Errorf("ResolveBasePath = %q, want %q (cwd fallback)", got, tmpDir)
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
+	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
+	if got != expected {
+		t.Errorf("ResolveBasePath = %q, want %q (cwd fallback)", got, expected)
 	}
 }
 
@@ -2151,6 +2162,7 @@ func TestApp_NewApp_EmptyPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// With empty prefix, it should fall back to "TASK".
 	id, err := app.IDGen.GenerateTaskID()
@@ -2168,6 +2180,7 @@ func TestApp_BacklogStoreAdapter_GetTask_Error(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Getting a non-existent task should return an error.
 	_, err = app.TaskMgr.GetTask("TASK-NONEXISTENT")
@@ -2182,6 +2195,7 @@ func TestApp_AdapterDelegation_Worktree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// The worktreeAdapter.CreateWorktree is exercised via Bootstrap with a repo path.
 	// Since we can't have a real git repo, we verify the adapter is wired correctly
@@ -2205,6 +2219,7 @@ func TestApp_AdapterDelegation_BacklogGetTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task so the backlog has an entry.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "adapter-test", "", core.CreateTaskOpts{})
@@ -2229,6 +2244,7 @@ func TestApp_WorktreeRemoverAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task and manually update status.yaml to have a worktree path.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "cleanup-test", "", core.CreateTaskOpts{})
@@ -2269,6 +2285,7 @@ func TestApp_BacklogStoreAdapter_GetTask_Direct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "get-task-direct", "", core.CreateTaskOpts{})
 	if err != nil {
@@ -2294,6 +2311,7 @@ func TestApp_BacklogStoreAdapterGetTask_ViaAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "adapter-get", "", core.CreateTaskOpts{})
 	if err != nil {
@@ -2327,6 +2345,7 @@ func TestApp_BacklogStoreAdapterGetAllTasks_ErrorPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Corrupt the backlog file to trigger a GetAllTasks error.
 	backlogPath := filepath.Join(dir, "backlog.yaml")
@@ -2350,6 +2369,7 @@ func TestApp_BacklogStoreAdapterFilterTasks_ErrorPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	adapter := &backlogStoreAdapter{mgr: app.BacklogMgr}
 
@@ -2379,6 +2399,7 @@ func TestApp_NewApp_CorruptConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp should succeed even with corrupt config (use defaults): %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Verify it used defaults.
 	id, err := app.IDGen.GenerateTaskID()
@@ -2400,8 +2421,11 @@ func TestApp_ResolveBasePath_EmptyEnv(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 
 	result := ResolveBasePath()
-	if result != tmpDir {
-		t.Errorf("ResolveBasePath = %q, want %q", result, tmpDir)
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
+	expected, _ := filepath.EvalSymlinks(tmpDir)
+	result, _ = filepath.EvalSymlinks(result)
+	if result != expected {
+		t.Errorf("ResolveBasePath = %q, want %q", result, expected)
 	}
 }
 
@@ -2471,6 +2495,7 @@ func TestApp_BacklogStoreAdapterGetTask_Direct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task to populate the backlog.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "get-task-adapter", "", core.CreateTaskOpts{})

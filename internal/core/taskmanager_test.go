@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -992,9 +993,10 @@ func TestArchiveTask_SaveStatusError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from save status failure")
 	}
-	if !strings.Contains(err.Error(), "saving pre-archive status") || !strings.Contains(err.Error(), "archiving task") {
-		// The pre-archive status write or the status save itself could fail.
-		// Both are valid error paths.
+	// The pre-archive status write or the status save itself could fail.
+	// Both are valid error paths.
+	if !strings.Contains(err.Error(), "saving pre-archive status") && !strings.Contains(err.Error(), "archiving task") {
+		t.Fatalf("unexpected error message: %v", err)
 	}
 }
 
@@ -1740,6 +1742,9 @@ func TestCleanupWorktree_SaveStatusError(t *testing.T) {
 }
 
 func TestArchiveTask_PreArchiveWriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)
@@ -1849,6 +1854,9 @@ func TestArchiveTask_MkdirAllError(t *testing.T) {
 }
 
 func TestArchiveTask_RenameError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)
@@ -1877,6 +1885,9 @@ func TestArchiveTask_RenameError(t *testing.T) {
 }
 
 func TestUnarchiveTask_MoveFromArchiveError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
+	}
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK")
 	tmplMgr := NewTemplateManager(dir)

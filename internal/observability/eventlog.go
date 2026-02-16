@@ -79,7 +79,7 @@ func (l *jsonlEventLog) Read(filter EventFilter) ([]Event, error) {
 		}
 		return nil, fmt.Errorf("opening event log for reading: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var events []Event
 	scanner := bufio.NewScanner(f)

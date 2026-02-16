@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -910,6 +911,9 @@ func TestCreateWorktree_NonAbsRepoPath_EnsureRepoReadyFails(t *testing.T) {
 }
 
 func TestEnsureRepoReady_ParentDirCreationFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	tmp := t.TempDir()
 
 	// Make the repos directory read-only so MkdirAll fails.

@@ -46,8 +46,11 @@ func TestResolveBasePath_FindsTaskConfig(t *testing.T) {
 	os.Unsetenv("ADB_HOME")
 
 	got := ResolveBasePath()
-	if got != tmpDir {
-		t.Errorf("ResolveBasePath() = %q, want %q (should find .taskconfig in parent)", got, tmpDir)
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
+	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
+	if got != expected {
+		t.Errorf("ResolveBasePath() = %q, want %q (should find .taskconfig in parent)", got, expected)
 	}
 }
 
@@ -64,8 +67,11 @@ func TestResolveBasePath_FallbackToCwd(t *testing.T) {
 	os.Unsetenv("ADB_HOME")
 
 	got := ResolveBasePath()
-	if got != tmpDir {
-		t.Errorf("ResolveBasePath() = %q, want %q (should fall back to cwd)", got, tmpDir)
+	// Resolve symlinks (macOS: /tmp -> /private/tmp) and short names (Windows: RUNNER~1 -> runneradmin).
+	expected, _ := filepath.EvalSymlinks(tmpDir)
+	got, _ = filepath.EvalSymlinks(got)
+	if got != expected {
+		t.Errorf("ResolveBasePath() = %q, want %q (should fall back to cwd)", got, expected)
 	}
 }
 
@@ -75,6 +81,7 @@ func TestNewApp_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp() error = %v", err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 	if app == nil {
 		t.Fatal("NewApp() returned nil app")
 	}
@@ -98,6 +105,7 @@ func TestBacklogStoreAdapter_GetAllTasksError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Corrupt the backlog file to trigger a load error.
 	backlogPath := filepath.Join(tmpDir, "backlog.yaml")
@@ -120,6 +128,7 @@ func TestBacklogStoreAdapter_FilterTasksError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Corrupt the backlog file to trigger a load error.
 	backlogPath := filepath.Join(tmpDir, "backlog.yaml")
@@ -143,6 +152,7 @@ func TestWorktreeAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Attempting to create a worktree without a git repo will fail, but we're
 	// testing that the adapter wiring works.
@@ -156,6 +166,7 @@ func TestContextStoreAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Attempting to load context for a non-existent task will return an error.
 	// This is a minimal smoke test of the adapter wiring.
@@ -173,6 +184,7 @@ func TestStorageEntryConversion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task and retrieve it to verify round-trip conversion.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test-conversion", "", core.CreateTaskOpts{
@@ -208,6 +220,7 @@ func TestNewApp_MissingConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 	if app == nil {
 		t.Fatal("NewApp() returned nil app")
 	}
@@ -238,6 +251,7 @@ cli_aliases:
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Verify that the alias was wired to the CLI package.
 	// We can't directly test cli.ExecAliases here (it's a package variable),
@@ -265,6 +279,7 @@ func TestWorktreeRemoverAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task first.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test-cleanup", "", core.CreateTaskOpts{})
@@ -286,6 +301,7 @@ func TestBacklogStoreAdapter_AddUpdateGetTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeBug, "test-bug", "", core.CreateTaskOpts{})
@@ -314,6 +330,7 @@ func TestBacklogStoreAdapter_FilterTasksSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create multiple tasks with different statuses.
 	_, err = app.TaskMgr.CreateTask(models.TaskTypeFeat, "feat1", "", core.CreateTaskOpts{})
@@ -347,6 +364,7 @@ func TestBacklogStoreAdapter_GetTaskNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	_, err = app.TaskMgr.GetTask("TASK-99999")
 	if err == nil {
@@ -363,6 +381,7 @@ func TestContextStoreAdapter_LoadContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 
 	// Create a task.
 	task, err := app.TaskMgr.CreateTask(models.TaskTypeFeat, "test-context", "", core.CreateTaskOpts{})

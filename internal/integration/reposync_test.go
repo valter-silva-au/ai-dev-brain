@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -143,6 +144,9 @@ func TestSyncAll_EmptyReposDir(t *testing.T) {
 }
 
 func TestSyncAll_DiscoversRepos(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ReadDir behavior differs on Windows")
+	}
 	base := t.TempDir()
 	reposDir := filepath.Join(base, "repos")
 
@@ -716,6 +720,9 @@ func TestSyncAll_WithProtectedBranches(t *testing.T) {
 }
 
 func TestSyncAll_StatErrorSkipsEntry(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not available on Windows")
+	}
 	// Test that SyncAll skips entries where os.Stat fails.
 	base := t.TempDir()
 	reposDir := filepath.Join(base, "repos")
