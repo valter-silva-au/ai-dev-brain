@@ -32,6 +32,8 @@ type GlobalConfig struct {
 	DefaultAI        string             `yaml:"default_ai" mapstructure:"default_ai"`
 	TaskIDPrefix     string             `yaml:"task_id_prefix" mapstructure:"task_id_prefix"`
 	TaskIDCounter    int                `yaml:"task_id_counter" mapstructure:"task_id_counter"`
+	TaskIDPadWidth   int                `yaml:"task_id_pad_width" mapstructure:"task_id_pad_width"`
+	BranchPattern    string             `yaml:"branch_pattern" mapstructure:"branch_pattern"`
 	DefaultPriority  Priority           `yaml:"default_priority" mapstructure:"default_priority"`
 	DefaultOwner     string             `yaml:"default_owner" mapstructure:"default_owner"`
 	ScreenshotHotkey string             `yaml:"screenshot_hotkey" mapstructure:"screenshot_hotkey"`

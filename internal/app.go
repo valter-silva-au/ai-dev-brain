@@ -139,7 +139,8 @@ func NewApp(basePath string) (*App, error) {
 	if prefix == "" {
 		prefix = "TASK"
 	}
-	app.IDGen = core.NewTaskIDGenerator(basePath, prefix)
+	padWidth := globalCfg.TaskIDPadWidth
+	app.IDGen = core.NewTaskIDGenerator(basePath, prefix, padWidth)
 	app.TmplMgr = core.NewTemplateManager(basePath)
 
 	// Create a worktree adapter so the core bootstrap can use it without
@@ -173,6 +174,7 @@ func NewApp(basePath string) (*App, error) {
 		app.KnowledgeMgr,
 		blAdapter,
 		evtAdapter,
+		prefix,
 	)
 
 	// AIContextGenerator depends on KnowledgeManager for the knowledge summary section.
@@ -200,6 +202,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.AlertEngine = app.AlertEngine
 	cli.MetricsCalc = app.MetricsCalc
 	cli.Notifier = app.Notifier
+	cli.BranchPattern = globalCfg.BranchPattern
 
 	// Convert CLIAliasConfig to integration.CLIAlias.
 	aliases := make([]integration.CLIAlias, len(globalCfg.CLIAliases))

@@ -5,11 +5,15 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/viper"
 )
+
+// validPrefixPattern matches uppercase alphanumeric prefixes between 1 and 10 characters.
+var validPrefixPattern = regexp.MustCompile(`^[A-Z0-9]{1,10}$`)
 
 // ConfigurationManager defines the interface for loading, merging, and
 // validating configuration from global (.taskconfig) and per-repo (.taskrc) files.
@@ -39,6 +43,8 @@ func defaultGlobalConfig() *models.GlobalConfig {
 		DefaultAI:        "kiro",
 		TaskIDPrefix:     "TASK",
 		TaskIDCounter:    0,
+		TaskIDPadWidth:   5,
+		BranchPattern:    "{type}/{id}-{description}",
 		DefaultPriority:  models.P2,
 		DefaultOwner:     "",
 		ScreenshotHotkey: "ctrl+shift+s",
@@ -62,6 +68,8 @@ func (cm *viperConfigManager) LoadGlobalConfig() (*models.GlobalConfig, error) {
 	v.SetDefault("defaults.owner", cfg.DefaultOwner)
 	v.SetDefault("task_id.prefix", cfg.TaskIDPrefix)
 	v.SetDefault("task_id.counter", cfg.TaskIDCounter)
+	v.SetDefault("task_id.pad_width", cfg.TaskIDPadWidth)
+	v.SetDefault("branch.pattern", cfg.BranchPattern)
 	v.SetDefault("screenshot.hotkey", cfg.ScreenshotHotkey)
 	v.SetDefault("offline_mode", cfg.OfflineMode)
 
@@ -81,6 +89,12 @@ func (cm *viperConfigManager) LoadGlobalConfig() (*models.GlobalConfig, error) {
 	cfg.TaskIDCounter = v.GetInt("task_id.counter")
 	cfg.ScreenshotHotkey = v.GetString("screenshot.hotkey")
 	cfg.OfflineMode = v.GetBool("offline_mode")
+
+	// Use IsSet to distinguish "not set" (use default 5) from "explicitly set to 0".
+	if v.IsSet("task_id.pad_width") {
+		cfg.TaskIDPadWidth = v.GetInt("task_id.pad_width")
+	}
+	cfg.BranchPattern = v.GetString("branch.pattern")
 
 	// Parse cli_aliases section.
 	var aliases []models.CLIAliasConfig
@@ -241,6 +255,27 @@ func validateGlobalConfig(cfg *models.GlobalConfig) error {
 		errs = append(errs, fmt.Sprintf(
 			"defaults.priority %q is invalid, must be one of: P0, P1, P2, P3",
 			cfg.DefaultPriority,
+		))
+	}
+
+	if cfg.TaskIDPrefix != "" && !validPrefixPattern.MatchString(cfg.TaskIDPrefix) {
+		errs = append(errs, fmt.Sprintf(
+			"task_id.prefix %q is invalid, must match [A-Z0-9]{1,10}",
+			cfg.TaskIDPrefix,
+		))
+	}
+
+	if cfg.TaskIDPadWidth < 0 || cfg.TaskIDPadWidth > 10 {
+		errs = append(errs, fmt.Sprintf(
+			"task_id.pad_width %d is invalid, must be between 0 and 10",
+			cfg.TaskIDPadWidth,
+		))
+	}
+
+	if cfg.BranchPattern != "" && !strings.Contains(cfg.BranchPattern, "{id}") {
+		errs = append(errs, fmt.Sprintf(
+			"branch.pattern %q must contain {id} placeholder",
+			cfg.BranchPattern,
 		))
 	}
 

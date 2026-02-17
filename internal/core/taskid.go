@@ -18,14 +18,17 @@ type TaskIDGenerator interface {
 type fileTaskIDGenerator struct {
 	basePath string
 	prefix   string
+	padWidth int
 }
 
 // NewTaskIDGenerator creates a new TaskIDGenerator that stores its counter
-// in a .task_counter file within basePath.
-func NewTaskIDGenerator(basePath string, prefix string) TaskIDGenerator {
+// in a .task_counter file within basePath. padWidth controls the zero-padding
+// width of the numeric portion. Use 0 for no padding (e.g., TASK-1).
+func NewTaskIDGenerator(basePath string, prefix string, padWidth int) TaskIDGenerator {
 	return &fileTaskIDGenerator{
 		basePath: basePath,
 		prefix:   prefix,
+		padWidth: padWidth,
 	}
 }
 
@@ -59,5 +62,8 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 		return "", fmt.Errorf("writing task counter file: %w", err)
 	}
 
-	return fmt.Sprintf("%s-%05d", g.prefix, counter), nil
+	if g.padWidth > 0 {
+		return fmt.Sprintf("%s-%0*d", g.prefix, g.padWidth, counter), nil
+	}
+	return fmt.Sprintf("%s-%d", g.prefix, counter), nil
 }

@@ -104,7 +104,7 @@ func (m *mockContextStore) LoadContext(taskID string) (interface{}, error) {
 func setupTaskManager(t *testing.T) (string, TaskManager, *inMemoryBacklog) {
 	t.Helper()
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -549,7 +549,7 @@ func (m *mockWorktreeRemover) RemoveWorktree(worktreePath string) error {
 func setupTaskManagerWithWorktreeRemover(t *testing.T) (string, TaskManager, *inMemoryBacklog, *mockWorktreeRemover) {
 	t.Helper()
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -738,7 +738,7 @@ func (f *failingContextStore) LoadContext(_ string) (interface{}, error) {
 func TestCreateTask_BootstrapError(t *testing.T) {
 	dir := t.TempDir()
 	// Create a bootstrap system with an invalid path to force bootstrap failure.
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem("/nonexistent/path/that/should/fail", idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -755,7 +755,7 @@ func TestCreateTask_BootstrapError(t *testing.T) {
 
 func TestCreateTask_BacklogLoadError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -773,7 +773,7 @@ func TestCreateTask_BacklogLoadError(t *testing.T) {
 
 func TestCreateTask_BacklogAddError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -791,7 +791,7 @@ func TestCreateTask_BacklogAddError(t *testing.T) {
 
 func TestCreateTask_BacklogSaveError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -809,7 +809,7 @@ func TestCreateTask_BacklogSaveError(t *testing.T) {
 
 func TestCreateTask_LoadStatusError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -846,7 +846,7 @@ func TestResumeTask_NotFound(t *testing.T) {
 
 func TestResumeTask_ContextLoadError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -869,7 +869,7 @@ func TestResumeTask_ContextLoadError(t *testing.T) {
 
 func TestResumeTask_SaveStatusError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -903,7 +903,7 @@ func TestResumeTask_SaveStatusError(t *testing.T) {
 
 func TestResumeTask_BacklogUpdateError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -928,7 +928,7 @@ func TestResumeTask_BacklogUpdateError(t *testing.T) {
 
 func TestResumeTask_NilContextStore(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -963,7 +963,7 @@ func TestArchiveTask_NotFound(t *testing.T) {
 
 func TestArchiveTask_SaveStatusError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1002,7 +1002,7 @@ func TestArchiveTask_SaveStatusError(t *testing.T) {
 
 func TestArchiveTask_BacklogUpdateError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1039,7 +1039,7 @@ func TestUnarchiveTask_NotFound(t *testing.T) {
 
 func TestUnarchiveTask_SaveStatusError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1070,7 +1070,7 @@ func TestUnarchiveTask_SaveStatusError(t *testing.T) {
 
 func TestUnarchiveTask_BacklogUpdateError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1100,7 +1100,7 @@ func TestUnarchiveTask_BacklogUpdateError(t *testing.T) {
 
 func TestGetTasksByStatus_BacklogLoadError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1118,7 +1118,7 @@ func TestGetTasksByStatus_BacklogLoadError(t *testing.T) {
 
 func TestGetTasksByStatus_FilterError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1136,7 +1136,7 @@ func TestGetTasksByStatus_FilterError(t *testing.T) {
 
 func TestGetAllTasks_BacklogLoadError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1154,7 +1154,7 @@ func TestGetAllTasks_BacklogLoadError(t *testing.T) {
 
 func TestGetAllTasks_GetAllError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1184,7 +1184,7 @@ func TestUpdateTaskStatus_NotFound(t *testing.T) {
 
 func TestUpdateTaskStatus_SaveError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1216,7 +1216,7 @@ func TestUpdateTaskStatus_SaveError(t *testing.T) {
 
 func TestUpdateTaskStatus_BacklogError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1253,7 +1253,7 @@ func TestUpdateTaskPriority_NotFound(t *testing.T) {
 
 func TestUpdateTaskPriority_SaveError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1285,7 +1285,7 @@ func TestUpdateTaskPriority_SaveError(t *testing.T) {
 
 func TestUpdateTaskPriority_BacklogLoadError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1310,7 +1310,7 @@ func TestUpdateTaskPriority_BacklogLoadError(t *testing.T) {
 
 func TestUpdateTaskPriority_BacklogUpdateError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1335,7 +1335,7 @@ func TestUpdateTaskPriority_BacklogUpdateError(t *testing.T) {
 
 func TestUpdateTaskPriority_BacklogSaveError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newFailingBacklog()
@@ -1505,7 +1505,7 @@ func TestRenderHandoff_EmptyLists(t *testing.T) {
 
 func TestSaveTaskStatus_WriteFileError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1536,7 +1536,7 @@ func TestSaveTaskStatus_WriteFileError(t *testing.T) {
 func TestUpdateBacklogStatus_Errors(t *testing.T) {
 	t.Run("load error", func(t *testing.T) {
 		dir := t.TempDir()
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newFailingBacklog()
@@ -1551,7 +1551,7 @@ func TestUpdateBacklogStatus_Errors(t *testing.T) {
 
 	t.Run("update error", func(t *testing.T) {
 		dir := t.TempDir()
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newFailingBacklog()
@@ -1566,7 +1566,7 @@ func TestUpdateBacklogStatus_Errors(t *testing.T) {
 
 	t.Run("save error", func(t *testing.T) {
 		dir := t.TempDir()
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newFailingBacklog()
@@ -1604,7 +1604,7 @@ func TestCreateTask_WithOpts(t *testing.T) {
 func TestCreateTask_LoadStatusYAMLError(t *testing.T) {
 	// Use a custom bootstrap that produces a task with corrupted status.yaml.
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1638,7 +1638,7 @@ func TestLoadTaskFromTicket_InvalidYAML(t *testing.T) {
 	// Write invalid YAML to status.yaml.
 	_ = os.WriteFile(filepath.Join(ticketDir, "status.yaml"), []byte("{{invalid yaml}}"), 0o644)
 
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1655,7 +1655,7 @@ func TestLoadTaskFromTicket_InvalidYAML(t *testing.T) {
 
 func TestGetTasksByStatus_SkipsMissingTickets(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1685,7 +1685,7 @@ func TestGetTasksByStatus_SkipsMissingTickets(t *testing.T) {
 
 func TestGetAllTasks_SkipsMissingTickets(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1746,7 +1746,7 @@ func TestArchiveTask_PreArchiveWriteError(t *testing.T) {
 		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
 	}
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1773,7 +1773,7 @@ func TestArchiveTask_PreArchiveWriteError(t *testing.T) {
 
 func TestArchiveTask_HandoffWriteError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1799,7 +1799,7 @@ func TestArchiveTask_HandoffWriteError(t *testing.T) {
 
 func TestArchiveTask_SaveStatusErrorAfterHandoff(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1829,7 +1829,7 @@ func TestArchiveTask_SaveStatusErrorAfterHandoff(t *testing.T) {
 
 func TestArchiveTask_MkdirAllError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1858,7 +1858,7 @@ func TestArchiveTask_RenameError(t *testing.T) {
 		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
 	}
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1889,7 +1889,7 @@ func TestUnarchiveTask_MoveFromArchiveError(t *testing.T) {
 		t.Skip("not supported on Windows: Unix file permissions not available on Windows")
 	}
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
@@ -1921,7 +1921,7 @@ func TestUnarchiveTask_MoveFromArchiveError(t *testing.T) {
 
 func TestUnarchiveTask_SaveStatusErrorAfterMove(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 	backlog := newInMemoryBacklog()
