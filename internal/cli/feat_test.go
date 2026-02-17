@@ -512,6 +512,34 @@ func TestLaunchWorkflow_ResumeWithFakeClaude_ZshShell(t *testing.T) {
 	launchWorkflow("TASK-00099", "feat/resume-zsh-test", worktree, true)
 }
 
+func TestRepoShortName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty string", "", ""},
+		{"simple name", "myrepo", "myrepo"},
+		{"path with slashes", "github.com/org/repo", "repo"},
+		{"path with .git suffix", "github.com/org/repo.git", "repo"},
+		{"backslash path", `C:\Users\dev\repo`, "repo"},
+		{"colon separated", "git@github.com:org/repo", "repo"},
+		{"colon with .git", "git@github.com:org/repo.git", "repo"},
+		{"single segment with .git", "myrepo.git", "myrepo"},
+		{"trailing slash stripped by caller", "github.com/org/repo", "repo"},
+		{"deeply nested path", "a/b/c/d/e/repo-name", "repo-name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := repoShortName(tt.input)
+			if got != tt.want {
+				t.Errorf("repoShortName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLaunchWorkflow_ZshWithZDOTDIR(t *testing.T) {
 	// Exercise the ZDOTDIR path in the zsh branch.
 	tmpBin := t.TempDir()

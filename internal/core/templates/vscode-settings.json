@@ -1,11 +1,20 @@
 {
   "terminal.integrated.tabs.title": "${sequence}",
   "terminal.integrated.tabs.description": "${task}${separator}${cwdFolder}",
+  "window.title": "${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}",
   "files.exclude": {
-    ".task_counter": true
+    ".task_counter": true,
+    ".knowledge_counter": true,
+    ".adb_events.jsonl": true
   },
   "search.exclude": {
     "work/": true,
-    "repos/": true
+    "repos/": true,
+    "tickets/_archived/": true
+  },
+  "files.watcherExclude": {
+    "**/work/**": true,
+    "**/repos/**": true,
+    "**/tickets/_archived/**": true
   }
 }
