@@ -36,6 +36,9 @@ type BootstrapConfig struct {
 	Owner      string
 	Tags       []string
 	Source     string
+	// TaskID, if non-empty, is used instead of generating a new one.
+	// This allows callers to pre-generate the ID for branch formatting.
+	TaskID string
 }
 
 // BootstrapResult holds the outputs of a successful bootstrap operation.
@@ -77,9 +80,15 @@ func NewBootstrapSystem(basePath string, idGen TaskIDGenerator, worktreeMgr Work
 // Bootstrap creates a new task with a unique ID, directory structure,
 // template files, status.yaml, context.md, and optionally a git worktree.
 func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, error) {
-	taskID, err := bs.idGen.GenerateTaskID()
-	if err != nil {
-		return nil, fmt.Errorf("generating task ID: %w", err)
+	var taskID string
+	if config.TaskID != "" {
+		taskID = config.TaskID
+	} else {
+		var err error
+		taskID, err = bs.idGen.GenerateTaskID()
+		if err != nil {
+			return nil, fmt.Errorf("generating task ID: %w", err)
+		}
 	}
 
 	ticketPath := filepath.Join(bs.basePath, "tickets", taskID)

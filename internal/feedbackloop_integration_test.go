@@ -56,7 +56,7 @@ func setupFeedbackLoop(t *testing.T) (core.FeedbackLoopOrchestrator, string, str
 	blMgr := storage.NewBacklogManager(baseDir)
 	blAdapter := &backlogStoreAdapter{mgr: blMgr}
 
-	orch := core.NewFeedbackLoopOrchestrator(reg, km, blAdapter, nil)
+	orch := core.NewFeedbackLoopOrchestrator(reg, km, blAdapter, nil, "TASK")
 
 	inboxDir := filepath.Join(channelDir, "inbox")
 	return orch, inboxDir, channelDir
@@ -266,7 +266,7 @@ func TestFeedbackLoop_ChannelFilter(t *testing.T) {
 	blMgr := storage.NewBacklogManager(baseDir)
 	blAdapter := &backlogStoreAdapter{mgr: blMgr}
 
-	orch := core.NewFeedbackLoopOrchestrator(reg, km, blAdapter, nil)
+	orch := core.NewFeedbackLoopOrchestrator(reg, km, blAdapter, nil, "TASK")
 
 	// Write items to both inboxes.
 	writeInboxFile(t, filepath.Join(channelDir1, "inbox"), "alpha-item.md", `---

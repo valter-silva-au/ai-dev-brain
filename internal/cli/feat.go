@@ -57,9 +57,10 @@ files, and registers the task in the backlog.`, taskType),
 			}
 
 			task, err := TaskMgr.CreateTask(taskType, branchName, repoPath, core.CreateTaskOpts{
-				Priority: models.Priority(flags.priority),
-				Owner:    flags.owner,
-				Tags:     flags.tags,
+				Priority:      models.Priority(flags.priority),
+				Owner:         flags.owner,
+				Tags:          flags.tags,
+				BranchPattern: BranchPattern,
 			})
 			if err != nil {
 				return fmt.Errorf("creating %s task: %w", taskType, err)
