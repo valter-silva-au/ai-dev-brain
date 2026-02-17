@@ -6,6 +6,9 @@ defaults:
 task_id:
   prefix: "{{.Prefix}}"
   counter: 0
+  pad_width: 5
+branch:
+  pattern: "{type}/{id}-{description}"
 screenshot:
   hotkey: "ctrl+shift+s"
 offline_mode: false

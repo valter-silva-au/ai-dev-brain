@@ -1565,7 +1565,7 @@ func TestIntegration_TemplateManager_AllTaskTypes(t *testing.T) {
 
 func TestIntegration_TaskIDSequentialGeneration(t *testing.T) {
 	dir := t.TempDir()
-	idGen := core.NewTaskIDGenerator(dir, "TASK")
+	idGen := core.NewTaskIDGenerator(dir, "TASK", 5)
 
 	expected := []string{"TASK-00001", "TASK-00002", "TASK-00003", "TASK-00004", "TASK-00005"}
 	for i, want := range expected {
@@ -1581,7 +1581,7 @@ func TestIntegration_TaskIDSequentialGeneration(t *testing.T) {
 
 func TestIntegration_TaskIDCustomPrefix(t *testing.T) {
 	dir := t.TempDir()
-	idGen := core.NewTaskIDGenerator(dir, "PROJ")
+	idGen := core.NewTaskIDGenerator(dir, "PROJ", 5)
 
 	id, err := idGen.GenerateTaskID()
 	if err != nil {

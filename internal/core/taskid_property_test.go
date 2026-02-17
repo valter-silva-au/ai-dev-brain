@@ -22,7 +22,7 @@ func TestProperty_TaskIDUniqueness(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		gen := NewTaskIDGenerator(dir, prefix)
+		gen := NewTaskIDGenerator(dir, prefix, 5)
 
 		seen := make(map[string]struct{}, n)
 		for i := 0; i < n; i++ {

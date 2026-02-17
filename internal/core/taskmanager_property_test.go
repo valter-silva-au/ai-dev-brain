@@ -39,7 +39,7 @@ func TestProperty_ArchiveUnarchiveRoundTrip(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 		backlog := newInMemoryBacklog()

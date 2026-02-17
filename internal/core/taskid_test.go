@@ -9,7 +9,7 @@ import (
 
 func TestGenerateTaskID_FirstID(t *testing.T) {
 	dir := t.TempDir()
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 
 	id, err := gen.GenerateTaskID()
 	if err != nil {
@@ -22,7 +22,7 @@ func TestGenerateTaskID_FirstID(t *testing.T) {
 
 func TestGenerateTaskID_IncrementsCounter(t *testing.T) {
 	dir := t.TempDir()
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 
 	id1, err := gen.GenerateTaskID()
 	if err != nil {
@@ -43,7 +43,7 @@ func TestGenerateTaskID_IncrementsCounter(t *testing.T) {
 
 func TestGenerateTaskID_CustomPrefix(t *testing.T) {
 	dir := t.TempDir()
-	gen := NewTaskIDGenerator(dir, "PROJ")
+	gen := NewTaskIDGenerator(dir, "PROJ", 5)
 
 	id, err := gen.GenerateTaskID()
 	if err != nil {
@@ -63,7 +63,7 @@ func TestGenerateTaskID_ReadsExistingCounter(t *testing.T) {
 		t.Fatalf("failed to write counter file: %v", err)
 	}
 
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 
 	id, err := gen.GenerateTaskID()
 	if err != nil {
@@ -81,7 +81,7 @@ func TestGenerateTaskID_InvalidCounterContent(t *testing.T) {
 		t.Fatalf("failed to write counter file: %v", err)
 	}
 
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 	_, err := gen.GenerateTaskID()
 	if err == nil {
 		t.Fatal("expected error for non-numeric counter content")
@@ -100,7 +100,7 @@ func TestGenerateTaskID_ReadError(t *testing.T) {
 		t.Fatalf("failed to create counter directory: %v", err)
 	}
 
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 	_, err := gen.GenerateTaskID()
 	if err == nil {
 		t.Fatal("expected error when counter file is a directory")
@@ -155,7 +155,7 @@ func TestGenerateTaskID_WriteFileError(t *testing.T) {
 	if err := os.WriteFile(blockerBase, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	gen := NewTaskIDGenerator(filepath.Join(blockerBase, "nested"), "TASK")
+	gen := NewTaskIDGenerator(filepath.Join(blockerBase, "nested"), "TASK", 5)
 	_, err := gen.GenerateTaskID()
 	if err == nil {
 		t.Fatal("expected error when base path cannot be created")
@@ -173,7 +173,7 @@ func TestGenerateTaskID_WriteFileErrorAfterSuccessfulRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gen := NewTaskIDGenerator(dir, "TASK")
+	gen := NewTaskIDGenerator(dir, "TASK", 5)
 
 	// First call succeeds and increments counter to 11.
 	id1, err := gen.GenerateTaskID()
@@ -199,5 +199,50 @@ func TestGenerateTaskID_WriteFileErrorAfterSuccessfulRead(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "task counter file") {
 		t.Errorf("expected task counter file error, got: %v", err)
+	}
+}
+
+func TestGenerateTaskID_ZeroPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewTaskIDGenerator(dir, "CCAAS", 0)
+
+	id, err := gen.GenerateTaskID()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "CCAAS-1" {
+		t.Errorf("expected CCAAS-1, got %s", id)
+	}
+}
+
+func TestGenerateTaskID_CustomPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewTaskIDGenerator(dir, "TASK", 3)
+
+	id, err := gen.GenerateTaskID()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "TASK-001" {
+		t.Errorf("expected TASK-001, got %s", id)
+	}
+}
+
+func TestGenerateTaskID_LargeCounterExceedsPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	counterPath := filepath.Join(dir, ".task_counter")
+	if err := os.WriteFile(counterPath, []byte("999"), 0o644); err != nil {
+		t.Fatalf("failed to write counter file: %v", err)
+	}
+
+	gen := NewTaskIDGenerator(dir, "TASK", 2)
+
+	id, err := gen.GenerateTaskID()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Counter 1000 exceeds pad width 2 but should not be truncated.
+	if id != "TASK-1000" {
+		t.Errorf("expected TASK-1000, got %s", id)
 	}
 }

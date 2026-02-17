@@ -9,3 +9,7 @@ var (
 	MetricsCalc observability.MetricsCalculator
 	Notifier    observability.Notifier
 )
+
+// BranchPattern is the branch name format pattern from configuration.
+// Set during app initialization in app.go.
+var BranchPattern string

@@ -28,7 +28,7 @@ func (m *mockWorktreeCreator) CreateWorktree(config WorktreeCreateConfig) (strin
 
 func TestBootstrap_CreatesDirectoryStructure(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -116,7 +116,7 @@ func TestBootstrap_CreatesDirectoryStructure(t *testing.T) {
 
 func TestBootstrap_BugTemplate(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "BUG")
+	idGen := NewTaskIDGenerator(dir, "BUG", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -139,7 +139,7 @@ func TestBootstrap_BugTemplate(t *testing.T) {
 
 func TestBootstrap_WithWorktree(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	mockWt := &mockWorktreeCreator{createdPath: "/tmp/worktree/TASK-00001"}
 	bs := NewBootstrapSystem(dir, idGen, mockWt, tmplMgr)
@@ -180,7 +180,7 @@ func TestBootstrap_WithWorktree(t *testing.T) {
 
 func TestBootstrap_NilWorktreeManager(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -201,7 +201,7 @@ func TestBootstrap_NilWorktreeManager(t *testing.T) {
 
 func TestBootstrap_SequentialIDs(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -224,7 +224,7 @@ func TestBootstrap_SequentialIDs(t *testing.T) {
 
 func TestApplyTemplate_ViaBootstrap(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -249,7 +249,7 @@ func TestApplyTemplate_ViaBootstrap(t *testing.T) {
 
 func TestGenerateTaskID_ViaBootstrap(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -288,7 +288,7 @@ func TestBootstrap_IDGenerationError(t *testing.T) {
 
 func TestBootstrap_MkdirAllError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -324,7 +324,7 @@ func (m *mockFailingTemplateManager) RegisterTemplate(_ models.TaskType, _ strin
 
 func TestBootstrap_TemplateApplyError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	bs := NewBootstrapSystem(dir, idGen, nil, &mockFailingTemplateManager{})
 
 	_, err := bs.Bootstrap(BootstrapConfig{
@@ -341,7 +341,7 @@ func TestBootstrap_TemplateApplyError(t *testing.T) {
 
 func TestBootstrap_ContextWriteError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -373,7 +373,7 @@ func TestBootstrap_ContextWriteError(t *testing.T) {
 
 func TestBootstrap_WorktreeCreationError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	mockWt := &mockWorktreeCreator{err: fmt.Errorf("worktree creation failed")}
 	bs := NewBootstrapSystem(dir, idGen, mockWt, tmplMgr)
@@ -394,7 +394,7 @@ func TestBootstrap_WorktreeCreationError(t *testing.T) {
 
 func TestBootstrap_StatusYAMLWriteError(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
@@ -424,7 +424,7 @@ func TestBootstrap_StatusYAMLWriteError(t *testing.T) {
 
 func TestBootstrap_StoresTagsAndSource(t *testing.T) {
 	dir := t.TempDir()
-	idGen := NewTaskIDGenerator(dir, "TASK")
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
 	tmplMgr := NewTemplateManager(dir)
 	bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 

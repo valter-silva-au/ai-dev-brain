@@ -41,7 +41,7 @@ func TestProperty_BootstrapStructureCompleteness(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		mockWt := &mockWorktreeCreator{createdPath: filepath.Join(dir, "worktree")}
 		bs := NewBootstrapSystem(dir, idGen, mockWt, tmplMgr)
@@ -154,7 +154,7 @@ func TestProperty_TemplateApplicationByType(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		idGen := NewTaskIDGenerator(dir, "TASK")
+		idGen := NewTaskIDGenerator(dir, "TASK", 5)
 		tmplMgr := NewTemplateManager(dir)
 		bs := NewBootstrapSystem(dir, idGen, nil, tmplMgr)
 
