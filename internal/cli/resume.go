@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
@@ -41,6 +42,14 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 
 		// Post-resume workflow: rename terminal tab and launch Claude Code with --resume.
 		if task.WorktreePath != "" {
+			// Set ADB_TASK_TYPE and ADB_REPO_SHORT so the status line script
+			// can display them without re-parsing status.yaml.
+			if task.Type != "" {
+				_ = os.Setenv("ADB_TASK_TYPE", string(task.Type))
+			}
+			if task.Repo != "" {
+				_ = os.Setenv("ADB_REPO_SHORT", repoShortName(task.Repo))
+			}
 			launchWorkflow(task.ID, task.Branch, task.WorktreePath, true)
 		}
 

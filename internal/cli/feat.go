@@ -83,6 +83,14 @@ files, and registers the task in the backlog.`, taskType),
 
 			// Post-create workflow: rename terminal tab and launch Claude Code.
 			if task.WorktreePath != "" {
+				// Set ADB_TASK_TYPE and ADB_REPO_SHORT so the status line script
+				// can display them without re-parsing status.yaml.
+				if task.Type != "" {
+					_ = os.Setenv("ADB_TASK_TYPE", string(task.Type))
+				}
+				if task.Repo != "" {
+					_ = os.Setenv("ADB_REPO_SHORT", repoShortName(task.Repo))
+				}
 				launchWorkflow(task.ID, task.Branch, task.WorktreePath, false)
 			}
 
@@ -130,6 +138,23 @@ func setTerminalTitle(title string) {
 	}
 }
 
+// repoShortName extracts the final path segment from a repo identifier,
+// stripping any .git suffix. Handles both URL and path-style repo strings.
+func repoShortName(repo string) string {
+	if repo == "" {
+		return ""
+	}
+	// Strip .git suffix.
+	r := strings.TrimSuffix(repo, ".git")
+	// Take last segment after any / or \ or :
+	for _, sep := range []string{"/", "\\", ":"} {
+		if idx := strings.LastIndex(r, sep); idx >= 0 {
+			r = r[idx+1:]
+		}
+	}
+	return r
+}
+
 // launchWorkflow renames the terminal tab, launches Claude Code in the
 // worktree directory, and then drops the user into a shell in the worktree
 // so they remain in the work directory after Claude exits.
@@ -139,7 +164,7 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 		return
 	}
 
-	// Set terminal title.
+	// Set terminal title with rich context.
 	title := fmt.Sprintf("%s (%s)", taskID, branch)
 	setTerminalTitle(title)
 
