@@ -1,0 +1,23 @@
+version: "3"
+
+tasks:
+  install-playwright:
+    desc: Install Playwright browsers and dependencies
+    cmds:
+      - npx playwright install --with-deps chromium
+
+  test-ui:
+    desc: Run all UI story tests in the stories/ directory
+    cmds:
+      - echo "Running UI review on stories/ directory..."
+      - echo "Use: claude -p '/ui-review stories/'"
+
+  browse:
+    desc: Take a screenshot of a URL (usage: adb run browse -- <url>)
+    cmds:
+      - npx playwright screenshot {{.CLI_ARGS}} screenshot-$(date +%Y%m%d-%H%M%S).png
+
+  automate:
+    desc: Run a browser automation workflow file
+    cmds:
+      - echo "Use: claude -p '/browser-automate <workflow-file>'"
