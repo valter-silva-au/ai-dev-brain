@@ -1,18 +1,18 @@
-# Task Context: TASK-00003
+# Task Context: TASK-00002
 
-This worktree is for task TASK-00003 (claude-code-status-line).
+This worktree is for task TASK-00002 (browser-automation).
 
 - **Type**: feat
-- **Branch**: claude-code-status-line
+- **Branch**: browser-automation
 - **Status**: backlog (newly created)
-- **Ticket**: tickets/TASK-00003/
+- **Ticket**: tickets/TASK-00002/
 
 ## Key Files
-- tickets/TASK-00003/context.md -- Running context (update as you work)
-- tickets/TASK-00003/notes.md -- Requirements and acceptance criteria
-- tickets/TASK-00003/design.md -- Technical design document
-- tickets/TASK-00003/sessions/ -- Session summaries (save progress between sessions)
-- tickets/TASK-00003/knowledge/ -- Extracted decisions and facts
+- tickets/TASK-00002/context.md -- Running context (update as you work)
+- tickets/TASK-00002/notes.md -- Requirements and acceptance criteria
+- tickets/TASK-00002/design.md -- Technical design document
+- tickets/TASK-00002/sessions/ -- Session summaries (save progress between sessions)
+- tickets/TASK-00002/knowledge/ -- Extracted decisions and facts
 
 ## Instructions
 - Update context.md with progress, decisions, and blockers as you work
@@ -33,4 +33,3 @@ This worktree is for task TASK-00003 (claude-code-status-line).
 - **2026-02-14**: decision: Per-agency base + per-seat scaling pricing model (TASK-00037)
 - **2026-02-14**: decision: Hybrid CRM integration -- MCP inside container for real-time, Lambda CrmAdapter for async batch (TASK-00037)
 - **2026-02-14**: decision: Single Docker image with tier-based skill filtering at container boot (TASK-00037)
-

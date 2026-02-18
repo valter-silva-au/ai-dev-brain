@@ -51,10 +51,10 @@ adb --help
 If the version of Go provided by `apt` is too old, install a newer version from the [official Go downloads](https://go.dev/dl/):
 
 ```bash
-# Example: install Go 1.24.9 manually
-wget https://go.dev/dl/go1.24.9.linux-amd64.tar.gz
+# Example: install Go 1.26.9 manually
+wget https://go.dev/dl/go1.26.9.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.24.9.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.9.linux-amd64.tar.gz
 echo 'export PATH="/usr/local/go/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -171,7 +171,7 @@ adb --help
 If you want to build from a cloned repository (useful for development or running a specific commit):
 
 ```bash
-git clone https://github.com/drapaimern/ai-dev-brain.git
+git clone https://github.com/valter-silva-au/ai-dev-brain.git
 cd ai-dev-brain
 
 # Build the binary
@@ -188,7 +188,7 @@ sudo mv adb /usr/local/bin/
 On Windows, the build produces `adb.exe`:
 
 ```powershell
-git clone https://github.com/drapaimern/ai-dev-brain.git
+git clone https://github.com/valter-silva-au/ai-dev-brain.git
 cd ai-dev-brain
 
 go build -o adb.exe ./cmd/adb
@@ -356,7 +356,7 @@ Created task TASK-00001
   Type:     feat
   Branch:   add-user-auth
   Repo:     github.com/myorg/myapp
-  Worktree: /home/you/adb-workspace/worktrees/TASK-00001
+  Worktree: /home/you/adb-workspace/work/TASK-00001
   Ticket:   /home/you/adb-workspace/tickets/TASK-00001
 ```
 
@@ -391,7 +391,7 @@ priority: P2
 owner: ""
 repo: github.com/myorg/myapp
 branch: add-user-auth
-worktree: /home/you/adb-workspace/worktrees/TASK-00001
+worktree: /home/you/adb-workspace/work/TASK-00001
 ticket_path: /home/you/adb-workspace/tickets/TASK-00001
 created: 2026-02-11T10:30:00Z
 updated: 2026-02-11T10:30:00Z
@@ -519,7 +519,7 @@ Resumed task TASK-00001
   Type:     feat
   Status:   in_progress
   Branch:   add-user-auth
-  Worktree: /home/you/adb-workspace/worktrees/TASK-00001
+  Worktree: /home/you/adb-workspace/work/TASK-00001
   Ticket:   /home/you/adb-workspace/tickets/TASK-00001
 ```
 

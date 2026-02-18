@@ -33,9 +33,9 @@ $ adb feat add-user-notifications --repo github.com/acme/webapp --priority P1 --
 ```
 Created task TASK-00012
   Type:     feat
-  Branch:   feat/TASK-00012-add-user-notifications
+  Branch:   add-user-notifications
   Repo:     github.com/acme/webapp
-  Worktree: repos/github.com/acme/webapp/feat/TASK-00012-add-user-notifications
+  Worktree: work/TASK-00012
   Ticket:   tickets/TASK-00012
 ```
 
@@ -43,7 +43,7 @@ This command creates:
 
 - A task entry in `backlog.yaml`
 - A ticket folder at `tickets/TASK-00012/` with scaffolded files (`context.md`, `notes.md`, `design.md`)
-- A git worktree checked out to `repos/github.com/acme/webapp/feat/TASK-00012-add-user-notifications`
+- A git worktree checked out to `work/TASK-00012`
 
 ### Step 2: Review the Generated Ticket Structure
 
@@ -181,7 +181,7 @@ sequenceDiagram
 
     Dev->>ADB: adb feat add-user-notifications --repo ...
     ADB->>FS: Create tickets/TASK-00012/ (context.md, notes.md, design.md)
-    ADB->>Git: Create worktree feat/TASK-00012-add-user-notifications
+    ADB->>Git: Create worktree work/TASK-00012
     ADB->>FS: Register task in backlog.yaml
 
     Dev->>FS: Edit design.md (architecture, components)
@@ -212,9 +212,9 @@ $ adb bug fix-duplicate-email-notifications --repo github.com/acme/webapp --prio
 ```
 Created task TASK-00013
   Type:     bug
-  Branch:   bug/TASK-00013-fix-duplicate-email-notifications
+  Branch:   fix-duplicate-email-notifications
   Repo:     github.com/acme/webapp
-  Worktree: repos/github.com/acme/webapp/bug/TASK-00013-fix-duplicate-email-notifications
+  Worktree: work/TASK-00013
   Ticket:   tickets/TASK-00013
 ```
 
@@ -317,9 +317,9 @@ $ adb feat add-search-api --repo github.com/acme/api-server --priority P1 --tags
 ```
 Created task TASK-00014
   Type:     feat
-  Branch:   feat/TASK-00014-add-search-api
+  Branch:   add-search-api
   Repo:     github.com/acme/api-server
-  Worktree: repos/github.com/acme/api-server/feat/TASK-00014-add-search-api
+  Worktree: work/TASK-00014
   Ticket:   tickets/TASK-00014
 ```
 
@@ -329,7 +329,7 @@ Create a second worktree manually for the frontend repository under the same tas
 
 ```bash
 $ cd repos/github.com/acme/webapp
-$ git worktree add ../webapp/feat/TASK-00014-add-search-api feat/TASK-00014-add-search-api
+$ git worktree add ../webapp/add-search-api add-search-api
 ```
 
 Your working directory now has two worktrees for the same task:
@@ -337,8 +337,8 @@ Your working directory now has two worktrees for the same task:
 ```
 repos/
   github.com/acme/
-    api-server/feat/TASK-00014-add-search-api/    # Backend changes
-    webapp/feat/TASK-00014-add-search-api/         # Frontend changes
+    api-server/add-search-api/    # Backend changes
+    webapp/add-search-api/         # Frontend changes
 ```
 
 ### Step 3: Document Cross-Repo Decisions
@@ -391,7 +391,7 @@ $ adb spike evaluate-graphql-migration --tags graphql,architecture
 ```
 Created task TASK-00015
   Type:     spike
-  Branch:   spike/TASK-00015-evaluate-graphql-migration
+  Branch:   evaluate-graphql-migration
   Ticket:   tickets/TASK-00015
 ```
 
@@ -553,7 +553,7 @@ task management, documentation, and multi-repository worktrees.
 
 | Task ID    | Title                     | Status      | Branch                                        |
 |------------|---------------------------|-------------|-----------------------------------------------|
-| TASK-00014 | Add search API            | in_progress | feat/TASK-00014-add-search-api                |
+| TASK-00014 | Add search API            | in_progress | add-search-api                |
 
 ## Key Contacts
 
@@ -592,6 +592,8 @@ The context files are assembled from:
 | Decisions Summary    | `docs/decisions/ADR-*.md` (accepted only)       |
 | Active Tasks         | `backlog.yaml` (in_progress, blocked, review, backlog) |
 | Contacts             | `docs/stakeholders.md`, `docs/contacts.md`      |
+| Critical Decisions   | `tickets/*/knowledge/decisions.yaml` (active tasks) |
+| Recent Sessions      | Latest `tickets/*/sessions/*.md` (active tasks)     |
 
 ### Workflow Diagram
 
@@ -708,8 +710,8 @@ $ adb unarchive TASK-00012
 Unarchived task TASK-00012
   Type:     feat
   Status:   in_progress
-  Branch:   feat/TASK-00012-add-user-notifications
-  Worktree: repos/github.com/acme/webapp/feat/TASK-00012-add-user-notifications
+  Branch:   add-user-notifications
+  Worktree: work/TASK-00012
   Ticket:   tickets/TASK-00012
 ```
 
@@ -723,8 +725,8 @@ $ adb resume TASK-00012
 Resumed task TASK-00012
   Type:     feat
   Status:   in_progress
-  Branch:   feat/TASK-00012-add-user-notifications
-  Worktree: repos/github.com/acme/webapp/feat/TASK-00012-add-user-notifications
+  Branch:   add-user-notifications
+  Worktree: work/TASK-00012
   Ticket:   tickets/TASK-00012
 ```
 
@@ -783,9 +785,9 @@ $ adb feat improve-caching --repo github.com/acme/api-server
 ```
 Created task TASK-00016
   Type:     feat
-  Branch:   feat/TASK-00016-improve-caching
+  Branch:   improve-caching
   Repo:     github.com/acme/api-server
-  Worktree: repos/github.com/acme/api-server/feat/TASK-00016-improve-caching
+  Worktree: work/TASK-00016
   Ticket:   tickets/TASK-00016
 ```
 
@@ -799,7 +801,7 @@ When connectivity drops, `adb` detects this via a TCP probe to a public DNS serv
     "id": "op-001",
     "type": "git_push",
     "payload": {
-      "branch": "feat/TASK-00016-improve-caching",
+      "branch": "improve-caching",
       "remote": "origin"
     },
     "timestamp": "2025-07-28T10:00:00Z"
@@ -808,7 +810,7 @@ When connectivity drops, `adb` detects this via a TCP probe to a public DNS serv
     "id": "op-002",
     "type": "git_push",
     "payload": {
-      "branch": "feat/TASK-00016-improve-caching",
+      "branch": "improve-caching",
       "remote": "origin"
     },
     "timestamp": "2025-07-28T11:30:00Z"
@@ -826,7 +828,7 @@ $ adb status
 == IN_PROGRESS (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00016   P2   feat       feat/TASK-00016-improve-caching
+  TASK-00016   P2   feat       improve-caching
 ```
 
 ### Step 3: Reconnecting and Syncing
@@ -894,8 +896,8 @@ The subprocess receives these environment variables:
 | Variable            | Value                                                         |
 |---------------------|---------------------------------------------------------------|
 | `ADB_TASK_ID`       | `TASK-00016`                                                 |
-| `ADB_BRANCH`        | `feat/TASK-00016-improve-caching`                            |
-| `ADB_WORKTREE_PATH` | `repos/github.com/acme/api-server/feat/TASK-00016-improve-caching` |
+| `ADB_BRANCH`        | `improve-caching`                            |
+| `ADB_WORKTREE_PATH` | `work/TASK-00016` |
 | `ADB_TICKET_PATH`   | `tickets/TASK-00016`                                         |
 
 Your scripts can use these variables. For example, a deploy script could tag the deployment with the task ID:
@@ -1137,25 +1139,25 @@ $ adb status
 == IN_PROGRESS (2) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00014   P1   feat       feat/TASK-00014-add-search-api
-  TASK-00016   P2   feat       feat/TASK-00016-improve-caching
+  TASK-00014   P1   feat       add-search-api
+  TASK-00016   P2   feat       improve-caching
 
 == BLOCKED (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00017   P1   feat       feat/TASK-00017-payment-integration
+  TASK-00017   P1   feat       payment-integration
 
 == REVIEW (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00018   P2   bug        bug/TASK-00018-fix-login-timeout
+  TASK-00018   P2   bug        fix-login-timeout
 
 == BACKLOG (3) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00019   P3   refactor   refactor/TASK-00019-extract-auth-module
-  TASK-00020   P3   feat       feat/TASK-00020-user-profile-page
-  TASK-00021   P3   spike      spike/TASK-00021-evaluate-cdn-options
+  TASK-00019   P3   refactor   extract-auth-module
+  TASK-00020   P3   feat       user-profile-page
+  TASK-00021   P3   spike      evaluate-cdn-options
 ```
 
 Tasks are grouped by status in lifecycle order: `in_progress`, `blocked`, `review`, `backlog`, `done`, `archived`.
@@ -1172,7 +1174,7 @@ $ adb status --filter blocked
 == BLOCKED (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00017   P1   feat       feat/TASK-00017-payment-integration
+  TASK-00017   P1   feat       payment-integration
 ```
 
 Or see only backlog items to plan the next sprint:
@@ -1185,9 +1187,9 @@ $ adb status --filter backlog
 == BACKLOG (3) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00019   P3   refactor   refactor/TASK-00019-extract-auth-module
-  TASK-00020   P3   feat       feat/TASK-00020-user-profile-page
-  TASK-00021   P3   spike      spike/TASK-00021-evaluate-cdn-options
+  TASK-00019   P3   refactor   extract-auth-module
+  TASK-00020   P3   feat       user-profile-page
+  TASK-00021   P3   spike      evaluate-cdn-options
 ```
 
 ### Step 3: Reprioritize Tasks
@@ -1219,7 +1221,7 @@ $ adb resume TASK-00021
 Resumed task TASK-00021
   Type:     spike
   Status:   in_progress
-  Branch:   spike/TASK-00021-evaluate-cdn-options
+  Branch:   evaluate-cdn-options
   Ticket:   tickets/TASK-00021
 ```
 
@@ -1264,24 +1266,24 @@ $ adb status
 == IN_PROGRESS (2) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00021   P0   spike      spike/TASK-00021-evaluate-cdn-options
-  TASK-00014   P1   feat       feat/TASK-00014-add-search-api
+  TASK-00021   P0   spike      evaluate-cdn-options
+  TASK-00014   P1   feat       add-search-api
 
 == BLOCKED (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00017   P1   feat       feat/TASK-00017-payment-integration
+  TASK-00017   P1   feat       payment-integration
 
 == REVIEW (1) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00018   P2   bug        bug/TASK-00018-fix-login-timeout
+  TASK-00018   P2   bug        fix-login-timeout
 
 == BACKLOG (2) ==
   ID           PRI  TYPE       BRANCH
   ----         ---  ----       ------
-  TASK-00016   P2   feat       feat/TASK-00016-improve-caching
-  TASK-00019   P3   refactor   refactor/TASK-00019-extract-auth-module
+  TASK-00016   P2   feat       improve-caching
+  TASK-00019   P3   refactor   extract-auth-module
 ```
 
 ---

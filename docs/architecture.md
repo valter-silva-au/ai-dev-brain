@@ -231,13 +231,89 @@ classDiagram
         +LogEvent(eventType, data) error
     }
 
+    class KnowledgeStoreAccess {
+        <<interface>>
+        +AddEntry(entry) string, error
+        +GetEntry(id) KnowledgeEntry, error
+        +GetAllEntries() []KnowledgeEntry, error
+        +QueryByTopic(topic) []KnowledgeEntry, error
+        +QueryByEntity(entity) []KnowledgeEntry, error
+        +QueryByTags(tags) []KnowledgeEntry, error
+        +Search(query) []KnowledgeEntry, error
+        +GetTopics() TopicGraph, error
+        +AddTopic(topic) error
+        +GetTopic(name) Topic, error
+        +GetEntities() EntityRegistry, error
+        +AddEntity(entity) error
+        +GetEntity(name) Entity, error
+        +GetTimeline(since) []TimelineEntry, error
+        +AddTimelineEntry(entry) error
+        +GenerateID() string, error
+        +Load() error
+        +Save() error
+    }
+
+    class KnowledgeManager {
+        <<interface>>
+        +AddKnowledge(...) string, error
+        +IngestFromExtraction(knowledge) []string, error
+        +Search(query) []KnowledgeEntry, error
+        +QueryByTopic(topic) []KnowledgeEntry, error
+        +QueryByEntity(entity) []KnowledgeEntry, error
+        +QueryByTags(tags) []KnowledgeEntry, error
+        +ListTopics() TopicGraph, error
+        +GetTopicEntries(topic) []KnowledgeEntry, error
+        +GetTimeline(since) []TimelineEntry, error
+        +GetRelatedKnowledge(task) []KnowledgeEntry, error
+        +AssembleKnowledgeSummary(maxEntries) string, error
+    }
+
+    class ChannelAdapter {
+        <<interface>>
+        +Name() string
+        +Type() ChannelType
+        +Fetch() []ChannelItem, error
+        +Send(item) error
+        +MarkProcessed(itemID) error
+    }
+
+    class ChannelRegistry {
+        <<interface>>
+        +Register(adapter) error
+        +GetAdapter(name) ChannelAdapter, error
+        +ListAdapters() []ChannelAdapter
+        +FetchAll() []ChannelItem, error
+    }
+
+    class FeedbackLoopOrchestrator {
+        <<interface>>
+        +Run(opts) LoopResult, error
+        +ProcessItem(item) ProcessedItem, error
+    }
+
+    class ProjectInitializer {
+        <<interface>>
+        +Init(config) InitResult, error
+    }
+
+    class Notifier {
+        <<interface>>
+        +Notify(alerts) error
+    }
+
     TaskManager --> BootstrapSystem : delegates creation
     TaskManager --> BacklogStore : persists entries
     TaskManager --> ContextStore : loads context
     TaskManager --> WorktreeRemover : removes worktrees
+    TaskManager --> EventLogger : logs events
     BootstrapSystem --> TaskIDGenerator : generates IDs
     BootstrapSystem --> WorktreeCreator : creates worktrees
     BootstrapSystem --> TemplateManager : applies templates
+    KnowledgeManager --> KnowledgeStoreAccess : persists knowledge
+    FeedbackLoopOrchestrator --> ChannelRegistry : fetches items
+    FeedbackLoopOrchestrator --> KnowledgeManager : ingests knowledge
+    FeedbackLoopOrchestrator --> BacklogStore : looks up tasks
+    FeedbackLoopOrchestrator --> EventLogger : logs events
     MetricsCalculator --> EventLog : reads events
     AlertEngine --> EventLog : evaluates conditions
 ```
@@ -246,7 +322,7 @@ classDiagram
 
 ## Adapter Pattern and Dependency Injection
 
-The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
+The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
 
 ```mermaid
 classDiagram
@@ -268,6 +344,9 @@ classDiagram
         class EventLogger {
             <<interface>>
         }
+        class KnowledgeStoreAccess {
+            <<interface>>
+        }
     }
 
     namespace storage {
@@ -275,6 +354,9 @@ classDiagram
             <<interface>>
         }
         class ContextManager {
+            <<interface>>
+        }
+        class KnowledgeStoreManager {
             <<interface>>
         }
     }
@@ -307,6 +389,9 @@ classDiagram
         class eventLogAdapter {
             -log: EventLog
         }
+        class knowledgeStoreAdapter {
+            -mgr: KnowledgeStoreManager
+        }
     }
 
     backlogStoreAdapter ..|> BacklogStore : implements
@@ -323,16 +408,21 @@ classDiagram
 
     eventLogAdapter ..|> EventLogger : implements
     eventLogAdapter --> EventLog : delegates to
+
+    knowledgeStoreAdapter ..|> KnowledgeStoreAccess : implements
+    knowledgeStoreAdapter --> KnowledgeStoreManager : delegates to
 ```
 
 The `NewApp` function in `internal/app.go` performs all wiring in a fixed order:
 
 1. **Configuration** -- `ConfigurationManager` loads `.taskconfig` with Viper.
 2. **Storage** -- `BacklogManager`, `ContextManager`, `CommunicationManager` are created with the base path.
-3. **Integration** -- `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` are created.
+3. **Integration** -- `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner`, `RepoSyncManager` are created.
 4. **Observability** -- `EventLog` (JSONL-backed) is opened at `.adb_events.jsonl`. `AlertEngine` and `MetricsCalculator` are created with the event log and configurable thresholds. If the event log cannot be created, observability is disabled gracefully (non-fatal).
 5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`. The `worktreeRemoverAdapter` bridges `integration.GitWorktreeManager` to `core.WorktreeRemover`.
-6. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`EventLog`, `AlertEngine`, `MetricsCalc`).
+6. **Channel adapters** -- `ChannelRegistry` is created. `FileChannelAdapter` is initialized from the `channels/` directory and registered (non-fatal if registration fails).
+7. **Knowledge store** -- `KnowledgeStoreManager` is created and loaded. `knowledgeStoreAdapter` bridges it to `core.KnowledgeStoreAccess`. `KnowledgeManager` and `FeedbackLoopOrchestrator` are created with their dependencies.
+8. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ProjectInit`, `RepoSyncMgr`, `ChannelReg`, `KnowledgeMgr`, `KnowledgeX`, `FeedbackLoop`, `EventLog`, `AlertEngine`, `MetricsCalc`, `Notifier`).
 
 ---
 
@@ -550,12 +640,14 @@ flowchart TD
         CLI["CLI Commands"]
         TM["TaskManager"]
         KE["KnowledgeExtractor"]
+        FL["FeedbackLoopOrchestrator"]
     end
 
     subgraph "Observability Layer"
         EL["EventLog<br/>(JSONL append-only)"]
         MC["MetricsCalculator"]
         AE["AlertEngine"]
+        NT["Notifier"]
     end
 
     subgraph "Persistence"
@@ -565,6 +657,7 @@ flowchart TD
     CLI -->|"Write(Event)"| EL
     TM -->|"LogEvent() via adapter"| EL
     KE -->|"LogEvent() via adapter"| EL
+    FL -->|"LogEvent() via adapter"| EL
 
     EL -->|"append JSON + newline"| JSONL
 
@@ -573,10 +666,12 @@ flowchart TD
 
     MC -->|"Aggregate counts,<br/>status transitions"| METRICS["Metrics struct"]
     AE -->|"Check thresholds"| ALERTS["[]Alert"]
+    ALERTS -->|"Notify()"| NT
 
     style EL fill:#e74c3c,color:#fff
     style MC fill:#e74c3c,color:#fff
     style AE fill:#e74c3c,color:#fff
+    style NT fill:#e74c3c,color:#fff
     style JSONL fill:#c0392b,color:#fff
 ```
 
@@ -694,6 +789,11 @@ graph TD
     AT1 --> AHANDOFF["handoff.md"]
     AT1 --> ADESIGN["design.md"]
 
+    ROOT --> CHANNELS["channels/"]
+    CHANNELS --> CHINBOX["inbox/<br/>(pending channel items)"]
+    CHANNELS --> CHOUTBOX["outbox/<br/>(outgoing items)"]
+    CHANNELS --> CHPROCESSED["processed/<br/>(archived items)"]
+
     ROOT --> REPOS["repos/"]
     REPOS --> PLATFORM["github.com/"]
     PLATFORM --> ORG["org/"]
@@ -705,6 +805,11 @@ graph TD
     ROOT --> DOCS["docs/"]
     DOCS --> WIKI["wiki/<br/>(extracted knowledge)"]
     DOCS --> DECISIONS["decisions/<br/>(ADR-XXXX-*.md)"]
+    DOCS --> KSTORE["knowledge/<br/>(long-term knowledge store)"]
+    KSTORE --> KIDX["index.yaml"]
+    KSTORE --> KTOP["topics.yaml"]
+    KSTORE --> KENT["entities.yaml"]
+    KSTORE --> KTMR["timeline.yaml"]
     DOCS --> GLOSSARY["glossary.md"]
     DOCS --> STAKEHOLDERS["stakeholders.md"]
     DOCS --> CONTACTS["contacts.md"]
@@ -712,11 +817,13 @@ graph TD
     style ROOT fill:#34495e,color:#fff
     style TICKETS fill:#e67e22,color:#fff
     style ARCHIVED fill:#95a5a6,color:#fff
+    style CHANNELS fill:#f39c12,color:#fff
     style REPOS fill:#2ecc71,color:#fff
     style DOCS fill:#3498db,color:#fff
     style EVENTS fill:#c0392b,color:#fff
     style SESSIONS fill:#e67e22,color:#fff
     style KNOWLEDGE fill:#e67e22,color:#fff
+    style KSTORE fill:#3498db,color:#fff
 ```
 
 ### File format reference
@@ -876,7 +983,7 @@ Property testing catches edge cases that example-based tests miss, particularly 
 
 ### Local interface definitions to avoid import cycles
 
-The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
+The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
 
 ### JSONL for event logging
 
@@ -993,7 +1100,7 @@ The observability layer is designed for extensibility:
 
 - **Custom event types**: Any component can write events with arbitrary `type` and `data` fields. The `MetricsCalculator` and `AlertEngine` only process known event types; unrecognized types are preserved in the log but do not affect metrics or alerts.
 - **Configurable alert thresholds**: All alert thresholds (`blocked_threshold_hours`, `stale_threshold_days`, `review_threshold_days`, `max_backlog_size`) are configurable in `.taskconfig` under `notifications.alerts`. The `AlertEngine` applies these thresholds at evaluation time.
-- **Notification webhooks**: The alert evaluation results (`[]Alert`) are returned to the CLI layer, which can integrate with external notification systems (Slack webhooks, email, etc.) without changes to the observability package.
+- **Notification webhooks**: The `Notifier` interface (`observability/notifier.go`) sends alerts to external channels. A Slack webhook implementation (`slackNotifier`) is provided. Alert results (`[]Alert`) are passed to `Notifier.Notify()` when configured.
 - **Dashboard integration**: The `MetricsCalculator` returns a structured `Metrics` object that can be serialized to JSON and consumed by external dashboards or monitoring tools.
 
 ### MCP server configuration
@@ -1024,10 +1131,10 @@ This is a static configuration file read by AI assistants (e.g., Claude Code). I
 | Package | Responsibility | Key Interfaces |
 |---------|---------------|----------------|
 | `cmd/adb` | Binary entrypoint | -- |
-| `internal` | Composition root, adapters | `App` struct, `eventLogAdapter`, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter` |
+| `internal` | Composition root, adapters | `App` struct, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter`, `eventLogAdapter`, `knowledgeStoreAdapter` |
 | `internal/cli` | Cobra command definitions | -- |
-| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover` |
-| `internal/observability` | Event logging, metrics, alerting | `EventLog`, `MetricsCalculator`, `AlertEngine` |
-| `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager` |
+| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `KnowledgeManager`, `FeedbackLoopOrchestrator`, `ChannelAdapter`, `ChannelRegistry`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `KnowledgeStoreAccess` |
+| `internal/observability` | Event logging, metrics, alerting, notifications | `EventLog`, `MetricsCalculator`, `AlertEngine`, `Notifier` |
+| `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager`, `KnowledgeStoreManager` |
 | `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` |
-| `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision` |
+| `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision`, `KnowledgeEntry`, `KnowledgeIndex`, `Topic`, `TopicGraph`, `Entity`, `EntityRegistry`, `Timeline`, `TimelineEntry`, `ChannelItem`, `OutputItem`, `ChannelConfig` |

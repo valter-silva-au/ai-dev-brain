@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Prevent editing generated or sensitive files
 # Uses grep instead of jq for Windows compatibility
 INPUT=$(cat)

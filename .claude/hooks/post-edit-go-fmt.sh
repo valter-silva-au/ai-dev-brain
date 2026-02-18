@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Auto-format Go files after editing
 # Uses grep instead of jq for Windows compatibility
 INPUT=$(cat)
