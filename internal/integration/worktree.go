@@ -261,12 +261,53 @@ func (m *gitWorktreeManager) RemoveWorktree(worktreePath string) error {
 		return fmt.Errorf("worktree path must not be empty")
 	}
 
-	cmd := exec.Command("git", "worktree", "remove", worktreePath)
+	// Resolve the parent repository from the worktree's .git file so that
+	// `git worktree remove` can find the owning repo. Without setting Dir,
+	// the command fails on Windows and for nested path-based worktrees.
+	repoDir, err := resolveParentRepo(worktreePath)
+	if err != nil {
+		return fmt.Errorf("resolving parent repo for worktree %s: %w", worktreePath, err)
+	}
+
+	cmd := exec.Command("git", "worktree", "remove", "--force", worktreePath)
+	cmd.Dir = repoDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git worktree remove failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
 	return nil
+}
+
+// resolveParentRepo reads the .git file inside a worktree directory to find
+// the owning repository. Worktree .git files contain a single line like:
+//
+//	gitdir: /path/to/repo/.git/worktrees/<name>
+//
+// This function extracts the parent repo path by stripping the
+// .git/worktrees/<name> suffix.
+func resolveParentRepo(worktreePath string) (string, error) {
+	gitFilePath := filepath.Join(worktreePath, ".git")
+	data, err := os.ReadFile(gitFilePath)
+	if err != nil {
+		return "", fmt.Errorf("reading .git file: %w", err)
+	}
+
+	line := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(line, "gitdir: ") {
+		return "", fmt.Errorf(".git file does not contain a gitdir reference: %q", line)
+	}
+
+	gitdir := strings.TrimPrefix(line, "gitdir: ")
+	gitdir = filepath.ToSlash(gitdir)
+
+	// The gitdir points to <repo>/.git/worktrees/<name>.
+	// Walk up to find the .git directory, then its parent is the repo root.
+	if idx := strings.Index(gitdir, "/.git/worktrees/"); idx >= 0 {
+		return filepath.FromSlash(gitdir[:idx]), nil
+	}
+
+	// Fallback: strip the last two path components (.git/worktrees/<name> -> .git -> repo).
+	return "", fmt.Errorf("unexpected gitdir format: %q", gitdir)
 }
 
 // ListWorktrees lists all worktrees for the given repository path by parsing

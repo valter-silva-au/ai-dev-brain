@@ -625,8 +625,8 @@ func TestRemoveWorktree_NonExistentPath_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent worktree path")
 	}
-	if !strings.Contains(err.Error(), "git worktree remove failed") {
-		t.Errorf("error = %q, want to contain 'git worktree remove failed'", err.Error())
+	if !strings.Contains(err.Error(), "resolving parent repo") {
+		t.Errorf("error = %q, want to contain 'resolving parent repo'", err.Error())
 	}
 }
 
