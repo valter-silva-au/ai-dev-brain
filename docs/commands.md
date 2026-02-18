@@ -41,6 +41,11 @@ graph LR
         run["adb run"]
     end
 
+    subgraph "Claude Code"
+        initclaude["adb init-claude"]
+        syncuser["adb sync-claude-user"]
+    end
+
     subgraph "Knowledge & Channels"
         knowledge["adb knowledge"]
         channel["adb channel"]
@@ -1991,6 +1996,134 @@ None.
 adb mcp serve
 ```
 
+---
+
+## Claude Code Commands
+
+### adb init-claude
+
+Bootstrap Claude Code configuration for a repository.
+
+**Synopsis**
+
+```
+adb init-claude [path]
+```
+
+**Description**
+
+Bootstrap a `.claude/` directory for a repository using adb's canonical
+templates. Creates:
+
+- `.claudeignore` with sensible defaults for the project type
+- `.claude/settings.json` with safe permission defaults
+- `.claude/rules/workspace.md` with project conventions
+
+Safe to run on existing projects -- files that already exist are skipped
+and not overwritten. Templates are sourced from the adb installation's
+`templates/claude/` directory.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `path` | No | Target directory (defaults to current directory) |
+
+**Output**
+
+Lists created and skipped files, then confirms initialization.
+
+**Examples**
+
+```bash
+# Bootstrap Claude Code config in the current directory
+adb init-claude
+
+# Bootstrap for a specific repo
+adb init-claude ~/Code/my-project
+```
+
+---
+
+### adb sync-claude-user
+
+Sync universal Claude Code skills, agents, and MCP servers to user config.
+
+**Synopsis**
+
+```
+adb sync-claude-user [flags]
+```
+
+**Description**
+
+Sync universal (language-agnostic) Claude Code configuration from adb's
+canonical templates to the user-level `~/.claude/` directory.
+
+By default, syncs skills and agents. Use `--mcp` to also merge MCP server
+definitions into `~/.claude.json` so they are available in every project.
+
+This ensures git workflow skills (commit, pr, push, review, sync, changelog),
+the generic code-reviewer agent, and shared MCP servers are available on any
+machine after a single command.
+
+Skills and agents are overwritten if they already exist (templates are the
+source of truth). MCP servers are merged -- existing servers are updated,
+new servers are added, and servers not in the template are left untouched.
+
+Run this after installing adb on a new machine, or after upgrading adb
+to pick up template changes.
+
+**Synced items:**
+
+| Type | Name | Description |
+|------|------|-------------|
+| Skill | `commit` | Conventional commit creation |
+| Skill | `pr` | Pull request creation |
+| Skill | `push` | Branch push with upstream tracking |
+| Skill | `review` | Self-review before committing |
+| Skill | `sync` | Branch sync via fetch and rebase |
+| Skill | `changelog` | Changelog generation from commits |
+| Agent | `code-reviewer` | Generic code review agent |
+
+With `--mcp`:
+
+| Type | Name | Description |
+|------|------|-------------|
+| MCP | `aws-docs` | AWS documentation search (stdio/uvx) |
+| MCP | `aws-knowledge` | AWS knowledge base (HTTP) |
+| MCP | `context7` | Library documentation and code examples (HTTP) |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | `false` | Preview what would be synced without writing files |
+| `--mcp` | bool | `false` | Also sync MCP server definitions to `~/.claude.json` |
+
+**Output**
+
+Lists each synced item and a final count. After syncing, checks for
+required environment variables and prints warnings if any are missing.
+
+**Environment variables checked:**
+
+| Variable | Purpose |
+|----------|---------|
+| `CONTEXT7_API_KEY` | API key for Context7 library documentation service |
+
+**Examples**
+
+```bash
+# Sync skills and agents only
+adb sync-claude-user
+
+# Full setup on a new machine: skills + agents + MCP servers
+adb sync-claude-user --mcp
+
+# Preview everything that would be synced
+adb sync-claude-user --mcp --dry-run
+```
 
 ---
 

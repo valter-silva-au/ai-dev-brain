@@ -1,0 +1,42 @@
+# Default .claudeignore for adb-managed projects
+# Customize for your project's needs
+
+# Build artifacts
+bin/
+dist/
+build/
+*.exe
+*.bin
+
+# Dependencies (managed by package manager)
+vendor/
+node_modules/
+.venv/
+__pycache__/
+
+# Environment and secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Event log
+.adb_events.jsonl
+
+# Archived tasks
+tickets/_archived/
+
+# Test artifacts
+coverage.out
+coverage.html
+*.test
+
+# OS artifacts
+NUL
+Thumbs.db
+.DS_Store
+
+# IDE files
+.idea/
+*.swp
+*.swo

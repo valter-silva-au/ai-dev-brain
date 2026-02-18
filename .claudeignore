@@ -1,0 +1,31 @@
+# AI Dev Brain - Go project
+# Ignore generated and sensitive files
+
+# Build artifacts
+bin/
+dist/
+adb
+adb.exe
+
+# Go vendor (managed by go mod)
+vendor/
+
+# Event log
+.adb_events.jsonl
+
+# Archived tasks
+tickets/_archived/
+
+# Test coverage output
+coverage.out
+coverage.html
+
+# OS artifacts
+NUL
+Thumbs.db
+.DS_Store
+
+# IDE files
+.idea/
+*.swp
+*.swo
