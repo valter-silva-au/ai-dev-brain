@@ -8,8 +8,8 @@ import (
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 )
 
-// taskIDPattern matches TASK-XXXXX references in text.
-var taskIDPattern = regexp.MustCompile(`TASK-\d{5}`)
+// defaultTaskIDPattern is the fallback when no prefix is provided.
+var defaultTaskIDPattern = regexp.MustCompile(`TASK-\d+`)
 
 // RunOptions configures a feedback loop cycle.
 type RunOptions struct {
@@ -47,20 +47,28 @@ type FeedbackLoopOrchestrator interface {
 }
 
 type feedbackLoopOrchestrator struct {
-	channelReg   ChannelRegistry
-	knowledgeMgr KnowledgeManager
-	backlogStore BacklogStore
-	eventLogger  EventLogger
+	channelReg    ChannelRegistry
+	knowledgeMgr  KnowledgeManager
+	backlogStore  BacklogStore
+	eventLogger   EventLogger
+	taskIDPattern *regexp.Regexp
 }
 
 // NewFeedbackLoopOrchestrator creates a FeedbackLoopOrchestrator.
 // knowledgeMgr, backlogStore, and eventLogger may be nil.
-func NewFeedbackLoopOrchestrator(channelReg ChannelRegistry, knowledgeMgr KnowledgeManager, backlogStore BacklogStore, eventLogger EventLogger) FeedbackLoopOrchestrator {
+// prefix is the task ID prefix used to build the dynamic regex; if empty,
+// "TASK" is assumed.
+func NewFeedbackLoopOrchestrator(channelReg ChannelRegistry, knowledgeMgr KnowledgeManager, backlogStore BacklogStore, eventLogger EventLogger, prefix string) FeedbackLoopOrchestrator {
+	pat := defaultTaskIDPattern
+	if prefix != "" {
+		pat = regexp.MustCompile(regexp.QuoteMeta(prefix) + `-\d+`)
+	}
 	return &feedbackLoopOrchestrator{
-		channelReg:   channelReg,
-		knowledgeMgr: knowledgeMgr,
-		backlogStore: backlogStore,
-		eventLogger:  eventLogger,
+		channelReg:    channelReg,
+		knowledgeMgr:  knowledgeMgr,
+		backlogStore:  backlogStore,
+		eventLogger:   eventLogger,
+		taskIDPattern: pat,
 	}
 }
 
@@ -198,10 +206,10 @@ func (f *feedbackLoopOrchestrator) findTaskReference(item models.ChannelItem) st
 	}
 
 	// Scan subject then content.
-	if match := taskIDPattern.FindString(item.Subject); match != "" {
+	if match := f.taskIDPattern.FindString(item.Subject); match != "" {
 		return match
 	}
-	if match := taskIDPattern.FindString(item.Content); match != "" {
+	if match := f.taskIDPattern.FindString(item.Content); match != "" {
 		return match
 	}
 

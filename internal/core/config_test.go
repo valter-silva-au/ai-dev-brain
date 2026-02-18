@@ -638,3 +638,179 @@ func TestValidateRepoConfig_NilConfig_ReturnsError(t *testing.T) {
 		t.Errorf("expected nil config error, got: %v", err)
 	}
 }
+
+// --- PadWidth and BranchPattern tests ---
+
+func TestLoadGlobalConfig_ReadsPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".taskconfig.yaml", `
+defaults:
+  ai: kiro
+task_id:
+  prefix: "TASK"
+  pad_width: 3
+`)
+
+	cm := NewConfigurationManager(dir)
+	cfg, err := cm.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.TaskIDPadWidth != 3 {
+		t.Errorf("TaskIDPadWidth = %d, want 3", cfg.TaskIDPadWidth)
+	}
+}
+
+func TestLoadGlobalConfig_ReadsBranchPattern(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".taskconfig.yaml", `
+defaults:
+  ai: kiro
+branch:
+  pattern: "{id}-{description}"
+`)
+
+	cm := NewConfigurationManager(dir)
+	cfg, err := cm.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BranchPattern != "{id}-{description}" {
+		t.Errorf("BranchPattern = %q, want %q", cfg.BranchPattern, "{id}-{description}")
+	}
+}
+
+func TestLoadGlobalConfig_DefaultPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	cm := NewConfigurationManager(dir)
+	cfg, err := cm.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.TaskIDPadWidth != 5 {
+		t.Errorf("TaskIDPadWidth = %d, want default 5", cfg.TaskIDPadWidth)
+	}
+}
+
+func TestLoadGlobalConfig_ExplicitZeroPadWidth(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".taskconfig.yaml", `
+defaults:
+  ai: kiro
+task_id:
+  prefix: "CCAAS"
+  pad_width: 0
+`)
+
+	cm := NewConfigurationManager(dir)
+	cfg, err := cm.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.TaskIDPadWidth != 0 {
+		t.Errorf("TaskIDPadWidth = %d, want 0 (explicitly set)", cfg.TaskIDPadWidth)
+	}
+}
+
+func TestValidateConfig_InvalidPrefix_SpecialChars(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "MY-TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for prefix with special chars")
+	}
+	if !strings.Contains(err.Error(), "prefix") {
+		t.Errorf("expected prefix error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_InvalidPrefix_Lowercase(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "task",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for lowercase prefix")
+	}
+	if !strings.Contains(err.Error(), "prefix") {
+		t.Errorf("expected prefix error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_InvalidPrefix_TooLong(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "ABCDEFGHIJK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for prefix longer than 10 chars")
+	}
+	if !strings.Contains(err.Error(), "prefix") {
+		t.Errorf("expected prefix error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_PadWidthNegative(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  -1,
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for negative pad width")
+	}
+	if !strings.Contains(err.Error(), "pad_width") {
+		t.Errorf("expected pad_width error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_PadWidthTooLarge(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  11,
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for pad width > 10")
+	}
+	if !strings.Contains(err.Error(), "pad_width") {
+		t.Errorf("expected pad_width error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_BranchPatternMissingID(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+		BranchPattern:   "{type}/{description}",
+	}
+	err := cm.ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for branch pattern missing {id}")
+	}
+	if !strings.Contains(err.Error(), "branch.pattern") {
+		t.Errorf("expected branch.pattern error, got: %v", err)
+	}
+}

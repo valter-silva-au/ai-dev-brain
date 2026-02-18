@@ -95,7 +95,7 @@ func TestFeedbackLoop_RunEmpty(t *testing.T) {
 		t.Fatalf("registering adapter: %v", err)
 	}
 
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 	result, err := orch.Run(RunOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -162,7 +162,7 @@ func TestFeedbackLoop_ClassifyTaskReference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			reg := NewChannelRegistry()
 			km := &fakeKnowledgeManager{}
-			orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+			orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 			result, err := orch.ProcessItem(tc.item)
 			if err != nil {
@@ -181,7 +181,7 @@ func TestFeedbackLoop_ClassifyTaskReference(t *testing.T) {
 
 func TestFeedbackLoop_ClassifyHighPriority(t *testing.T) {
 	reg := NewChannelRegistry()
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 
 	item := models.ChannelItem{
 		ID:       "item-hp",
@@ -207,7 +207,7 @@ func TestFeedbackLoop_ClassifyHighPriority(t *testing.T) {
 func TestFeedbackLoop_KnowledgeIngestion(t *testing.T) {
 	reg := NewChannelRegistry()
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	item := models.ChannelItem{
 		ID:      "item-k",
@@ -251,7 +251,7 @@ func TestFeedbackLoop_KnowledgeIngestion(t *testing.T) {
 func TestFeedbackLoop_CreateKnowledgeFromTags(t *testing.T) {
 	reg := NewChannelRegistry()
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	item := models.ChannelItem{
 		ID:      "item-tags",
@@ -276,7 +276,7 @@ func TestFeedbackLoop_CreateKnowledgeFromTags(t *testing.T) {
 
 func TestFeedbackLoop_SkipItem(t *testing.T) {
 	reg := NewChannelRegistry()
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 
 	item := models.ChannelItem{
 		ID:      "item-skip",
@@ -321,7 +321,7 @@ func TestFeedbackLoop_NilDependencies(t *testing.T) {
 	}
 
 	// nil KnowledgeManager, nil BacklogStore, nil EventLogger
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 
 	// ProcessItem should work without knowledge manager.
 	result, err := orch.ProcessItem(adapter.items[0])
@@ -369,7 +369,7 @@ func TestFeedbackLoop_RunWithChannelFilter(t *testing.T) {
 		t.Fatalf("registering slack adapter: %v", err)
 	}
 
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 
 	result, err := orch.Run(RunOptions{ChannelFilter: "email"})
 	if err != nil {
@@ -402,7 +402,7 @@ func TestFeedbackLoop_DryRun(t *testing.T) {
 	}
 
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	result, err := orch.Run(RunOptions{DryRun: true})
 	if err != nil {
@@ -433,7 +433,7 @@ func TestFeedbackLoop_EventLogging(t *testing.T) {
 	}
 
 	logger := &fakeEventLogger{}
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, logger)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, logger, "TASK")
 
 	_, err := orch.Run(RunOptions{})
 	if err != nil {
@@ -474,7 +474,7 @@ func TestFeedbackLoop_OutputGeneration(t *testing.T) {
 	}
 
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	result, err := orch.Run(RunOptions{})
 	if err != nil {
@@ -503,7 +503,7 @@ func TestFeedbackLoop_OutputGeneration(t *testing.T) {
 func TestFeedbackLoop_SubstantiveContentCreatesKnowledge(t *testing.T) {
 	reg := NewChannelRegistry()
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	// Item with no tags but substantive content (>= 50 chars)
 	item := models.ChannelItem{
@@ -529,7 +529,7 @@ func TestFeedbackLoop_SubstantiveContentCreatesKnowledge(t *testing.T) {
 func TestFeedbackLoop_HighPriorityWithTaskReference(t *testing.T) {
 	reg := NewChannelRegistry()
 	km := &fakeKnowledgeManager{}
-	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "TASK")
 
 	// High priority item that also references a task should route to task.
 	item := models.ChannelItem{
@@ -565,7 +565,7 @@ func TestFeedbackLoop_FetchError(t *testing.T) {
 		t.Fatalf("registering adapter: %v", err)
 	}
 
-	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil)
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "TASK")
 	result, err := orch.Run(RunOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -576,5 +576,50 @@ func TestFeedbackLoop_FetchError(t *testing.T) {
 	}
 	if result.ItemsFetched != 0 {
 		t.Errorf("expected 0 items fetched, got %d", result.ItemsFetched)
+	}
+}
+
+func TestFeedbackLoop_CustomPrefixMatching(t *testing.T) {
+	reg := NewChannelRegistry()
+	km := &fakeKnowledgeManager{}
+	orch := NewFeedbackLoopOrchestrator(reg, km, nil, nil, "CCAAS")
+
+	item := models.ChannelItem{
+		ID:      "custom-prefix",
+		Channel: models.ChannelEmail,
+		Subject: "Update on CCAAS-00042",
+		Content: "Progress on the task.",
+	}
+
+	result, err := orch.ProcessItem(item)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RelatedTask != "CCAAS-00042" {
+		t.Errorf("expected related task %q, got %q", "CCAAS-00042", result.RelatedTask)
+	}
+	if result.Action != "route_to_task" {
+		t.Errorf("expected action %q, got %q", "route_to_task", result.Action)
+	}
+}
+
+func TestFeedbackLoop_NoMatchForWrongPrefix(t *testing.T) {
+	reg := NewChannelRegistry()
+	orch := NewFeedbackLoopOrchestrator(reg, nil, nil, nil, "CCAAS")
+
+	item := models.ChannelItem{
+		ID:      "wrong-prefix",
+		Channel: models.ChannelEmail,
+		Subject: "Update on TASK-00042",
+		Content: "This references a different prefix.",
+	}
+
+	result, err := orch.ProcessItem(item)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// TASK-00042 should NOT match when prefix is CCAAS.
+	if result.RelatedTask != "" {
+		t.Errorf("expected no related task, got %q", result.RelatedTask)
 	}
 }
