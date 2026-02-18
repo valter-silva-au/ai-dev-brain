@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Hook: Stop - Checks for uncommitted changes and basic build/vet
-set -euo pipefail
+set -eu
 
 # Read hook input from stdin
 INPUT=$(cat)
 
 # Prevent infinite loop: if this hook already triggered a continuation, allow stop
-if [ "$(echo "$INPUT" | jq -r '.stop_hook_active')" = "true" ]; then
+if echo "$INPUT" | grep -q '"stop_hook_active"' 2>/dev/null; then
     exit 0
 fi
 

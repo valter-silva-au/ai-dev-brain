@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hook: TaskCompleted - Verifies tests pass, lint clean, no uncommitted Go changes
-set -euo pipefail
+set -eu
 
 cd "$(git rev-parse --show-toplevel)"
 

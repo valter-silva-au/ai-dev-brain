@@ -7,6 +7,12 @@ description, arguments, flags, and usage examples.
 
 ```mermaid
 graph LR
+    subgraph "Project Setup"
+        init["adb init"]
+        completion["adb completion"]
+        version["adb version"]
+    end
+
     subgraph "Task Creation"
         feat["adb feat"]
         bug["adb bug"]
@@ -18,6 +24,7 @@ graph LR
         resume["adb resume"]
         archive["adb archive"]
         unarchive["adb unarchive"]
+        cleanup["adb cleanup"]
     end
 
     subgraph "Task Management"
@@ -25,6 +32,7 @@ graph LR
         priority["adb priority"]
         update["adb update"]
         syncctx["adb sync-context"]
+        syncrepos["adb sync-repos"]
         migrate["adb migrate-archive"]
     end
 
@@ -43,6 +51,11 @@ graph LR
         metrics["adb metrics"]
         alerts["adb alerts"]
         session["adb session"]
+        dashboard["adb dashboard"]
+    end
+
+    subgraph "MCP Server"
+        mcp["adb mcp serve"]
     end
 ```
 
@@ -1106,7 +1119,9 @@ None.
 
 **Flags**
 
-None.
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--notify` | bool | `false` | Send alerts to configured notification channels (e.g. Slack) |
 
 **Output**
 
@@ -1153,14 +1168,15 @@ adb session <subcommand>
 
 **Description**
 
-Parent command for session-related operations. Currently provides the
-`save` subcommand for creating timestamped session summaries.
+Parent command for session-related operations. Provides subcommands
+for saving session summaries and ingesting knowledge from them.
 
 **Subcommands**
 
 | Subcommand | Description |
 |------------|-------------|
 | `save` | Save a session summary for a task |
+| `ingest` | Ingest knowledge from the latest session file |
 
 ---
 
@@ -1256,6 +1272,73 @@ adb session save
 # Typical workflow: save session before ending work
 adb session save TASK-00015
 # Then edit the generated file to fill in details
+```
+
+---
+
+### adb session ingest
+
+Ingest knowledge from the latest session file.
+
+**Synopsis**
+
+```
+adb session ingest [task-id]
+```
+
+**Description**
+
+Read the latest session file for a task and ingest any decisions and
+learnings into the knowledge store.
+
+Entries under the `## Decisions` heading are ingested as decision-type
+knowledge entries. Entries under `## Accomplished` are ingested as
+learning-type entries. Template placeholder items (lines starting with
+parenthetical text like "(describe..." or "(record...") are ignored.
+
+If no `task-id` is provided, the `ADB_TASK_ID` environment variable is
+used.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `task-id` | No | The task identifier (e.g. `TASK-00042`). Falls back to `ADB_TASK_ID` environment variable if omitted. |
+
+**Flags**
+
+None.
+
+**Output**
+
+On success, prints the number of knowledge entries ingested:
+
+```
+Ingested 3 knowledge entry(s) from 2025-01-15T14-30-00Z.md (1 decision(s), 2 learning(s)).
+```
+
+If no actionable entries are found in the session file, prints:
+
+```
+No knowledge entries found in session file.
+Edit <path> and add items under ## Decisions or ## Accomplished, then run ingest again.
+```
+
+**Errors**
+
+- If no task ID is provided and `ADB_TASK_ID` is not set, returns
+  "task ID required: provide as argument or set ADB_TASK_ID".
+- If the task ticket directory does not exist, returns a not-found error.
+- If no session files exist, returns "no session files found".
+
+**Examples**
+
+```bash
+# Ingest from the latest session for a specific task
+adb session ingest TASK-00042
+
+# Ingest using ADB_TASK_ID from the environment
+adb session ingest
 ```
 
 ---
@@ -1581,6 +1664,333 @@ adb loop --dry-run
 # Process only file channel items
 adb loop --channel file-inbox
 ```
+
+---
+
+## Project Setup Commands
+
+### adb init
+
+Initialize a new adb project workspace.
+
+**Synopsis**
+
+```
+adb init [path] [flags]
+```
+
+**Description**
+
+Initialize a new or existing directory with the full recommended adb
+workspace structure including task configuration, backlog registry,
+ticket directories, documentation templates, and tool directories.
+
+Safe to run on existing projects -- files and directories that already
+exist are skipped and not overwritten.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `path` | No | Directory to initialize. Defaults to the current directory (`.`). |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--name` | string | `""` | Project name (defaults to the directory basename) |
+| `--ai` | string | `"claude"` | Default AI assistant type |
+| `--prefix` | string | `"TASK"` | Task ID prefix |
+
+**Output**
+
+Lists files and directories that were created and those that were skipped
+(already existing), then prints a confirmation:
+
+```
+Created:
+  .taskconfig
+  backlog.yaml
+  tickets/
+  docs/
+  ...
+Skipped (already exist):
+  docs/glossary.md
+
+Project "my-project" initialized at /home/user/my-project
+```
+
+**Examples**
+
+```bash
+# Initialize the current directory
+adb init
+
+# Initialize a specific directory with a project name
+adb init ~/projects/my-project --name "My Project"
+
+# Initialize with custom AI assistant and prefix
+adb init . --ai kiro --prefix PROJ
+```
+
+---
+
+### adb completion
+
+Set up shell tab-completions for adb commands, flags, and arguments.
+
+**Synopsis**
+
+```
+adb completion <shell> [flags]
+```
+
+**Description**
+
+Generate or install shell completion scripts for adb. Supports bash,
+zsh, fish, and powershell.
+
+Use `--install` to automatically add completions to your shell profile.
+Without `--install`, the completion script is printed to stdout for
+manual setup.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `shell` | No | The target shell: `bash`, `zsh`, `fish`, or `powershell`. If omitted, shows help. |
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--install` | bool | `false` | Install completions into your shell profile |
+
+**Output**
+
+With `--install`: prints the installation path and instructions.
+Without `--install`: prints the completion script to stdout.
+
+**Examples**
+
+```bash
+# Install bash completions
+adb completion bash --install
+
+# Install zsh completions
+adb completion zsh --install
+
+# Print completion script to stdout (for manual setup)
+adb completion bash
+
+# Load completions in the current session
+eval "$(adb completion bash)"
+```
+
+---
+
+### adb version
+
+Print version information.
+
+**Synopsis**
+
+```
+adb version
+```
+
+**Description**
+
+Print the adb version, git commit hash, and build date. Version
+information is injected at build time via Go ldflags.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+```
+adb v1.6.0
+commit: 79f7c70
+built:  2025-01-15T10:00:00Z
+```
+
+**Examples**
+
+```bash
+adb version
+```
+
+---
+
+### adb dashboard
+
+Interactive TUI dashboard for task metrics and alerts.
+
+**Synopsis**
+
+```
+adb dashboard
+```
+
+**Description**
+
+Launch an interactive terminal dashboard showing task status, metrics,
+and alerts in a live-updating view. The dashboard uses Bubble Tea for
+the TUI and displays three panels:
+
+- **Tasks**: Task counts grouped by status (in lifecycle order).
+- **Metrics**: Event count, tasks created/completed, agent sessions,
+  and knowledge extracted (last 7 days).
+- **Alerts**: Active alerts sorted by severity.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Keyboard Controls**
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Switch to next panel |
+| `Shift+Tab` | Switch to previous panel |
+| `r` | Refresh data |
+| `q`, `Esc`, `Ctrl+C` | Quit |
+
+**Errors**
+
+- If the observability subsystem is not initialized, returns
+  "metrics calculator not initialized (observability may be disabled)".
+
+**Examples**
+
+```bash
+# Launch the interactive dashboard
+adb dashboard
+```
+
+---
+
+### adb sync-repos
+
+Fetch, prune, and clean all tracked repositories.
+
+**Synopsis**
+
+```
+adb sync-repos
+```
+
+**Description**
+
+Synchronize all git repositories under the `repos/` directory. For each
+discovered repository this command:
+
+- Fetches all remotes and prunes stale remote-tracking branches
+- Fast-forwards the default branch if behind origin
+- Deletes local branches that have been merged into the default branch
+
+Branches associated with active backlog tasks (any status except `done`
+or `archived`) are never deleted.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints results per repository with a summary at the end:
+
+```
+== github.com/org/repo ==
+  Fetched: yes
+  Default branch: main
+  Deleted branches: old-feature, stale-fix
+  Skipped (active tasks): add-auth, fix-login
+
+Synced 3 repos, deleted 5 branches, skipped 2 (active), 0 errors
+```
+
+**Errors**
+
+- If the repo sync manager is not initialized, returns an error.
+- Individual repository errors are printed inline without stopping
+  the sync of other repositories.
+
+**Examples**
+
+```bash
+# Sync all tracked repositories
+adb sync-repos
+```
+
+---
+
+## MCP Server Commands
+
+### adb mcp
+
+Parent command for MCP (Model Context Protocol) server operations.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `serve` | Start the adb MCP server on stdio |
+
+---
+
+### adb mcp serve
+
+Start the adb MCP server on stdio transport.
+
+**Synopsis**
+
+```
+adb mcp serve
+```
+
+**Description**
+
+Start the adb MCP server using stdio transport. The server exposes adb
+functionality as MCP tools that AI coding assistants can call:
+
+- `get_task` -- Retrieve a task by ID
+- `list_tasks` -- List tasks with optional status filter
+- `update_task_status` -- Change a task's status
+- `get_metrics` -- Retrieve aggregated metrics
+- `get_alerts` -- Evaluate and return active alerts
+
+The server runs until interrupted (Ctrl+C) or the stdin stream closes.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Examples**
+
+```bash
+# Start the MCP server (typically called by an AI assistant, not manually)
+adb mcp serve
+```
+
 
 ---
 
