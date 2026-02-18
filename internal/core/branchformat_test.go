@@ -87,6 +87,38 @@ func TestFormatBranchName(t *testing.T) {
 			description: "Add User Auth",
 			want:        "feat/TASK-00001-add-user-auth",
 		},
+		{
+			name:        "repo placeholder with path-based task ID",
+			pattern:     "{type}/{repo}/{description}",
+			taskType:    models.TaskTypeFeat,
+			taskID:      "github.com/org/finance/new-feature",
+			description: "new-feature",
+			want:        "feat/finance/new-feature",
+		},
+		{
+			name:        "prefix placeholder with path-based task ID",
+			pattern:     "{type}/{prefix}/{description}",
+			taskType:    models.TaskTypeBug,
+			taskID:      "github.com/org/repo/fix-crash",
+			description: "fix-crash",
+			want:        "bug/github.com/org/repo/fix-crash",
+		},
+		{
+			name:        "repo placeholder with short prefix task ID",
+			pattern:     "{type}/{repo}/{description}",
+			taskType:    models.TaskTypeFeat,
+			taskID:      "finance/add-auth",
+			description: "add-auth",
+			want:        "feat/finance/add-auth",
+		},
+		{
+			name:        "repo and prefix empty for legacy task ID",
+			pattern:     "{type}/{repo}/{description}",
+			taskType:    models.TaskTypeFeat,
+			taskID:      "TASK-00001",
+			description: "add-auth",
+			want:        "feat//add-auth",
+		},
 	}
 
 	for _, tc := range tests {

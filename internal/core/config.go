@@ -44,7 +44,7 @@ func defaultGlobalConfig() *models.GlobalConfig {
 		TaskIDPrefix:     "TASK",
 		TaskIDCounter:    0,
 		TaskIDPadWidth:   5,
-		BranchPattern:    "{type}/{id}-{description}",
+		BranchPattern:    "{type}/{repo}/{description}",
 		DefaultPriority:  models.P2,
 		DefaultOwner:     "",
 		ScreenshotHotkey: "ctrl+shift+s",
@@ -272,11 +272,17 @@ func validateGlobalConfig(cfg *models.GlobalConfig) error {
 		))
 	}
 
-	if cfg.BranchPattern != "" && !strings.Contains(cfg.BranchPattern, "{id}") {
-		errs = append(errs, fmt.Sprintf(
-			"branch.pattern %q must contain {id} placeholder",
-			cfg.BranchPattern,
-		))
+	if cfg.BranchPattern != "" {
+		hasRequired := strings.Contains(cfg.BranchPattern, "{id}") ||
+			strings.Contains(cfg.BranchPattern, "{repo}") ||
+			strings.Contains(cfg.BranchPattern, "{prefix}") ||
+			strings.Contains(cfg.BranchPattern, "{description}")
+		if !hasRequired {
+			errs = append(errs, fmt.Sprintf(
+				"branch.pattern %q must contain at least one of {id}, {repo}, {prefix}, or {description}",
+				cfg.BranchPattern,
+			))
+		}
 	}
 
 	if len(errs) > 0 {

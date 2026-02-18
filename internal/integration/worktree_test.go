@@ -162,6 +162,46 @@ func TestParseWorktreeListOutput_Empty(t *testing.T) {
 	}
 }
 
+func TestParseWorktreeListOutput_PathBasedTaskID(t *testing.T) {
+	output := `worktree /repo/main
+HEAD abc123
+branch refs/heads/main
+
+worktree /base/work/github.com/org/finance/new-feature
+HEAD def456
+branch refs/heads/feat/finance/new-feature
+`
+
+	worktrees := parseWorktreeListOutput(output, "/repo")
+	if len(worktrees) != 2 {
+		t.Fatalf("got %d worktrees, want 2", len(worktrees))
+	}
+
+	// Second worktree should have the full path-based task ID.
+	if worktrees[1].TaskID != "github.com/org/finance/new-feature" {
+		t.Errorf("worktrees[1].TaskID = %q, want %q", worktrees[1].TaskID, "github.com/org/finance/new-feature")
+	}
+	if worktrees[1].Branch != "feat/finance/new-feature" {
+		t.Errorf("worktrees[1].Branch = %q, want %q", worktrees[1].Branch, "feat/finance/new-feature")
+	}
+}
+
+func TestParseWorktreeListOutput_ShortPrefixTaskID(t *testing.T) {
+	output := `worktree /base/work/finance/add-auth
+HEAD abc123
+branch refs/heads/feat/finance/add-auth
+`
+
+	worktrees := parseWorktreeListOutput(output, "/repo")
+	if len(worktrees) != 1 {
+		t.Fatalf("got %d worktrees, want 1", len(worktrees))
+	}
+
+	if worktrees[0].TaskID != "finance/add-auth" {
+		t.Errorf("worktrees[0].TaskID = %q, want %q", worktrees[0].TaskID, "finance/add-auth")
+	}
+}
+
 func TestParseWorktreeListOutput_Bare(t *testing.T) {
 	output := `worktree /repo
 HEAD abc123

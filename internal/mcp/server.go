@@ -58,7 +58,7 @@ func (s *Server) MCPServer() *gomcp.Server {
 // --- Tool input/output types ---
 
 type getTaskInput struct {
-	TaskID string `json:"task_id" jsonschema:"required,the unique task identifier (e.g. TASK-00042)"`
+	TaskID string `json:"task_id" jsonschema:"required,the unique task identifier (e.g. TASK-00042 or github.com/org/repo/feature)"`
 }
 
 type taskOutput struct {
@@ -89,7 +89,7 @@ type listTasksOutput struct {
 }
 
 type updateTaskStatusInput struct {
-	TaskID string `json:"task_id" jsonschema:"required,the unique task identifier"`
+	TaskID string `json:"task_id" jsonschema:"required,the unique task identifier (e.g. TASK-00042 or finance/new-feature)"`
 	Status string `json:"status" jsonschema:"required,the new status (backlog, in_progress, blocked, review, done)"`
 }
 

@@ -72,12 +72,29 @@ Output is formatted as a table with columns: ID, Priority, Type, Branch.`,
 }
 
 // printStatusGroup prints a table of tasks under a status heading.
+// The ID column width adapts to the longest task ID in the group.
 func printStatusGroup(status string, tasks []*models.Task) {
-	fmt.Printf("== %s (%d) ==\n", strings.ToUpper(status), len(tasks))
-	fmt.Printf("  %-12s %-4s %-10s %s\n", "ID", "PRI", "TYPE", "BRANCH")
-	fmt.Printf("  %-12s %-4s %-10s %s\n", "----", "---", "----", "------")
+	// Calculate the widest ID for proper alignment.
+	idWidth := 12
 	for _, task := range tasks {
-		fmt.Printf("  %-12s %-4s %-10s %s\n", task.ID, task.Priority, task.Type, task.Branch)
+		if len(task.ID) > idWidth {
+			idWidth = len(task.ID)
+		}
+	}
+	// Cap at a reasonable width; very long IDs will overflow.
+	if idWidth > 50 {
+		idWidth = 50
+	}
+
+	fmt.Printf("== %s (%d) ==\n", strings.ToUpper(status), len(tasks))
+	fmt.Printf("  %-*s %-4s %-10s %s\n", idWidth, "ID", "PRI", "TYPE", "BRANCH")
+	fmt.Printf("  %-*s %-4s %-10s %s\n", idWidth, "----", "---", "----", "------")
+	for _, task := range tasks {
+		displayID := task.ID
+		if len(displayID) > idWidth {
+			displayID = "..." + displayID[len(displayID)-idWidth+3:]
+		}
+		fmt.Printf("  %-*s %-4s %-10s %s\n", idWidth, displayID, task.Priority, task.Type, task.Branch)
 	}
 }
 

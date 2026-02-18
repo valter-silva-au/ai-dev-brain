@@ -38,7 +38,8 @@ func completeTaskIDs(excludeStatuses ...models.TaskStatus) func(*cobra.Command, 
 			}
 		}
 
-		return ids, cobra.ShellCompDirectiveNoFileComp
+		// Use NoSpace so tab completion works with "/" separators in path-based IDs.
+		return ids, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 	}
 }
 

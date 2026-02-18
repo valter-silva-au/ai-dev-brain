@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -66,4 +67,115 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 		return fmt.Sprintf("%s-%0*d", g.prefix, g.padWidth, counter), nil
 	}
 	return fmt.Sprintf("%s-%d", g.prefix, counter), nil
+}
+
+// legacyTaskIDPattern matches traditional TASK-XXXXX style IDs.
+var legacyTaskIDPattern = regexp.MustCompile(`^[A-Z0-9]+-\d+$`)
+
+// unsafePathSegment matches characters not allowed in path-based task ID segments.
+var unsafePathSegment = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
+// BuildPathTaskID joins a prefix and a sanitized description with a "/" separator
+// to form a path-based task ID (e.g. "finance/new-feature").
+func BuildPathTaskID(prefix, description string) string {
+	desc := sanitizePathSegment(description)
+	if prefix == "" {
+		return desc
+	}
+	return strings.TrimRight(prefix, "/") + "/" + desc
+}
+
+// IsLegacyTaskID returns true if the ID matches the traditional TASK-XXXXX format.
+func IsLegacyTaskID(taskID string) bool {
+	return legacyTaskIDPattern.MatchString(taskID)
+}
+
+// ValidatePathTaskID checks that a path-based task ID contains no ".." segments,
+// no leading/trailing slashes, and that each segment is a valid directory name.
+func ValidatePathTaskID(taskID string) error {
+	if taskID == "" {
+		return fmt.Errorf("task ID must not be empty")
+	}
+	if strings.HasPrefix(taskID, "/") || strings.HasSuffix(taskID, "/") {
+		return fmt.Errorf("task ID %q must not start or end with /", taskID)
+	}
+	segments := strings.Split(taskID, "/")
+	for _, seg := range segments {
+		if seg == "" {
+			return fmt.Errorf("task ID %q contains empty segment", taskID)
+		}
+		if seg == ".." || seg == "." {
+			return fmt.Errorf("task ID %q contains invalid segment %q", taskID, seg)
+		}
+	}
+	return nil
+}
+
+// NormalizeRepoToPrefix strips the "repos/" prefix from a repo path and returns
+// the remaining platform/org/repo portion as a task ID prefix.
+func NormalizeRepoToPrefix(repoPath, basePath string) string {
+	cleaned := filepath.ToSlash(repoPath)
+
+	// Strip basePath prefix if present.
+	if basePath != "" {
+		base := filepath.ToSlash(basePath)
+		base = strings.TrimRight(base, "/")
+		cleaned = strings.TrimPrefix(cleaned, base+"/")
+	}
+
+	// Strip "repos/" prefix.
+	cleaned = strings.TrimPrefix(cleaned, "repos/")
+
+	// Strip trailing slashes.
+	cleaned = strings.TrimRight(cleaned, "/")
+
+	return cleaned
+}
+
+// sanitizePathSegment lowercases, replaces unsafe characters with dashes,
+// collapses consecutive dashes, and trims leading/trailing dashes.
+func sanitizePathSegment(s string) string {
+	s = strings.ToLower(s)
+	s = unsafePathSegment.ReplaceAllString(s, "-")
+	s = collapseDashes.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	return s
+}
+
+// PrefixFromTaskID extracts the prefix portion of a path-based task ID
+// (everything except the last segment). Returns empty string for legacy IDs
+// or single-segment IDs.
+func PrefixFromTaskID(taskID string) string {
+	if IsLegacyTaskID(taskID) {
+		return ""
+	}
+	idx := strings.LastIndex(taskID, "/")
+	if idx < 0 {
+		return ""
+	}
+	return taskID[:idx]
+}
+
+// RepoFromTaskID extracts the short repo name from a path-based task ID.
+// For "github.com/org/repo/feature", returns "repo".
+// For legacy IDs, returns empty string.
+func RepoFromTaskID(taskID string) string {
+	if IsLegacyTaskID(taskID) {
+		return ""
+	}
+	parts := strings.Split(taskID, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	// The repo name is the second-to-last segment.
+	return parts[len(parts)-2]
+}
+
+// DescriptionFromTaskID extracts the last segment (description) from a task ID.
+func DescriptionFromTaskID(taskID string) string {
+	idx := strings.LastIndex(taskID, "/")
+	if idx < 0 {
+		return taskID
+	}
+	return taskID[idx+1:]
 }

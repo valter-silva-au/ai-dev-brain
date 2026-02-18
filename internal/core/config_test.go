@@ -797,7 +797,7 @@ func TestValidateConfig_PadWidthTooLarge(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_BranchPatternMissingID(t *testing.T) {
+func TestValidateConfig_BranchPatternWithDescriptionOnly(t *testing.T) {
 	cm := NewConfigurationManager(t.TempDir())
 	cfg := &models.GlobalConfig{
 		DefaultAI:       "kiro",
@@ -806,9 +806,52 @@ func TestValidateConfig_BranchPatternMissingID(t *testing.T) {
 		TaskIDPadWidth:  5,
 		BranchPattern:   "{type}/{description}",
 	}
+	// {description} is a valid placeholder, so this should pass.
+	if err := cm.ValidateConfig(cfg); err != nil {
+		t.Errorf("expected no error for pattern with {description}, got: %v", err)
+	}
+}
+
+func TestValidateConfig_BranchPatternWithRepoPlaceholder(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+		BranchPattern:   "{type}/{repo}/{description}",
+	}
+	if err := cm.ValidateConfig(cfg); err != nil {
+		t.Errorf("expected no error for pattern with {repo}, got: %v", err)
+	}
+}
+
+func TestValidateConfig_BranchPatternWithPrefixPlaceholder(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+		BranchPattern:   "{type}/{prefix}/{description}",
+	}
+	if err := cm.ValidateConfig(cfg); err != nil {
+		t.Errorf("expected no error for pattern with {prefix}, got: %v", err)
+	}
+}
+
+func TestValidateConfig_BranchPatternNoRecognizedPlaceholders(t *testing.T) {
+	cm := NewConfigurationManager(t.TempDir())
+	cfg := &models.GlobalConfig{
+		DefaultAI:       "kiro",
+		TaskIDPrefix:    "TASK",
+		DefaultPriority: models.P2,
+		TaskIDPadWidth:  5,
+		BranchPattern:   "{type}/static-name",
+	}
 	err := cm.ValidateConfig(cfg)
 	if err == nil {
-		t.Fatal("expected validation error for branch pattern missing {id}")
+		t.Fatal("expected validation error for branch pattern with no recognized placeholders")
 	}
 	if !strings.Contains(err.Error(), "branch.pattern") {
 		t.Errorf("expected branch.pattern error, got: %v", err)

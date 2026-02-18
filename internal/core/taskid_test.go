@@ -246,3 +246,196 @@ func TestGenerateTaskID_LargeCounterExceedsPadWidth(t *testing.T) {
 		t.Errorf("expected TASK-1000, got %s", id)
 	}
 }
+
+// =============================================================================
+// Unit tests: Path-based task ID functions
+// =============================================================================
+
+func TestBuildPathTaskID(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		description string
+		want        string
+	}{
+		{"basic", "finance", "new-feature", "finance/new-feature"},
+		{"nested prefix", "github.com/org/repo", "add auth", "github.com/org/repo/add-auth"},
+		{"empty prefix", "", "my-task", "my-task"},
+		{"trailing slash in prefix", "finance/", "task", "finance/task"},
+		{"special chars in description", "prefix", "My Cool Feature!", "prefix/my-cool-feature"},
+		{"spaces in description", "prefix", "add user auth", "prefix/add-user-auth"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := BuildPathTaskID(tc.prefix, tc.description)
+			if got != tc.want {
+				t.Errorf("BuildPathTaskID(%q, %q) = %q, want %q", tc.prefix, tc.description, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsLegacyTaskID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"TASK-00001", true},
+		{"TASK-1", true},
+		{"PROJ-42", true},
+		{"AB123-99999", true},
+		{"github.com/org/repo/feature", false},
+		{"finance/new-feature", false},
+		{"simple-task", false},
+		{"", false},
+		{"TASK-", false},
+		{"task-00001", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := IsLegacyTaskID(tc.input)
+			if got != tc.want {
+				t.Errorf("IsLegacyTaskID(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidatePathTaskID(t *testing.T) {
+	tests := []struct {
+		input   string
+		wantErr bool
+	}{
+		{"finance/new-feature", false},
+		{"github.com/org/repo/feature", false},
+		{"single-segment", false},
+		{"a/b/c/d", false},
+		{"", true},
+		{"/leading-slash", true},
+		{"trailing-slash/", true},
+		{"has/../traversal", true},
+		{"has/./dot", true},
+		{"has//empty", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			err := ValidatePathTaskID(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ValidatePathTaskID(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestNormalizeRepoToPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoPath string
+		basePath string
+		want     string
+	}{
+		{"simple repo path", "github.com/org/repo", "", "github.com/org/repo"},
+		{"with repos prefix", "repos/github.com/org/repo", "", "github.com/org/repo"},
+		{"trailing slash", "github.com/org/repo/", "", "github.com/org/repo"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NormalizeRepoToPrefix(tc.repoPath, tc.basePath)
+			if got != tc.want {
+				t.Errorf("NormalizeRepoToPrefix(%q, %q) = %q, want %q", tc.repoPath, tc.basePath, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPrefixFromTaskID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"github.com/org/repo/feature", "github.com/org/repo"},
+		{"finance/new-feature", "finance"},
+		{"TASK-00001", ""},
+		{"single-segment", ""},
+		{"a/b/c", "a/b"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := PrefixFromTaskID(tc.input)
+			if got != tc.want {
+				t.Errorf("PrefixFromTaskID(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepoFromTaskID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"github.com/org/repo/feature", "repo"},
+		{"finance/new-feature", "finance"},
+		{"TASK-00001", ""},
+		{"single-segment", ""},
+		{"a/b/c/d", "c"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := RepoFromTaskID(tc.input)
+			if got != tc.want {
+				t.Errorf("RepoFromTaskID(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDescriptionFromTaskID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"github.com/org/repo/feature", "feature"},
+		{"finance/new-feature", "new-feature"},
+		{"TASK-00001", "TASK-00001"},
+		{"single-segment", "single-segment"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := DescriptionFromTaskID(tc.input)
+			if got != tc.want {
+				t.Errorf("DescriptionFromTaskID(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSanitizePathSegment(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"My Cool Feature", "my-cool-feature"},
+		{"add_user_auth", "add_user_auth"},
+		{"simple", "simple"},
+		{"UPPER-CASE", "upper-case"},
+		{"lots   of   spaces", "lots-of-spaces"},
+		{"special!@#chars", "special-chars"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := sanitizePathSegment(tc.input)
+			if got != tc.want {
+				t.Errorf("sanitizePathSegment(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/drapaimern/ai-dev-brain/internal/core"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,7 @@ decisions, blockers, and next steps.`,
 			return fmt.Errorf("base path not initialized")
 		}
 
-		ticketPath := filepath.Join(BasePath, "tickets", taskID)
+		ticketPath := core.ResolveTicketDir(BasePath, taskID)
 		if _, err := os.Stat(ticketPath); err != nil {
 			return fmt.Errorf("task %s not found: %w", taskID, err)
 		}
@@ -135,7 +136,7 @@ Placeholder items (from the initial template) are ignored.`,
 			return fmt.Errorf("knowledge manager not initialized")
 		}
 
-		ticketPath := filepath.Join(BasePath, "tickets", taskID)
+		ticketPath := core.ResolveTicketDir(BasePath, taskID)
 		if _, err := os.Stat(ticketPath); err != nil {
 			return fmt.Errorf("task %s not found: %w", taskID, err)
 		}

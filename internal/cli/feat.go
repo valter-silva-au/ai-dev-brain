@@ -26,6 +26,7 @@ type taskCreateFlags struct {
 	priority string
 	owner    string
 	tags     []string
+	prefix   string
 }
 
 // newTaskCommand creates a Cobra command for a given task type (feat, bug, spike, refactor).
@@ -56,11 +57,19 @@ files, and registers the task in the backlog.`, taskType),
 				}
 			}
 
+			// Determine the task prefix: explicit --prefix flag takes priority,
+			// otherwise auto-detect from cwd if under repos/.
+			prefix := flags.prefix
+			if prefix == "" && repoPath != "" {
+				prefix = detectRepoPrefix(repoPath, BasePath)
+			}
+
 			task, err := TaskMgr.CreateTask(taskType, branchName, repoPath, core.CreateTaskOpts{
 				Priority:      models.Priority(flags.priority),
 				Owner:         flags.owner,
 				Tags:          flags.tags,
 				BranchPattern: BranchPattern,
+				Prefix:        prefix,
 			})
 			if err != nil {
 				return fmt.Errorf("creating %s task: %w", taskType, err)
@@ -103,6 +112,7 @@ files, and registers the task in the backlog.`, taskType),
 	cmd.Flags().StringVar(&flags.priority, "priority", "", "Task priority (P0, P1, P2, P3)")
 	cmd.Flags().StringVar(&flags.owner, "owner", "", "Task owner (e.g. @username)")
 	cmd.Flags().StringSliceVar(&flags.tags, "tags", nil, "Comma-separated tags for the task")
+	cmd.Flags().StringVar(&flags.prefix, "prefix", "", "Custom prefix for organizing task folders (e.g. 'finance')")
 
 	return cmd
 }
@@ -154,6 +164,16 @@ func repoShortName(repo string) string {
 		}
 	}
 	return r
+}
+
+// detectRepoPrefix extracts platform/org/repo from a repo path relative to
+// basePath, for use as a task ID prefix. If the repo path is not under
+// basePath/repos/, returns empty string.
+func detectRepoPrefix(repoPath, basePath string) string {
+	if basePath == "" || repoPath == "" {
+		return ""
+	}
+	return core.NormalizeRepoToPrefix(repoPath, basePath)
 }
 
 // launchWorkflow renames the terminal tab, launches Claude Code in the

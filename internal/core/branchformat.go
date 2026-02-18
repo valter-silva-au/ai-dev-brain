@@ -13,9 +13,13 @@ var unsafeBranchChars = regexp.MustCompile(`[^a-zA-Z0-9._/-]`)
 // collapseDashes collapses consecutive dashes into a single dash.
 var collapseDashes = regexp.MustCompile(`-{2,}`)
 
-// FormatBranchName applies a pattern with {type}, {id}, and {description}
-// placeholders to produce a formatted branch name. If pattern is empty,
-// the description is returned as-is for backward compatibility.
+// FormatBranchName applies a pattern with {type}, {id}, {description}, {repo},
+// and {prefix} placeholders to produce a formatted branch name. If pattern is
+// empty, the description is returned as-is for backward compatibility.
+//
+// {repo} is replaced with the short repo name extracted from the task ID
+// (the second-to-last path segment). {prefix} is replaced with the full prefix
+// portion of the task ID (everything except the last segment).
 func FormatBranchName(pattern string, taskType models.TaskType, taskID string, description string) string {
 	if pattern == "" {
 		return description
@@ -25,6 +29,8 @@ func FormatBranchName(pattern string, taskType models.TaskType, taskID string, d
 	result = strings.ReplaceAll(result, "{type}", string(taskType))
 	result = strings.ReplaceAll(result, "{id}", taskID)
 	result = strings.ReplaceAll(result, "{description}", sanitizeBranchSegment(description))
+	result = strings.ReplaceAll(result, "{repo}", RepoFromTaskID(taskID))
+	result = strings.ReplaceAll(result, "{prefix}", PrefixFromTaskID(taskID))
 
 	return result
 }

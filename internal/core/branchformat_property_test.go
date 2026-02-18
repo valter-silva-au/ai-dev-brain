@@ -11,24 +11,21 @@ import (
 // gitSafeChars matches only characters that are safe in git branch names.
 var gitSafeChars = regexp.MustCompile(`^[a-zA-Z0-9._/-]*$`)
 
-// Feature: ai-dev-brain, Property: Branch Format Contains Task ID
-// When a pattern contains {id}, the formatted output always contains the task ID.
-func TestProperty_BranchFormatContainsTaskID(t *testing.T) {
+// Feature: ai-dev-brain, Property: Branch Format Contains Task Type
+// When the default pattern {type}/{repo}/{description} is used, the output always starts with the task type.
+func TestProperty_BranchFormatContainsTaskType(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		taskType := taskTypeGenerator().Draw(rt, "taskType")
-		prefix := rapid.StringMatching(`[A-Z]{2,6}`).Draw(rt, "prefix")
-		counter := rapid.IntRange(1, 99999).Draw(rt, "counter")
 		description := rapid.StringMatching(`[a-z ]{3,30}`).Draw(rt, "description")
+		repoName := rapid.StringMatching(`[a-z]{3,10}`).Draw(rt, "repoName")
 
-		taskID := prefix + "-" + strings.Repeat("0", 5) + string(rune('0'+counter%10))
-		// Use a simple format to avoid counter formatting issues.
-		taskID = prefix + "-00001"
+		taskID := "github.com/org/" + repoName + "/" + description
 
-		pattern := "{type}/{id}-{description}"
+		pattern := "{type}/{repo}/{description}"
 		result := FormatBranchName(pattern, taskType, taskID, description)
 
-		if !strings.Contains(result, taskID) {
-			t.Fatalf("formatted branch %q must contain task ID %q", result, taskID)
+		if !strings.HasPrefix(result, string(taskType)+"/") {
+			t.Fatalf("formatted branch %q must start with task type %q/", result, taskType)
 		}
 	})
 }

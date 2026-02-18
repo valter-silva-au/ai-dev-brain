@@ -68,6 +68,9 @@ type CreateTaskOpts struct {
 	Owner         string
 	Tags          []string
 	BranchPattern string
+	// Prefix is a custom prefix for path-based task IDs (e.g. "finance").
+	// When set, the task ID becomes prefix/description instead of TASK-XXXXX.
+	Prefix string
 }
 
 // TaskManager defines the interface for task lifecycle operations.
@@ -115,8 +118,48 @@ func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, r
 	var taskID string
 	var formattedBranch string
 
-	if opts.BranchPattern != "" {
-		// Pre-generate the task ID so we can format the branch name with it.
+	if opts.Prefix != "" {
+		// Path-based task ID from --prefix flag.
+		taskID = BuildPathTaskID(opts.Prefix, branchName)
+		if err := ValidatePathTaskID(taskID); err != nil {
+			return nil, fmt.Errorf("creating task: invalid path task ID: %w", err)
+		}
+		// Check uniqueness against backlog.
+		if err := tm.checkTaskIDUnique(taskID); err != nil {
+			return nil, fmt.Errorf("creating task: %w", err)
+		}
+		if opts.BranchPattern != "" {
+			formattedBranch = FormatBranchName(opts.BranchPattern, taskType, taskID, branchName)
+		} else {
+			formattedBranch = branchName
+		}
+	} else if repoPath != "" && !IsLegacyTaskID(repoPath) && opts.BranchPattern != "" {
+		// Derive prefix from repo path when no explicit prefix is given.
+		normalized := NormalizeRepoToPrefix(repoPath, tm.basePath)
+		if normalized != "" && strings.Contains(normalized, "/") {
+			taskID = BuildPathTaskID(normalized, branchName)
+			if err := ValidatePathTaskID(taskID); err == nil {
+				if err := tm.checkTaskIDUnique(taskID); err == nil {
+					formattedBranch = FormatBranchName(opts.BranchPattern, taskType, taskID, branchName)
+				} else {
+					// Fall through to legacy if uniqueness fails.
+					taskID = ""
+				}
+			} else {
+				taskID = ""
+			}
+		}
+		// If path-based derivation didn't work, fall through to legacy.
+		if taskID == "" {
+			var err error
+			taskID, err = tm.bootstrap.GenerateTaskID()
+			if err != nil {
+				return nil, fmt.Errorf("creating task: generating ID: %w", err)
+			}
+			formattedBranch = FormatBranchName(opts.BranchPattern, taskType, taskID, branchName)
+		}
+	} else if opts.BranchPattern != "" {
+		// Legacy fallback: use counter-based TASK-XXXXX.
 		var err error
 		taskID, err = tm.bootstrap.GenerateTaskID()
 		if err != nil {
@@ -136,6 +179,7 @@ func (tm *taskManager) CreateTask(taskType models.TaskType, branchName string, r
 		Owner:      opts.Owner,
 		Tags:       opts.Tags,
 		TaskID:     taskID,
+		Prefix:     opts.Prefix,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating task: %w", err)
@@ -609,6 +653,18 @@ func (tm *taskManager) logEvent(eventType string, data map[string]any) {
 	if tm.eventLogger != nil {
 		_ = tm.eventLogger.LogEvent(eventType, data)
 	}
+}
+
+// checkTaskIDUnique verifies that no existing task in the backlog has the same ID.
+func (tm *taskManager) checkTaskIDUnique(taskID string) error {
+	if err := tm.backlog.Load(); err != nil {
+		return fmt.Errorf("checking task ID uniqueness: %w", err)
+	}
+	existing, err := tm.backlog.GetTask(taskID)
+	if err == nil && existing != nil {
+		return fmt.Errorf("task ID %q already exists in backlog", taskID)
+	}
+	return nil
 }
 
 // loadTaskFromTicket reads a task from its status.yaml file, checking both

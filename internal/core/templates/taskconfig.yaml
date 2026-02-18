@@ -8,7 +8,7 @@ task_id:
   counter: 0
   pad_width: 5
 branch:
-  pattern: "{type}/{id}-{description}"
+  pattern: "{type}/{repo}/{description}"
 screenshot:
   hotkey: "ctrl+shift+s"
 offline_mode: false

@@ -312,11 +312,16 @@ func parseWorktreeListOutput(output, repoPath string) []*Worktree {
 			}
 		}
 
-		// Extract task ID from path: the last segment of
-		// .../work/TASK-XXXXX is the task ID.
+		// Extract task ID from path. For legacy flat IDs the path is
+		// .../work/TASK-XXXXX; for path-based IDs it can be
+		// .../work/prefix/description. We strip everything up to and
+		// including the "work/" segment to get the full task ID.
 		if wt.Path != "" {
-			dir := filepath.Dir(wt.Path)
-			if filepath.Base(dir) == "work" {
+			normalized := filepath.ToSlash(wt.Path)
+			if idx := strings.Index(normalized, "/work/"); idx >= 0 {
+				wt.TaskID = normalized[idx+len("/work/"):]
+			} else if strings.HasSuffix(filepath.Dir(normalized), "work") {
+				// Fallback for paths at the root like /work/TASK-00001.
 				wt.TaskID = filepath.Base(wt.Path)
 			}
 		}

@@ -39,6 +39,9 @@ type BootstrapConfig struct {
 	// TaskID, if non-empty, is used instead of generating a new one.
 	// This allows callers to pre-generate the ID for branch formatting.
 	TaskID string
+	// Prefix is passed through for informational purposes (the pre-computed
+	// TaskID already contains the prefix). Not used in bootstrap logic.
+	Prefix string
 }
 
 // BootstrapResult holds the outputs of a successful bootstrap operation.
