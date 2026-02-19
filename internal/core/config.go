@@ -44,7 +44,7 @@ func defaultGlobalConfig() *models.GlobalConfig {
 		TaskIDPrefix:     "TASK",
 		TaskIDCounter:    0,
 		TaskIDPadWidth:   5,
-		BranchPattern:    "{type}/{repo}/{description}",
+		BranchPattern:    "{type}/{description}",
 		DefaultPriority:  models.P2,
 		DefaultOwner:     "",
 		ScreenshotHotkey: "ctrl+shift+s",
