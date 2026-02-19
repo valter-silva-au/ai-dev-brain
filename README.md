@@ -35,6 +35,7 @@ graph TD
         Context["Context Manager"]
         Comm["Communication Manager"]
         KnowledgeStore["Knowledge Store Manager"]
+        SessionStore["Session Store Manager"]
     end
 
     subgraph Integration Layer
@@ -46,6 +47,7 @@ graph TD
         Taskfile["Taskfile Runner"]
         FileChannel["File Channel Adapter"]
         RepoSync["Repo Sync Manager"]
+        Transcript["Transcript Parser"]
     end
 
     subgraph Observability Layer
@@ -64,7 +66,9 @@ graph TD
 - **Knowledge store** -- accumulate decisions, learnings, patterns, and gotchas across tasks with search, topic exploration, and timeline views
 - **Feedback loop** -- fetch items from input channels, classify and route them, deliver outputs, and record knowledge automatically
 - **Channel adapters** -- pluggable input/output channels (file-based adapter included) for integrating external communication sources
-- **AI context synchronization** -- regenerate `CLAUDE.md` and `kiro.md` files so AI assistants stay current with project state
+- **Automatic session capture** -- workspace-wide Claude Code session capture via a `SessionEnd` hook, parsing JSONL transcripts into structured turn data with tool usage stats and structural summaries
+- **Context evolution tracking** -- detect and display what changed between `sync-context` runs (tasks added/completed, new knowledge, section changes) via semantic diffs and a "What's Changed" section in generated context files
+- **AI context synchronization** -- regenerate `CLAUDE.md` and `kiro.md` files so AI assistants stay current with project state, including captured sessions and context evolution
 - **Stakeholder update generation** -- draft communication updates based on task progress without sending anything automatically
 - **Observability** -- structured event logging, on-demand metrics, and threshold-based alerting for blocked tasks, stale work, and backlog size
 - **Interactive dashboard** -- TUI dashboard showing task status, metrics, and alerts in a live-updating terminal view
@@ -227,6 +231,11 @@ adb alerts
 adb dashboard
 adb session save TASK-00001
 adb session ingest TASK-00001
+
+# Session capture (automatic via hook, or manual)
+adb session list
+adb session list --task-id TASK-00001 --since 7d
+adb session show S-00001
 
 # Project and repository management
 adb init

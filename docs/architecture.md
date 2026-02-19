@@ -44,6 +44,7 @@ graph TD
         EXEC[CLIExecutor]
         TFR[TaskfileRunner]
         FCA[FileChannelAdapter]
+        TP[TranscriptParser]
     end
 
     subgraph "Storage Layer"
@@ -51,6 +52,7 @@ graph TD
         CTX[ContextManager]
         COMM[CommunicationManager]
         KS[KnowledgeStoreManager]
+        SSM[SessionStoreManager]
     end
 
     subgraph "Shared Models"
@@ -68,6 +70,7 @@ graph TD
     CLI --> FL
     CLI --> CR
     CLI --> KM
+    CLI --> SSM
 
     TM --> BS
     TM --> BM
@@ -82,6 +85,7 @@ graph TD
     UG --> COMM
     ACG --> BM
     ACG --> KM
+    ACG --> SSM
     TDG --> COMM
     CD --> MDL
 
@@ -96,9 +100,12 @@ graph TD
 
     TFR --> EXEC
 
+    CLI --> TP
+
     BM --> MDL
     CTX --> MDL
     COMM --> MDL
+    SSM --> MDL
 
     style CLI fill:#4a90d9,color:#fff
     style TM fill:#7b68ee,color:#fff
@@ -124,10 +131,12 @@ graph TD
     style EXEC fill:#2ecc71,color:#fff
     style TFR fill:#2ecc71,color:#fff
     style FCA fill:#2ecc71,color:#fff
+    style TP fill:#2ecc71,color:#fff
     style BM fill:#e67e22,color:#fff
     style CTX fill:#e67e22,color:#fff
     style COMM fill:#e67e22,color:#fff
     style KS fill:#e67e22,color:#fff
+    style SSM fill:#e67e22,color:#fff
     style MDL fill:#95a5a6,color:#fff
 ```
 
@@ -322,7 +331,7 @@ classDiagram
 
 ## Adapter Pattern and Dependency Injection
 
-The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
+The core layer defines narrow "store" interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`, `SessionCapturer`) that mirror subsets of the storage, integration, and observability interfaces. This keeps the core package free of import dependencies on those packages. The `App` struct bridges the gap using adapter structs.
 
 ```mermaid
 classDiagram
@@ -347,6 +356,9 @@ classDiagram
         class KnowledgeStoreAccess {
             <<interface>>
         }
+        class SessionCapturer {
+            <<interface>>
+        }
     }
 
     namespace storage {
@@ -357,6 +369,9 @@ classDiagram
             <<interface>>
         }
         class KnowledgeStoreManager {
+            <<interface>>
+        }
+        class SessionStoreManager {
             <<interface>>
         }
     }
@@ -392,6 +407,9 @@ classDiagram
         class knowledgeStoreAdapter {
             -mgr: KnowledgeStoreManager
         }
+        class sessionCapturerAdapter {
+            -mgr: SessionStoreManager
+        }
     }
 
     backlogStoreAdapter ..|> BacklogStore : implements
@@ -411,18 +429,21 @@ classDiagram
 
     knowledgeStoreAdapter ..|> KnowledgeStoreAccess : implements
     knowledgeStoreAdapter --> KnowledgeStoreManager : delegates to
+
+    sessionCapturerAdapter ..|> SessionCapturer : implements
+    sessionCapturerAdapter --> SessionStoreManager : delegates to
 ```
 
 The `NewApp` function in `internal/app.go` performs all wiring in a fixed order:
 
 1. **Configuration** -- `ConfigurationManager` loads `.taskconfig` with Viper.
-2. **Storage** -- `BacklogManager`, `ContextManager`, `CommunicationManager` are created with the base path.
+2. **Storage** -- `BacklogManager`, `ContextManager`, `CommunicationManager`, `SessionStoreManager` are created with the base path.
 3. **Integration** -- `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner`, `RepoSyncManager` are created.
 4. **Observability** -- `EventLog` (JSONL-backed) is opened at `.adb_events.jsonl`. `AlertEngine` and `MetricsCalculator` are created with the event log and configurable thresholds. If the event log cannot be created, observability is disabled gracefully (non-fatal).
-5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`. The `worktreeRemoverAdapter` bridges `integration.GitWorktreeManager` to `core.WorktreeRemover`.
+5. **Core** -- Core services receive their dependencies through constructors, using adapter structs where cross-layer communication is needed. The `eventLogAdapter` bridges `observability.EventLog` to `core.EventLogger`. The `worktreeRemoverAdapter` bridges `integration.GitWorktreeManager` to `core.WorktreeRemover`. The `sessionCapturerAdapter` bridges `storage.SessionStoreManager` to `core.SessionCapturer`.
 6. **Channel adapters** -- `ChannelRegistry` is created. `FileChannelAdapter` is initialized from the `channels/` directory and registered (non-fatal if registration fails).
 7. **Knowledge store** -- `KnowledgeStoreManager` is created and loaded. `knowledgeStoreAdapter` bridges it to `core.KnowledgeStoreAccess`. `KnowledgeManager` and `FeedbackLoopOrchestrator` are created with their dependencies.
-8. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ProjectInit`, `RepoSyncMgr`, `ChannelReg`, `KnowledgeMgr`, `KnowledgeX`, `FeedbackLoop`, `EventLog`, `AlertEngine`, `MetricsCalc`, `Notifier`).
+8. **CLI wiring** -- Package-level variables in `internal/cli` are set to the core, integration, and observability service instances (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ProjectInit`, `RepoSyncMgr`, `ChannelReg`, `KnowledgeMgr`, `KnowledgeX`, `FeedbackLoop`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `Notifier`).
 
 ---
 
@@ -549,6 +570,8 @@ flowchart TD
     B --> H[AssembleActiveTaskSummaries]
     B --> I[assembleCriticalDecisions]
     B --> J[assembleRecentSessions]
+    B --> J2[assembleCapturedSessions]
+    B --> J3[renderWhatsChanged]
     B --> K[assembleStakeholders + assembleContacts]
 
     C --> |"Static overview text"| L[AIContextSections]
@@ -559,6 +582,8 @@ flowchart TD
     H --> |"BacklogManager.FilterTasks<br/>active statuses"| L
     I --> |"Read tickets/*/knowledge/decisions.yaml<br/>from active tasks"| L
     J --> |"Read latest session from<br/>tickets/*/sessions/"| L
+    J2 --> |"Read recent captured sessions<br/>from workspace sessions/ store"| L
+    J3 --> |"Load .context_state.yaml,<br/>compute diff, render changes"| L
     K --> |"Check docs/stakeholders.md<br/>and docs/contacts.md"| L
 
     L --> M{Target AI type?}
@@ -581,7 +606,135 @@ flowchart TD
 | Active Tasks | `backlog.yaml` filtered by active statuses |
 | Critical Decisions | `tickets/*/knowledge/decisions.yaml` for active tasks |
 | Recent Sessions | Latest `.md` file from `tickets/*/sessions/` for active tasks (first 20 lines) |
+| Captured Sessions | Recent captured sessions from workspace-level `sessions/` store (via `SessionCapturer` interface) |
+| What's Changed | Semantic diff: loads `.context_state.yaml`, computes current state, diffs, renders changes. Appends to `.context_changelog.md` (pruned to 50 entries). |
 | Stakeholders/Contacts | `docs/stakeholders.md`, `docs/contacts.md` |
+
+---
+
+## Session Capture Flow
+
+When a Claude Code session ends, the `SessionEnd` hook fires and triggers automatic session capture. The hook is installed at the user level by `adb sync-claude-user`, enabling workspace-wide capture without per-project setup.
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant Hook as SessionEnd Hook
+    participant CLI as adb session capture
+    participant TP as TranscriptParser
+    participant SS as StructuralSummarizer
+    participant SM as SessionStoreManager
+    participant FS as Filesystem
+
+    CC->>Hook: Session ends (pipes metadata to stdin)
+    Hook->>CLI: adb session capture --from-hook
+
+    CLI->>CLI: Read session metadata from stdin (JSON)
+    CLI->>CLI: Locate JSONL transcript file
+
+    CLI->>TP: ParseTranscript(transcriptPath)
+    TP->>TP: Scan JSONL line by line
+    TP->>TP: Skip meta, thinking, unknown types
+    TP->>TP: Extract user/assistant turns, tools
+    TP-->>CLI: TranscriptResult{Turns, ToolsUsed, Summary}
+
+    CLI->>CLI: Check min_turns_capture threshold
+    Note over CLI: Skip sessions with fewer than 3 turns (default)
+
+    CLI->>SS: Summarize(turns)
+    SS-->>CLI: "Help me fix login bug — 5 turns, tools: Read(3), Edit(1)"
+
+    CLI->>SM: GenerateID()
+    SM-->>CLI: "S-00042"
+
+    CLI->>SM: AddSession(session, turns)
+    SM->>FS: Write sessions/S-00042/session.yaml
+    SM->>FS: Write sessions/S-00042/turns.yaml
+    SM->>FS: Write sessions/S-00042/summary.md
+    SM->>SM: Update sessions/index.yaml
+
+    CLI->>CLI: Check ADB_TASK_ID env var
+    opt Task-scoped linking
+        CLI->>FS: Symlink/copy to tickets/TASK-XXXXX/sessions/
+    end
+
+    CLI-->>Hook: exit 0
+    Hook-->>CC: (non-blocking, always exits 0)
+```
+
+### Session storage format
+
+Each captured session is stored in its own subdirectory under `sessions/`:
+
+```
+sessions/
+  index.yaml                  # Master index of all captured sessions
+  .session_counter            # Sequential counter for S-XXXXX IDs
+  S-00001/
+    session.yaml              # Session metadata (CapturedSession)
+    turns.yaml                # Full turn data ([]SessionTurn)
+    summary.md                # Structural or LLM-generated summary
+  S-00002/
+    ...
+```
+
+The `index.yaml` is a lightweight lookup table mapping session IDs to metadata. Full turn data is stored separately in `turns.yaml` to keep the index small.
+
+---
+
+## Context Evolution Tracking
+
+The context evolution system tracks how the project context changes between `sync-context` runs. This enables AI assistants to see a "What's Changed" section showing recent context drift.
+
+```mermaid
+flowchart TD
+    A["adb sync-context called"] --> B["loadState(.context_state.yaml)"]
+    B --> C{"State file exists?"}
+    C -->|No| D["First sync: previousState = empty"]
+    C -->|Yes| E["previousState loaded"]
+    D --> F["computeCurrentState()"]
+    E --> F
+
+    F --> G["Count active tasks, knowledge entries,<br/>ADR titles, section hashes (FNV-1a)"]
+    G --> H["diffStates(previous, current)"]
+
+    H --> I{"Changes detected?"}
+    I -->|No| J["Skip What's Changed section"]
+    I -->|Yes| K["renderWhatsChanged(changes)"]
+
+    K --> L["Include in CLAUDE.md"]
+    K --> M["appendChangelog(changes)"]
+    M --> N[".context_changelog.md<br/>(pruned to 50 entries)"]
+
+    H --> O["saveState(.context_state.yaml)"]
+
+    style N fill:#9b59b6,color:#fff
+```
+
+### State tracking fields
+
+The `ContextState` struct captures a snapshot of the project context:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SyncedAt` | timestamp | When this state was captured |
+| `ActiveTaskIDs` | []string | IDs of tasks in active statuses |
+| `KnowledgeCount` | int | Number of knowledge entries |
+| `DecisionCount` | int | Number of decisions across active tasks |
+| `SessionCount` | int | Number of captured sessions |
+| `ADRTitles` | []string | Titles of accepted ADRs |
+| `SectionHashes` | map[string]string | FNV-1a hashes of static sections (glossary, conventions) |
+
+### Semantic diff types
+
+The `diffStates` function produces `[]ContextChange` entries describing what changed:
+
+- Tasks added or completed since last sync
+- New knowledge entries or decisions added
+- New captured sessions
+- New or removed ADRs
+- Static section changes (glossary, conventions) detected via hash comparison
+- First-time sync notification
 
 ---
 
@@ -767,7 +920,17 @@ graph TD
     ROOT --> BACKLOG["backlog.yaml<br/>(central task registry)"]
     ROOT --> EVENTS[".adb_events.jsonl<br/>(observability event log)"]
     ROOT --> CLAUDE["CLAUDE.md / kiro.md<br/>(AI context files)"]
+    ROOT --> CTXSTATE[".context_state.yaml<br/>(context evolution state)"]
+    ROOT --> CTXLOG[".context_changelog.md<br/>(context change log)"]
+    ROOT --> SESSCTR[".session_counter<br/>(session ID counter)"]
     ROOT --> MCP[".mcp.json<br/>(MCP server config)"]
+
+    ROOT --> WSESS["sessions/<br/>(captured sessions)"]
+    WSESS --> SESSIDX["index.yaml<br/>(session index)"]
+    WSESS --> SESSDIR["S-00001/<br/>(per-session dir)"]
+    SESSDIR --> SESSYAML["session.yaml"]
+    SESSDIR --> SESSTURNS["turns.yaml"]
+    SESSDIR --> SESSSUMM["summary.md"]
 
     ROOT --> TICKETS["tickets/"]
     TICKETS --> T1["TASK-00001/<br/>(active task)"]
@@ -821,6 +984,10 @@ graph TD
     style REPOS fill:#2ecc71,color:#fff
     style DOCS fill:#3498db,color:#fff
     style EVENTS fill:#c0392b,color:#fff
+    style WSESS fill:#9b59b6,color:#fff
+    style CTXSTATE fill:#9b59b6,color:#fff
+    style CTXLOG fill:#9b59b6,color:#fff
+    style SESSCTR fill:#9b59b6,color:#fff
     style SESSIONS fill:#e67e22,color:#fff
     style KNOWLEDGE fill:#e67e22,color:#fff
     style KSTORE fill:#3498db,color:#fff
@@ -983,7 +1150,7 @@ Property testing catches edge cases that example-based tests miss, particularly 
 
 ### Local interface definitions to avoid import cycles
 
-The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
+The core package defines narrow local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `KnowledgeStoreAccess`, `SessionCapturer`) that mirror subsets of the storage, integration, and observability interfaces. This pattern is idiomatic Go: define the interface where it is consumed, not where it is implemented. It keeps the core package's `import` list free of storage, integration, and observability packages, preventing circular dependencies.
 
 ### JSONL for event logging
 
@@ -1008,6 +1175,26 @@ Each task ticket now includes `sessions/` and `knowledge/` directories alongside
 - **knowledge/**: Stores structured knowledge artifacts like `decisions.yaml`, which are surfaced in the "Critical Decisions" section of AI context files and fed into the knowledge extraction pipeline on archive.
 
 These directories are created during bootstrap and provide a structured way to accumulate per-task intelligence that was previously only captured informally in `context.md`.
+
+### Automatic session capture via SessionEnd hook
+
+Claude Code sessions are captured automatically via a user-level `SessionEnd` hook. Design choices:
+
+- **SessionEnd over Stop hook**: SessionEnd fires once per session, cannot block the user, and is non-intrusive. Stop fires on every conversation stop (including mid-session pauses).
+- **User-level installation**: `adb sync-claude-user` installs the hook in `~/.claude/settings.json`, enabling workspace-wide capture without per-project configuration.
+- **Thin hook + thick binary**: The hook script is 4 lines of bash that pipes stdin to `adb session capture --from-hook`. All parsing, storage, and summarization logic lives in testable Go code.
+- **Structural summary as default**: The `StructuralSummarizer` produces a zero-dependency summary (first user message + tool counts). LLM-powered summarization is designed but deferred to Phase 2.
+- **min_turns_capture threshold**: Sessions with fewer than 3 turns (default) are skipped to avoid capturing trivial interactions (e.g., "what time is it?").
+- **Symlink for task-scoped linking**: When `ADB_TASK_ID` is set, the captured session is symlinked into the task's `sessions/` directory, maintaining a single source of truth.
+
+### Context evolution via state snapshots
+
+Context evolution tracking uses a lightweight state-comparison approach:
+
+- **FNV-1a hashing**: Static sections (glossary, conventions) are hashed with FNV-1a (fast, non-cryptographic) to detect changes without storing full content.
+- **50-entry changelog pruning**: The `.context_changelog.md` is pruned to 50 entries (~2-3 weeks of daily syncs), balancing history retention with file size.
+- **Semantic diffs over text diffs**: `diffStates` produces human-readable change descriptions ("2 tasks added", "Glossary section changed") rather than raw text diffs.
+- **sync-context as sole trigger**: Context state is only updated during `adb sync-context`, avoiding mid-session context rewrites.
 
 ---
 
@@ -1131,10 +1318,10 @@ This is a static configuration file read by AI assistants (e.g., Claude Code). I
 | Package | Responsibility | Key Interfaces |
 |---------|---------------|----------------|
 | `cmd/adb` | Binary entrypoint | -- |
-| `internal` | Composition root, adapters | `App` struct, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter`, `eventLogAdapter`, `knowledgeStoreAdapter` |
+| `internal` | Composition root, adapters | `App` struct, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter`, `eventLogAdapter`, `knowledgeStoreAdapter`, `sessionCapturerAdapter` |
 | `internal/cli` | Cobra command definitions | -- |
-| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `KnowledgeManager`, `FeedbackLoopOrchestrator`, `ChannelAdapter`, `ChannelRegistry`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `KnowledgeStoreAccess` |
+| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `KnowledgeManager`, `FeedbackLoopOrchestrator`, `ChannelAdapter`, `ChannelRegistry`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `KnowledgeStoreAccess`, `SessionCapturer` |
 | `internal/observability` | Event logging, metrics, alerting, notifications | `EventLog`, `MetricsCalculator`, `AlertEngine`, `Notifier` |
-| `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager`, `KnowledgeStoreManager` |
-| `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner` |
-| `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision`, `KnowledgeEntry`, `KnowledgeIndex`, `Topic`, `TopicGraph`, `Entity`, `EntityRegistry`, `Timeline`, `TimelineEntry`, `ChannelItem`, `OutputItem`, `ChannelConfig` |
+| `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager`, `KnowledgeStoreManager`, `SessionStoreManager` |
+| `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner`, `TranscriptParser` |
+| `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision`, `KnowledgeEntry`, `KnowledgeIndex`, `Topic`, `TopicGraph`, `Entity`, `EntityRegistry`, `Timeline`, `TimelineEntry`, `ChannelItem`, `OutputItem`, `ChannelConfig`, `CapturedSession`, `SessionTurn`, `SessionFilter`, `SessionCaptureConfig`, `SessionIndex` |
