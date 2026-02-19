@@ -1253,6 +1253,7 @@ All four commands accept the same flags:
 | `--priority` | Task priority (P0, P1, P2, P3)       | `P0`                              |
 | `--owner`    | Task owner                           | `@alice`                           |
 | `--tags`     | Comma-separated tags                 | `frontend,notifications`           |
+| `--prefix`   | Custom folder prefix                 | `finance`                          |
 
 ### Backlog at a Glance
 
@@ -1394,15 +1395,35 @@ The generated file contains sections for accomplished work, decisions, blockers,
 | `adb archive <task-id>`         | Archive a completed task (generates handoff)       |
 | `adb archive <task-id> --force` | Archive an active task                             |
 | `adb unarchive <task-id>`       | Restore an archived task                           |
+| `adb cleanup <task-id>`         | Remove a task's git worktree without archiving     |
 | `adb status`                    | View all tasks grouped by status                   |
 | `adb status --filter <status>`  | View tasks filtered by status                      |
 | `adb priority <id> [id...]`     | Reorder task priorities                            |
 | `adb update <task-id>`          | Generate stakeholder communication updates         |
 | `adb sync-context`              | Regenerate CLAUDE.md and kiro.md                   |
+| `adb sync-repos`                | Fetch, prune, and clean all tracked repositories   |
+| `adb migrate-archive`           | Move archived tasks to tickets/_archived/          |
 | `adb exec [alias] [args...]`    | Execute external CLI with alias resolution         |
 | `adb exec`                      | List configured CLI aliases                        |
 | `adb run [task] [args...]`      | Execute a Taskfile.yaml task                       |
 | `adb run --list`                | List available Taskfile tasks                      |
+| `adb knowledge query <term>`    | Search accumulated knowledge                       |
+| `adb knowledge add <summary>`   | Add a knowledge entry                              |
+| `adb knowledge topics`          | List knowledge topics                              |
+| `adb knowledge timeline`        | Show chronological knowledge trail                 |
+| `adb channel list`              | List registered channel adapters                   |
+| `adb channel inbox`             | Show pending items from channels                   |
+| `adb channel send`              | Send output to a channel                           |
+| `adb loop`                      | Run the full feedback loop cycle                   |
+| `adb loop --dry-run`            | Preview feedback loop without processing           |
 | `adb metrics [--json] [--since]`| Display task and agent metrics from the event log  |
 | `adb alerts`                    | Show active alerts (blocked, stale, review, backlog)|
-| `adb session save [task-id]`   | Save a session summary to the task's sessions/      |
+| `adb dashboard`                 | Interactive TUI dashboard                          |
+| `adb session save [task-id]`    | Save a session summary to the task's sessions/     |
+| `adb session ingest [task-id]`  | Ingest knowledge from latest session               |
+| `adb init [path]`               | Initialize a new adb project workspace             |
+| `adb init-claude [path]`        | Bootstrap Claude Code config for a repo            |
+| `adb sync-claude-user`          | Sync Claude skills/agents to user config           |
+| `adb mcp serve`                 | Start the adb MCP server                           |
+| `adb completion <shell>`        | Set up shell tab-completions                       |
+| `adb version`                   | Print version information                          |
