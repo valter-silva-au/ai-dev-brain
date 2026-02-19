@@ -49,3 +49,32 @@ func removeKnowledgeSection(content string) string {
 	}
 	return strings.TrimRight(content[:idx], "\n") + "\n"
 }
+
+// refreshTaskContextMetadata reads task-context.md in a worktree and updates
+// the Status line to match the provided status. This is non-fatal: errors are
+// silently ignored so that resume is never blocked.
+func refreshTaskContextMetadata(worktreePath, status string) {
+	taskContextPath := filepath.Join(worktreePath, ".claude", "rules", "task-context.md")
+
+	data, err := os.ReadFile(taskContextPath)
+	if err != nil {
+		return
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+	updated := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "- **Status**: ") {
+			lines[i] = "- **Status**: " + status
+			updated = true
+			break
+		}
+	}
+
+	if !updated {
+		return
+	}
+
+	_ = os.WriteFile(taskContextPath, []byte(strings.Join(lines, "\n")), 0o644)
+}

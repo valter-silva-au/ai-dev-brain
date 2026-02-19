@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/drapaimern/ai-dev-brain/internal/storage"
 	"github.com/drapaimern/ai-dev-brain/pkg/models"
@@ -16,7 +17,7 @@ func setupAIContextTest(t *testing.T) (AIContextGenerator, string) {
 	t.Helper()
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 	return gen, dir
 }
 
@@ -280,7 +281,7 @@ func TestSyncContext_ReflectsChanges(t *testing.T) {
 // --- Additional tests for full coverage ---
 
 func TestFilenameForAI_Default(t *testing.T) {
-	gen := NewAIContextGenerator(t.TempDir(), storage.NewBacklogManager(t.TempDir()), nil).(*aiContextGenerator)
+	gen := NewAIContextGenerator(t.TempDir(), storage.NewBacklogManager(t.TempDir()), nil, nil).(*aiContextGenerator)
 
 	// Test the default case (unknown AI type).
 	result := gen.filenameForAI(AIType("unknown"))
@@ -303,7 +304,7 @@ func TestGenerateContextFile_WriteError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -320,7 +321,7 @@ func TestSyncContext_WriteError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	err := gen.SyncContext()
 	if err == nil {
@@ -338,7 +339,7 @@ func TestAssembleConventions_FromWikiFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(wikiDir, "coding-conventions.md"), []byte("Custom conventions"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -361,7 +362,7 @@ func TestAssembleConventions_NonMatchingWikiFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(wikiDir, "other-topic.md"), []byte("Other content"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -380,7 +381,7 @@ func TestAssembleGlossary_ReadError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.AssembleGlossary()
 	if err == nil {
@@ -402,7 +403,7 @@ func TestAssembleDecisionsSummary_ReadDirError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.AssembleDecisionsSummary()
 	if err == nil {
@@ -423,7 +424,7 @@ func TestAssembleDecisionsSummary_NonAcceptedADR(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-draft.md"), []byte(draftADR), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -444,7 +445,7 @@ func TestAssembleDecisionsSummary_AcceptedWithoutSource(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-no-source.md"), []byte(adr), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -470,7 +471,7 @@ func TestAssembleDecisionsSummary_WithSubdirsAndNonMd(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "README.txt"), []byte("text"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -487,7 +488,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "docs", "stakeholders.md"), []byte("# Stakeholders"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
 	if !strings.Contains(result, "stakeholders.md") {
@@ -498,7 +499,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 func TestAssembleStakeholders_NoFile(t *testing.T) {
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
 	if !strings.Contains(result, "No stakeholders file found") {
@@ -512,7 +513,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "docs", "contacts.md"), []byte("# Contacts"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
 	if !strings.Contains(result, "contacts.md") {
@@ -523,7 +524,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 func TestAssembleContacts_NoFile(t *testing.T) {
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil).(*aiContextGenerator)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
 	if !strings.Contains(result, "No contacts file found") {
@@ -537,7 +538,7 @@ func TestAssembleActiveTaskSummaries_LoadError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -577,7 +578,7 @@ func TestAssembleActiveTaskSummaries_FilterTasksError(t *testing.T) {
 	fbm := &failingBacklogManager{
 		filterErr: fmt.Errorf("filter failure"),
 	}
-	gen := NewAIContextGenerator(dir, fbm, nil)
+	gen := NewAIContextGenerator(dir, fbm, nil, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -596,7 +597,7 @@ func TestAssembleConventions_ReadDirError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "wiki"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
@@ -614,7 +615,7 @@ func TestGenerateContextFile_AssembleAllError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -631,7 +632,7 @@ func TestSyncContext_AssembleAllError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	err := gen.SyncContext()
 	if err == nil {
@@ -650,7 +651,7 @@ func TestAssembleAll_GlossaryError(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -669,7 +670,7 @@ func TestAssembleAll_DecisionsError(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -689,7 +690,7 @@ func TestAssembleDecisionsSummary_UnreadableADR(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-test.md"), []byte(adr), 0o644)
 
 	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
@@ -715,7 +716,7 @@ func TestRenderContextFile_IncludesKnowledgeSummary(t *testing.T) {
 	}
 	km := NewKnowledgeManager(store)
 
-	gen := NewAIContextGenerator(dir, backlogMgr, km)
+	gen := NewAIContextGenerator(dir, backlogMgr, km, nil)
 
 	path, err := gen.GenerateContextFile(AITypeClaude)
 	if err != nil {
@@ -743,7 +744,7 @@ func TestRenderContextFile_NilKnowledgeManager(t *testing.T) {
 	dir := t.TempDir()
 	backlogMgr := storage.NewBacklogManager(dir)
 
-	gen := NewAIContextGenerator(dir, backlogMgr, nil)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	path, err := gen.GenerateContextFile(AITypeClaude)
 	if err != nil {
@@ -770,7 +771,7 @@ func TestRenderContextFile_EmptyKnowledgeStore(t *testing.T) {
 	store := newInMemoryKnowledgeStore()
 	km := NewKnowledgeManager(store)
 
-	gen := NewAIContextGenerator(dir, backlogMgr, km)
+	gen := NewAIContextGenerator(dir, backlogMgr, km, nil)
 
 	path, err := gen.GenerateContextFile(AITypeClaude)
 	if err != nil {
@@ -786,5 +787,503 @@ func TestRenderContextFile_EmptyKnowledgeStore(t *testing.T) {
 	// Should NOT include the knowledge section when store is empty.
 	if strings.Contains(content, "## Accumulated Knowledge") {
 		t.Error("should not include knowledge section when store is empty")
+	}
+}
+
+// --- Context evolution tracking tests ---
+
+func TestContextState_DiffIdenticalStates(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	state := &ContextState{
+		ActiveTaskIDs:  []string{"TASK-00001", "TASK-00002"},
+		KnowledgeCount: 5,
+		DecisionCount:  3,
+		SessionCount:   2,
+		ADRTitles:      []string{"ADR-0001: Use JWT"},
+		SectionHashes: map[string]string{
+			"overview": "aabbccdd",
+			"glossary": "11223344",
+		},
+	}
+
+	changes := gen.diffStates(state, state)
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes for identical states, got %d: %+v", len(changes), changes)
+	}
+}
+
+func TestContextState_DiffFirstSync(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	curr := &ContextState{
+		ActiveTaskIDs: []string{"TASK-00001"},
+	}
+
+	// nil previous state = first sync.
+	changes := gen.diffStates(nil, curr)
+	if changes != nil {
+		t.Errorf("expected nil changes for first sync, got %+v", changes)
+	}
+}
+
+func TestContextState_DiffTaskChanges(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		ActiveTaskIDs: []string{"TASK-00001", "TASK-00002"},
+		SectionHashes: map[string]string{},
+	}
+	curr := &ContextState{
+		ActiveTaskIDs: []string{"TASK-00001", "TASK-00003"},
+		SectionHashes: map[string]string{},
+	}
+
+	changes := gen.diffStates(prev, curr)
+
+	var addedFound, removedFound bool
+	for _, c := range changes {
+		if c.Section == "Active Tasks" && strings.Contains(c.Description, "TASK-00003 added") {
+			addedFound = true
+		}
+		if c.Section == "Active Tasks" && strings.Contains(c.Description, "TASK-00002 removed") {
+			removedFound = true
+		}
+	}
+	if !addedFound {
+		t.Error("expected change for TASK-00003 added")
+	}
+	if !removedFound {
+		t.Error("expected change for TASK-00002 removed")
+	}
+}
+
+func TestContextState_DiffKnowledgeChanges(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		KnowledgeCount: 3,
+		SectionHashes:  map[string]string{},
+	}
+	curr := &ContextState{
+		KnowledgeCount: 5,
+		SectionHashes:  map[string]string{},
+	}
+
+	changes := gen.diffStates(prev, curr)
+
+	var found bool
+	for _, c := range changes {
+		if c.Section == "Knowledge" && strings.Contains(c.Description, "2 new knowledge entry(s) added") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected knowledge delta change, got %+v", changes)
+	}
+
+	// Test decrease.
+	changes2 := gen.diffStates(curr, prev)
+	var foundRemoved bool
+	for _, c := range changes2 {
+		if c.Section == "Knowledge" && strings.Contains(c.Description, "2 knowledge entry(s) removed") {
+			foundRemoved = true
+		}
+	}
+	if !foundRemoved {
+		t.Errorf("expected knowledge removal change, got %+v", changes2)
+	}
+}
+
+func TestContextState_RenderWhatsChanged(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	t.Run("first sync", func(t *testing.T) {
+		result := gen.renderWhatsChanged(nil, time.Time{})
+		if !strings.Contains(result, "First context generation") {
+			t.Errorf("expected first-sync message, got %q", result)
+		}
+	})
+
+	t.Run("no changes", func(t *testing.T) {
+		prev := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+		result := gen.renderWhatsChanged([]ContextChange{}, prev)
+		if !strings.Contains(result, "No changes since last sync") {
+			t.Errorf("expected no-changes message, got %q", result)
+		}
+		if !strings.Contains(result, "2025-01-15") {
+			t.Errorf("expected previous sync date, got %q", result)
+		}
+	})
+
+	t.Run("with changes", func(t *testing.T) {
+		prev := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+		changes := []ContextChange{
+			{Section: "Active Tasks", Description: "Task TASK-00003 added"},
+			{Section: "Knowledge", Description: "2 new knowledge entry(s) added"},
+		}
+		result := gen.renderWhatsChanged(changes, prev)
+		if !strings.Contains(result, "## What's Changed") {
+			t.Errorf("expected header, got %q", result)
+		}
+		if !strings.Contains(result, "Active Tasks") {
+			t.Errorf("expected section name, got %q", result)
+		}
+		if !strings.Contains(result, "TASK-00003 added") {
+			t.Errorf("expected change description, got %q", result)
+		}
+	})
+}
+
+func TestContextState_HashSection(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	t.Run("deterministic", func(t *testing.T) {
+		hash1 := gen.hashSection("hello world")
+		hash2 := gen.hashSection("hello world")
+		if hash1 != hash2 {
+			t.Errorf("hash should be deterministic: %s != %s", hash1, hash2)
+		}
+	})
+
+	t.Run("different input gives different hash", func(t *testing.T) {
+		hash1 := gen.hashSection("hello world")
+		hash2 := gen.hashSection("goodbye world")
+		if hash1 == hash2 {
+			t.Errorf("different content should produce different hashes: both %s", hash1)
+		}
+	})
+
+	t.Run("format is 8 hex chars", func(t *testing.T) {
+		hash := gen.hashSection("test content")
+		if len(hash) != 8 {
+			t.Errorf("expected 8-char hex hash, got %q (len %d)", hash, len(hash))
+		}
+	})
+}
+
+func TestContextState_AppendChangelog(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	t.Run("creates new changelog", func(t *testing.T) {
+		syncedAt := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+		changes := []ContextChange{
+			{Section: "Active Tasks", Description: "Task TASK-00001 added"},
+		}
+		err := gen.appendChangelog(changes, syncedAt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, ".context_changelog.md"))
+		if err != nil {
+			t.Fatalf("reading changelog: %v", err)
+		}
+		content := string(data)
+		if !strings.Contains(content, "# Context Changelog") {
+			t.Error("expected header in changelog")
+		}
+		if !strings.Contains(content, "2025-01-15") {
+			t.Error("expected date in changelog")
+		}
+		if !strings.Contains(content, "TASK-00001 added") {
+			t.Error("expected change in changelog")
+		}
+	})
+
+	t.Run("prepends new entries", func(t *testing.T) {
+		syncedAt2 := time.Date(2025, 1, 20, 12, 0, 0, 0, time.UTC)
+		changes2 := []ContextChange{
+			{Section: "Knowledge", Description: "3 new entries"},
+		}
+		err := gen.appendChangelog(changes2, syncedAt2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, ".context_changelog.md"))
+		if err != nil {
+			t.Fatalf("reading changelog: %v", err)
+		}
+		content := string(data)
+
+		// The newer entry should appear before the older one.
+		idx1 := strings.Index(content, "2025-01-20")
+		idx2 := strings.Index(content, "2025-01-15")
+		if idx1 >= idx2 {
+			t.Error("newer entry should be prepended (appear before older)")
+		}
+	})
+
+	t.Run("prunes at 50 entries", func(t *testing.T) {
+		// Use a fresh dir+gen to avoid interference from earlier subtests.
+		pruneDir := t.TempDir()
+		pruneMgr := storage.NewBacklogManager(pruneDir)
+		pruneGen := NewAIContextGenerator(pruneDir, pruneMgr, nil, nil).(*aiContextGenerator)
+
+		// Write 55 entries to exceed the 50-entry limit.
+		for i := 0; i < 55; i++ {
+			syncedAt := time.Date(2025, 2, 1, i, 0, 0, 0, time.UTC)
+			pruneGen.appendChangelog([]ContextChange{
+				{Section: "Test", Description: fmt.Sprintf("change %d", i)},
+			}, syncedAt)
+		}
+
+		data, err := os.ReadFile(filepath.Join(pruneDir, ".context_changelog.md"))
+		if err != nil {
+			t.Fatalf("reading changelog: %v", err)
+		}
+		// Use the same function the implementation uses to count entries.
+		parts := splitChangelogEntries(string(data))
+		if len(parts.body) > 50 {
+			t.Errorf("expected max 50 entries after pruning, got %d", len(parts.body))
+		}
+	})
+}
+
+func TestContextState_LoadSaveRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	original := &ContextState{
+		SyncedAt:       time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
+		ActiveTaskIDs:  []string{"TASK-00001", "TASK-00002"},
+		KnowledgeCount: 5,
+		DecisionCount:  3,
+		SessionCount:   2,
+		ADRTitles:      []string{"ADR-0001: Use JWT"},
+		SectionHashes: map[string]string{
+			"overview":  "aabbccdd",
+			"glossary":  "11223344",
+			"decisions": "55667788",
+		},
+	}
+
+	if err := gen.saveState(original); err != nil {
+		t.Fatalf("save state error: %v", err)
+	}
+
+	// Verify the file exists.
+	statePath := filepath.Join(dir, ".context_state.yaml")
+	if _, err := os.Stat(statePath); os.IsNotExist(err) {
+		t.Fatal("expected .context_state.yaml to exist after save")
+	}
+
+	loaded, err := gen.loadState()
+	if err != nil {
+		t.Fatalf("load state error: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected non-nil loaded state")
+	}
+
+	// Compare fields.
+	if !loaded.SyncedAt.Equal(original.SyncedAt) {
+		t.Errorf("SyncedAt mismatch: %v != %v", loaded.SyncedAt, original.SyncedAt)
+	}
+	if len(loaded.ActiveTaskIDs) != 2 {
+		t.Errorf("expected 2 active task IDs, got %d", len(loaded.ActiveTaskIDs))
+	}
+	if loaded.KnowledgeCount != 5 {
+		t.Errorf("expected KnowledgeCount 5, got %d", loaded.KnowledgeCount)
+	}
+	if loaded.DecisionCount != 3 {
+		t.Errorf("expected DecisionCount 3, got %d", loaded.DecisionCount)
+	}
+	if loaded.SessionCount != 2 {
+		t.Errorf("expected SessionCount 2, got %d", loaded.SessionCount)
+	}
+	if len(loaded.ADRTitles) != 1 {
+		t.Errorf("expected 1 ADR title, got %d", len(loaded.ADRTitles))
+	}
+	if loaded.SectionHashes["overview"] != "aabbccdd" {
+		t.Errorf("unexpected overview hash: %s", loaded.SectionHashes["overview"])
+	}
+}
+
+func TestContextState_LoadNonExistent(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	state, err := gen.loadState()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if state != nil {
+		t.Errorf("expected nil state for non-existent file, got %+v", state)
+	}
+}
+
+func TestContextState_ComputeCurrentState(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	// Set up sections manually for testing.
+	gen.sections = AIContextSections{
+		Overview:           "Test overview",
+		DirectoryStructure: "Test structure",
+		Conventions:        "Test conventions",
+		Glossary:           "Test glossary",
+		ActiveTaskSummaries: "| Task ID | Title | Status | Branch |\n" +
+			"|---------|-------|--------|--------|\n" +
+			"| TASK-00001 | Auth | in_progress | feat/auth |\n" +
+			"| TASK-00002 | Fix | backlog | bug/fix |\n",
+		DecisionsSummary:  "- ADR-0001: Use JWT (TASK-00001)\n",
+		CriticalDecisions: "- decision: Use RS256\n",
+		RecentSessions:    "### TASK-00001 (latest: 2025-01-15)\n\nSession content\n",
+		KnowledgeSummary:  "- **2025-01-15**: learning: test\n- **2025-01-16**: decision: test2\n",
+	}
+
+	state := gen.computeCurrentState()
+
+	if len(state.ActiveTaskIDs) != 2 {
+		t.Errorf("expected 2 active task IDs, got %d", len(state.ActiveTaskIDs))
+	}
+	if state.KnowledgeCount != 2 {
+		t.Errorf("expected 2 knowledge entries, got %d", state.KnowledgeCount)
+	}
+	if state.DecisionCount != 1 {
+		t.Errorf("expected 1 decision, got %d", state.DecisionCount)
+	}
+	if state.SessionCount != 1 {
+		t.Errorf("expected 1 session, got %d", state.SessionCount)
+	}
+	if len(state.ADRTitles) != 1 {
+		t.Errorf("expected 1 ADR title, got %d", len(state.ADRTitles))
+	}
+	if len(state.SectionHashes) == 0 {
+		t.Error("expected non-empty section hashes")
+	}
+}
+
+func TestContextState_DiffDecisionChanges(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		DecisionCount: 2,
+		SectionHashes: map[string]string{},
+	}
+	curr := &ContextState{
+		DecisionCount: 5,
+		SectionHashes: map[string]string{},
+	}
+
+	changes := gen.diffStates(prev, curr)
+	var found bool
+	for _, c := range changes {
+		if c.Section == "Critical Decisions" && strings.Contains(c.Description, "3 new decision(s) recorded") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected decision delta change, got %+v", changes)
+	}
+}
+
+func TestContextState_DiffSessionChanges(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		SessionCount:  1,
+		SectionHashes: map[string]string{},
+	}
+	curr := &ContextState{
+		SessionCount:  4,
+		SectionHashes: map[string]string{},
+	}
+
+	changes := gen.diffStates(prev, curr)
+	var found bool
+	for _, c := range changes {
+		if c.Section == "Recent Sessions" && strings.Contains(c.Description, "3 new session(s) recorded") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected session delta change, got %+v", changes)
+	}
+}
+
+func TestContextState_DiffADRAdditions(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		ADRTitles:     []string{"ADR-0001: Use JWT"},
+		SectionHashes: map[string]string{},
+	}
+	curr := &ContextState{
+		ADRTitles:     []string{"ADR-0001: Use JWT", "ADR-0002: Use Postgres"},
+		SectionHashes: map[string]string{},
+	}
+
+	changes := gen.diffStates(prev, curr)
+	var found bool
+	for _, c := range changes {
+		if c.Section == "Decisions Summary" && strings.Contains(c.Description, "ADR-0002: Use Postgres") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected new ADR change, got %+v", changes)
+	}
+}
+
+func TestContextState_DiffSectionHashChanges(t *testing.T) {
+	dir := t.TempDir()
+	backlogMgr := storage.NewBacklogManager(dir)
+	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
+
+	prev := &ContextState{
+		SectionHashes: map[string]string{
+			"overview": "aabbccdd",
+			"glossary": "11223344",
+		},
+	}
+	curr := &ContextState{
+		SectionHashes: map[string]string{
+			"overview": "aabbccdd",
+			"glossary": "99887766",
+		},
+	}
+
+	changes := gen.diffStates(prev, curr)
+	var found bool
+	for _, c := range changes {
+		if c.Section == "Glossary" && strings.Contains(c.Description, "updated") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected glossary section hash change, got %+v", changes)
+	}
+
+	// Overview should NOT appear since its hash didn't change.
+	for _, c := range changes {
+		if c.Section == "Project Overview" {
+			t.Error("overview should not appear in changes (hash unchanged)")
+		}
 	}
 }

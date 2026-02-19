@@ -1186,6 +1186,9 @@ for saving session summaries and ingesting knowledge from them.
 |------------|-------------|
 | `save` | Save a session summary for a task |
 | `ingest` | Ingest knowledge from the latest session file |
+| `capture` | Capture a Claude Code session from a JSONL transcript |
+| `list` | List captured sessions with optional filters |
+| `show` | Show details and turns for a captured session |
 
 ---
 
@@ -1348,6 +1351,185 @@ adb session ingest TASK-00042
 
 # Ingest using ADB_TASK_ID from the environment
 adb session ingest
+```
+
+---
+
+### adb session capture
+
+Capture a Claude Code session from a JSONL transcript.
+
+**Synopsis**
+
+```
+adb session capture [flags]
+```
+
+**Description**
+
+Capture a Claude Code session by parsing its JSONL transcript into
+structured turn data. In `--from-hook` mode, reads session metadata
+from stdin (called automatically by the `SessionEnd` hook). In manual
+mode, specify `--transcript` and `--session-id` directly.
+
+The captured session is stored in the workspace-level `sessions/`
+directory. If `ADB_TASK_ID` is set, the session is also linked to
+the task's `sessions/` directory via symlink (or file copy on Windows
+when symlinks are unavailable).
+
+Sessions with fewer turns than the configured `min_turns_capture`
+threshold (default 3) are silently skipped.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--from-hook` | bool | `false` | Read session metadata from stdin (used by SessionEnd hook) |
+| `--transcript` | string | `""` | Path to the JSONL transcript file (manual mode) |
+| `--session-id` | string | `""` | Claude Code session ID (manual mode) |
+
+**Output**
+
+On success, prints the captured session ID and storage path:
+
+```
+Captured session S-00042 (5 turns) -> sessions/S-00042/
+```
+
+If the session is below the minimum turn threshold, prints nothing
+and exits 0.
+
+**Errors**
+
+- If neither `--from-hook` nor `--transcript` is provided, returns an error.
+- If the transcript file does not exist, returns a not-found error.
+
+**Examples**
+
+```bash
+# Automatic capture via SessionEnd hook (called by hook script)
+echo '{"session_id":"abc123",...}' | adb session capture --from-hook
+
+# Manual capture of a specific transcript
+adb session capture --transcript ~/.claude/projects/.../transcript.jsonl --session-id abc123
+```
+
+---
+
+### adb session list
+
+List captured sessions.
+
+**Synopsis**
+
+```
+adb session list [flags]
+```
+
+**Description**
+
+List captured sessions from the workspace-level session store. By
+default, lists all sessions sorted by most recent. Use filters to
+narrow results.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--task-id` | string | `""` | Filter by task ID |
+| `--since` | string | `""` | Show sessions since this duration (e.g. `7d`, `24h`) |
+| `--limit` | int | `20` | Maximum number of sessions to display |
+
+**Output**
+
+A table with columns: ID, Task, Turns, Duration, Started, Summary.
+
+```
+ID        TASK         TURNS  DURATION  STARTED              SUMMARY
+S-00042   TASK-00015   5      12m       2025-01-15T10:00Z    Help me fix login bug
+S-00041   TASK-00015   8      25m       2025-01-15T09:00Z    Refactor auth middleware
+S-00040   (none)       3      5m        2025-01-14T16:00Z    General project questions
+```
+
+If no sessions are found, prints "No captured sessions found."
+
+**Examples**
+
+```bash
+# List all captured sessions
+adb session list
+
+# List sessions for a specific task
+adb session list --task-id TASK-00015
+
+# List sessions from the last 7 days
+adb session list --since 7d
+
+# Combine filters
+adb session list --task-id TASK-00015 --since 24h --limit 5
+```
+
+---
+
+### adb session show
+
+Show details and turns for a captured session.
+
+**Synopsis**
+
+```
+adb session show <session-id>
+```
+
+**Description**
+
+Display the full details of a captured session, including metadata
+and all turns (user messages and assistant responses with tool usage).
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `session-id` | Yes | The session identifier (e.g. `S-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Displays the session metadata followed by each turn:
+
+```
+Session S-00042
+  Task:      TASK-00015
+  Project:   /home/user/code/myapp
+  Branch:    feat/add-auth
+  Started:   2025-01-15T10:00:00Z
+  Ended:     2025-01-15T10:12:00Z
+  Duration:  12m
+  Turns:     5
+  Summary:   Help me fix login bug — 5 turns, tools: Read(3), Edit(1)
+
+--- Turn 1 (user) ---
+Help me fix the login bug in auth.go
+
+--- Turn 2 (assistant) [Read, Read] ---
+I'll look at the auth module to understand the issue...
+
+--- Turn 3 (user) ---
+That fixed it, thanks!
+```
+
+**Errors**
+
+- If the session ID does not exist, returns "session not found".
+
+**Examples**
+
+```bash
+# Show a specific session
+adb session show S-00042
 ```
 
 ---
@@ -2068,8 +2250,8 @@ By default, syncs skills and agents. Use `--mcp` to also merge MCP server
 definitions into `~/.claude.json` so they are available in every project.
 
 This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, and shared MCP servers are available on any
-machine after a single command.
+the generic code-reviewer agent, shared MCP servers, and the automatic session
+capture hook are available on any machine after a single command.
 
 Skills and agents are overwritten if they already exist (templates are the
 source of truth). MCP servers are merged -- existing servers are updated,
@@ -2089,6 +2271,7 @@ to pick up template changes.
 | Skill | `sync` | Branch sync via fetch and rebase |
 | Skill | `changelog` | Changelog generation from commits |
 | Agent | `code-reviewer` | Generic code review agent |
+| Hook | `adb-session-capture.sh` | SessionEnd hook for automatic session capture (installed to `~/.claude/settings.json`) |
 
 With `--mcp`:
 

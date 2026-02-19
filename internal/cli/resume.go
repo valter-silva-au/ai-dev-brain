@@ -35,9 +35,10 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 		}
 		fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
-		// Refresh accumulated project knowledge in task context.
+		// Refresh accumulated project knowledge and status in task context.
 		if task.WorktreePath != "" {
 			appendKnowledgeToTaskContext(task.WorktreePath)
+			refreshTaskContextMetadata(task.WorktreePath, string(task.Status))
 		}
 
 		// Post-resume workflow: rename terminal tab and launch Claude Code with --resume.

@@ -40,6 +40,7 @@ type GlobalConfig struct {
 	OfflineMode      bool               `yaml:"offline_mode" mapstructure:"offline_mode"`
 	CLIAliases       []CLIAliasConfig   `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
 	Notifications    NotificationConfig `yaml:"notifications,omitempty" mapstructure:"notifications"`
+	SessionCapture   SessionCaptureConfig `yaml:"session_capture,omitempty" mapstructure:"session_capture"`
 }
 
 // RepoConfig holds per-repository settings read from .taskrc files.
