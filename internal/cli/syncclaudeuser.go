@@ -108,6 +108,14 @@ to pick up template changes.`,
 			synced++
 		}
 
+		// Sync session capture hook
+		hookCount, hookErr := syncSessionHook(templateDir, userClaudeDir, dryRun)
+		if hookErr != nil {
+			fmt.Fprintf(os.Stderr, "  warning: session hook sync failed: %v\n", hookErr)
+		} else {
+			synced += hookCount
+		}
+
 		// Sync MCP servers into ~/.claude.json
 		if syncMCP {
 			mcpCount, err := syncMCPServers(templateDir, home, dryRun)
@@ -214,6 +222,121 @@ func checkEnvVars() {
 			fmt.Println(m)
 		}
 	}
+}
+
+// syncSessionHook installs the session capture hook script and merges
+// a SessionEnd entry into ~/.claude/settings.json.
+func syncSessionHook(templateDir, userClaudeDir string, dryRun bool) (int, error) {
+	synced := 0
+
+	// 1. Copy hook script to ~/.claude/hooks/
+	hookSrc := filepath.Join(templateDir, "hooks", "adb-session-capture.sh")
+	hookDst := filepath.Join(userClaudeDir, "hooks", "adb-session-capture.sh")
+
+	if dryRun {
+		fmt.Printf("  [dry-run] hook: adb-session-capture.sh\n")
+		fmt.Printf("  [dry-run] settings.json: SessionEnd hook entry\n")
+		return 2, nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(hookDst), 0o755); err != nil {
+		return 0, fmt.Errorf("creating hooks directory: %w", err)
+	}
+
+	hookData, err := os.ReadFile(hookSrc)
+	if err != nil {
+		return 0, fmt.Errorf("reading hook template: %w", err)
+	}
+	if err := os.WriteFile(hookDst, hookData, 0o755); err != nil {
+		return 0, fmt.Errorf("writing hook script: %w", err)
+	}
+	fmt.Printf("  synced hook: adb-session-capture.sh\n")
+	synced++
+
+	// 2. Merge SessionEnd hook entry into ~/.claude/settings.json
+	settingsPath := filepath.Join(userClaudeDir, "settings.json")
+	var settings map[string]interface{}
+
+	existing, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			settings = make(map[string]interface{})
+		} else {
+			return synced, fmt.Errorf("reading settings.json: %w", err)
+		}
+	} else {
+		if err := json.Unmarshal(existing, &settings); err != nil {
+			return synced, fmt.Errorf("parsing settings.json: %w", err)
+		}
+	}
+
+	// Build the SessionEnd hook entry.
+	hookCommand := "~/.claude/hooks/adb-session-capture.sh"
+	hookEntry := map[string]interface{}{
+		"type":    "command",
+		"command": hookCommand,
+	}
+
+	// Get or create the hooks section.
+	hooks, ok := settings["hooks"].(map[string]interface{})
+	if !ok {
+		hooks = make(map[string]interface{})
+	}
+
+	// Get or create the SessionEnd array.
+	sessionEnd, ok := hooks["SessionEnd"].([]interface{})
+	if !ok {
+		sessionEnd = nil
+	}
+
+	// Check if our hook entry already exists.
+	alreadyPresent := false
+	for _, entry := range sessionEnd {
+		entryArr, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		hooksList, ok := entryArr["hooks"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, h := range hooksList {
+			hMap, ok := h.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if cmd, ok := hMap["command"].(string); ok && cmd == hookCommand {
+				alreadyPresent = true
+				break
+			}
+		}
+		if alreadyPresent {
+			break
+		}
+	}
+
+	if !alreadyPresent {
+		newEntry := map[string]interface{}{
+			"hooks": []interface{}{hookEntry},
+		}
+		sessionEnd = append(sessionEnd, newEntry)
+		hooks["SessionEnd"] = sessionEnd
+		settings["hooks"] = hooks
+
+		output, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			return synced, fmt.Errorf("marshaling settings.json: %w", err)
+		}
+		if err := os.WriteFile(settingsPath, output, 0o644); err != nil {
+			return synced, fmt.Errorf("writing settings.json: %w", err)
+		}
+		fmt.Printf("  synced settings.json: SessionEnd hook entry\n")
+	} else {
+		fmt.Printf("  settings.json: SessionEnd hook already present\n")
+	}
+	synced++
+
+	return synced, nil
 }
 
 func init() {
