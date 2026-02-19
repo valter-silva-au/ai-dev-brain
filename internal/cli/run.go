@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/drapaimern/ai-dev-brain/internal/integration"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/spf13/cobra"
 )
 

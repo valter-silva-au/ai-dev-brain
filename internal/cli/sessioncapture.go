@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/integration"
-	"github.com/drapaimern/ai-dev-brain/internal/observability"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
+	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
 

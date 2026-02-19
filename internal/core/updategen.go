@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/storage"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // MessageChannel identifies the communication platform for a message.

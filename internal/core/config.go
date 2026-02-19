@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/viper"
 )
 

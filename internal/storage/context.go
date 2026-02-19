@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // TaskContext represents the persistent context for a task's AI session.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 func writeTranscript(t *testing.T, dir string, lines ...string) string {

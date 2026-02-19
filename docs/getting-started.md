@@ -38,7 +38,7 @@ sudo apt install -y golang-go git
 go version
 
 # Install adb from source
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # Ensure $GOPATH/bin is in your PATH
 echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
@@ -66,7 +66,7 @@ source ~/.bashrc
 sudo dnf install -y golang git
 
 # Install adb from source
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # Ensure $GOPATH/bin is in your PATH
 echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
@@ -82,7 +82,7 @@ adb --help
 sudo pacman -S go git
 
 # Install adb from source
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # Ensure $GOPATH/bin is in your PATH
 echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
@@ -100,7 +100,7 @@ adb --help
 brew install go git
 
 # Install adb from source
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # Ensure $GOPATH/bin is in your PATH
 echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc
@@ -114,7 +114,7 @@ adb --help
 ```bash
 # Download and install Go from https://go.dev/dl/
 # Then:
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # Add to PATH in ~/.zshrc or ~/.bash_profile
 echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc
@@ -132,7 +132,7 @@ Open PowerShell or Command Prompt:
 # Install Git from https://git-scm.com/download/win
 
 # Install adb
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 # The binary is placed in %USERPROFILE%\go\bin\adb.exe
 # Verify installation
@@ -148,7 +148,7 @@ The `go install` command places the binary in `%USERPROFILE%\go\bin` by default.
 scoop install go git
 
 # Install adb
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 adb --help
 ```
@@ -161,7 +161,7 @@ winget install GoLang.Go
 winget install Git.Git
 
 # Restart your terminal, then:
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 
 adb --help
 ```

@@ -10,7 +10,7 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/drapaimern/ai-dev-brain.git
+git clone https://github.com/valter-silva-au/ai-dev-brain.git
 cd ai-dev-brain
 go mod download
 make build

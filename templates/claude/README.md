@@ -1,7 +1,10 @@
 # Claude Code Templates
 
 These templates are the canonical source of truth for Claude Code configuration
-managed by `adb`. They are used by two commands:
+managed by `adb`. All templates are embedded into the `adb` binary at compile time
+via `embed.go`, making the tool self-contained with no external dependencies.
+
+Templates are used by two commands:
 
 ## `adb init-claude`
 
@@ -35,6 +38,7 @@ export CONTEXT7_API_KEY="your-key-here"  # add to shell profile
 ```
 templates/claude/
 ├── README.md                  # This file
+├── embed.go                   # Embeds all templates into the binary at compile time
 ├── claudeignore.template      # Default .claudeignore
 ├── settings.template.json     # Default .claude/settings.json
 ├── mcp-servers.json           # MCP servers to merge into ~/.claude.json

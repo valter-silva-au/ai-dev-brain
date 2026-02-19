@@ -39,12 +39,12 @@ Do NOT automatically push. Instead, provide instructions for the user:
 
 2. Tag the image:
    ```
-   docker tag adb:latest ghcr.io/drapaimern/ai-dev-brain:latest
+   docker tag adb:latest ghcr.io/valter-silva-au/ai-dev-brain:latest
    ```
 
 3. Push:
    ```
-   docker push ghcr.io/drapaimern/ai-dev-brain:latest
+   docker push ghcr.io/valter-silva-au/ai-dev-brain:latest
    ```
 
 ### Multi-platform build (if requested)

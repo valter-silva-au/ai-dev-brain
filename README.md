@@ -133,7 +133,7 @@ Or add it through **System Properties > Environment Variables > Path > Edit**.
 Requires [Go](https://go.dev/dl/) 1.26 or later.
 
 ```bash
-go install github.com/drapaimern/ai-dev-brain/cmd/adb@latest
+go install github.com/valter-silva-au/ai-dev-brain/cmd/adb@latest
 ```
 
 Or clone and build locally:
