@@ -124,6 +124,7 @@ priority from configuration (P2 unless overridden).
 | `--priority` | string | `""` | Task priority: `P0`, `P1`, `P2`, or `P3` |
 | `--owner` | string | `""` | Task owner (e.g. `@username`) |
 | `--tags` | string | `nil` | Comma-separated tags for the task |
+| `--prefix` | string | `""` | Custom prefix for organizing task folders (e.g. `finance`) |
 
 **Output**
 
@@ -141,6 +142,9 @@ adb feat api-rate-limiting --repo github.com/acme/backend --priority P1
 
 # Create a tagged feature task with an owner
 adb feat dark-mode-support --owner @alice --tags ui,frontend,theme
+
+# Create a feature task with a custom folder prefix
+adb feat quarterly-report --prefix finance
 ```
 
 ---
@@ -170,7 +174,7 @@ task in the backlog.
 
 **Flags**
 
-Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`, `--prefix`.
 
 **Examples**
 
@@ -211,7 +215,7 @@ time-boxed research or prototyping work. Identical in behavior to
 
 **Flags**
 
-Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`, `--prefix`.
 
 **Examples**
 
@@ -252,7 +256,7 @@ to `adb feat` except the task type is set to `refactor`.
 
 **Flags**
 
-Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`.
+Same flags as [`adb feat`](#adb-feat): `--repo`, `--priority`, `--owner`, `--tags`, `--prefix`.
 
 **Examples**
 
