@@ -614,18 +614,21 @@ All task creation commands (`feat`, `bug`, `spike`, `refactor`) accept these fla
 | `--priority` | Task priority (P0-P3) | `--priority P1` |
 | `--owner` | Task owner | `--owner @alice` |
 | `--tags` | Comma-separated tags | `--tags auth,backend` |
+| `--prefix` | Custom folder prefix | `--prefix finance` |
 
 ---
 
 ## Observability
 
-`adb` includes built-in observability through an append-only event log (`.adb_events.jsonl`) that records task lifecycle events, agent sessions, and knowledge extraction. Three commands expose this data:
+`adb` includes built-in observability through an append-only event log (`.adb_events.jsonl`) that records task lifecycle events, agent sessions, and knowledge extraction. These commands expose this data:
 
 | Command | Description |
 |---------|-------------|
 | `adb metrics [--json] [--since 7d]` | Aggregated metrics: tasks created/completed, by status/type, agent sessions |
 | `adb alerts` | Active alerts for blocked tasks, stale tasks, long reviews, backlog size |
+| `adb dashboard` | Interactive TUI dashboard showing task status, metrics, and alerts |
 | `adb session save [task-id]` | Save a timestamped session summary to the task's `sessions/` directory |
+| `adb session ingest [task-id]` | Ingest knowledge from the latest session file |
 
 Observability is non-fatal -- if the event log cannot be created, all core task management commands continue to work normally. See [Commands Reference](commands.md) for full details on each command.
 
