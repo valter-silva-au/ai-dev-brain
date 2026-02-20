@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/internal/observability"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
 )
 
 // Observability service instances, set during app initialization in app.go.

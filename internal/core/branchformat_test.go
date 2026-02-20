@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 func TestFormatBranchName(t *testing.T) {

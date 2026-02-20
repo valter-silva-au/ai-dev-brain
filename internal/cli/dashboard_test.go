@@ -6,9 +6,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/internal/observability"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // mockDashboardTaskMgr implements the subset of core.TaskManager needed by the dashboard.

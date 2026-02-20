@@ -1,6 +1,6 @@
 package core
 
-import "github.com/drapaimern/ai-dev-brain/pkg/models"
+import "github.com/valter-silva-au/ai-dev-brain/pkg/models"
 
 // SessionCapturer is the subset of the session store that core and CLI
 // services need. Defining it here avoids importing the storage package.

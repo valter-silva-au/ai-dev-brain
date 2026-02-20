@@ -1962,20 +1962,114 @@ manual setup.
 With `--install`: prints the installation path and instructions.
 Without `--install`: prints the completion script to stdout.
 
+**Shell Setup**
+
+#### Bash (Linux / macOS / WSL)
+
+Automatic install (writes to `~/.local/share/bash-completion/completions/adb`):
+
+```bash
+adb completion bash --install
+```
+
+Manual setup:
+
+```bash
+# Load in current session only
+eval "$(adb completion bash)"
+
+# Permanent: append to your ~/.bashrc
+echo 'eval "$(adb completion bash)"' >> ~/.bashrc
+```
+
+Requires `bash-completion` >= 2.0. On macOS with Homebrew:
+`brew install bash-completion@2`.
+
+#### Zsh (Linux / macOS)
+
+Automatic install (writes to `~/.local/share/zsh/site-functions/_adb`):
+
+```bash
+adb completion zsh --install
+```
+
+After installing, ensure the directory is in your `fpath`. Add to `~/.zshrc`
+if needed:
+
+```zsh
+fpath=(~/.local/share/zsh/site-functions $fpath)
+autoload -Uz compinit && compinit
+```
+
+Manual setup:
+
+```zsh
+# Load in current session only
+eval "$(adb completion zsh)"
+
+# Permanent: append to your ~/.zshrc
+echo 'eval "$(adb completion zsh)"' >> ~/.zshrc
+```
+
+#### Fish (Linux / macOS)
+
+Automatic install (writes to `~/.config/fish/completions/adb.fish`):
+
+```bash
+adb completion fish --install
+```
+
+Completions are available in new fish sessions automatically.
+
+Manual setup:
+
+```fish
+# Load in current session only
+adb completion fish | source
+
+# Permanent: write to completions directory
+adb completion fish > ~/.config/fish/completions/adb.fish
+```
+
+#### PowerShell (Windows / cross-platform)
+
+Automatic install via `--install` is **not supported** for PowerShell.
+Set up completions manually:
+
+```powershell
+# Load in current session only
+adb completion powershell | Out-String | Invoke-Expression
+
+# Permanent: append to your PowerShell profile
+Add-Content -Path $PROFILE -Value 'adb completion powershell | Out-String | Invoke-Expression'
+```
+
+If your profile file does not exist yet, create it first:
+
+```powershell
+New-Item -Path $PROFILE -ItemType File -Force
+```
+
+The profile path is typically
+`~\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`. Check it
+with `echo $PROFILE`. Changes take effect in new PowerShell sessions,
+or reload with `. $PROFILE`.
+
 **Examples**
 
 ```bash
-# Install bash completions
+# Quick install (bash, zsh, fish)
 adb completion bash --install
-
-# Install zsh completions
 adb completion zsh --install
+adb completion fish --install
 
-# Print completion script to stdout (for manual setup)
+# Print completion script to stdout (any shell)
 adb completion bash
+adb completion powershell
 
 # Load completions in the current session
 eval "$(adb completion bash)"
+adb completion powershell | Out-String | Invoke-Expression
 ```
 
 ---
@@ -2206,8 +2300,7 @@ templates. Creates:
 - `.claude/rules/workspace.md` with project conventions
 
 Safe to run on existing projects -- files that already exist are skipped
-and not overwritten. Templates are sourced from the adb installation's
-`templates/claude/` directory.
+and not overwritten. Templates are embedded in the adb binary.
 
 **Arguments**
 
@@ -2244,7 +2337,7 @@ adb sync-claude-user [flags]
 **Description**
 
 Sync universal (language-agnostic) Claude Code configuration from adb's
-canonical templates to the user-level `~/.claude/` directory.
+embedded templates to the user-level `~/.claude/` directory.
 
 By default, syncs skills and agents. Use `--mcp` to also merge MCP server
 definitions into `~/.claude.json` so they are available in every project.
@@ -2253,12 +2346,13 @@ This ensures git workflow skills (commit, pr, push, review, sync, changelog),
 the generic code-reviewer agent, shared MCP servers, and the automatic session
 capture hook are available on any machine after a single command.
 
-Skills and agents are overwritten if they already exist (templates are the
-source of truth). MCP servers are merged -- existing servers are updated,
+Skills and agents are overwritten if they already exist (embedded templates are
+the source of truth). MCP servers are merged -- existing servers are updated,
 new servers are added, and servers not in the template are left untouched.
 
-Run this after installing adb on a new machine, or after upgrading adb
-to pick up template changes.
+Templates are compiled into the binary, so this command works from anywhere
+without requiring an adb workspace. Run this after installing adb on a new
+machine, or after upgrading adb to pick up template changes.
 
 **Synced items:**
 

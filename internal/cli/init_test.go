@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 )
 
 // mockProjectInitializer implements core.ProjectInitializer for testing.

@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/cli"
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/internal/integration"
-	"github.com/drapaimern/ai-dev-brain/internal/observability"
-	"github.com/drapaimern/ai-dev-brain/internal/storage"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/cli"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
+	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
+	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // App holds all service dependencies for the AI Dev Brain system.

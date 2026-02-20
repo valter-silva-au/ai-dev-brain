@@ -59,7 +59,12 @@ graph TD
         MDL["pkg/models<br/>(Task, Config, Knowledge,<br/>Communication, Channel)"]
     end
 
+    subgraph "Embedded Templates"
+        CTPL["templates/claude<br/>(Embedded Claude templates)"]
+    end
+
     CLI --> TM
+    CLI --> CTPL
     CLI --> UG
     CLI --> ACG
     CLI --> EXEC
@@ -138,6 +143,7 @@ graph TD
     style KS fill:#e67e22,color:#fff
     style SSM fill:#e67e22,color:#fff
     style MDL fill:#95a5a6,color:#fff
+    style CTPL fill:#f1c40f,color:#000
 ```
 
 ---
@@ -1196,6 +1202,19 @@ Context evolution tracking uses a lightweight state-comparison approach:
 - **Semantic diffs over text diffs**: `diffStates` produces human-readable change descriptions ("2 tasks added", "Glossary section changed") rather than raw text diffs.
 - **sync-context as sole trigger**: Context state is only updated during `adb sync-context`, avoiding mid-session context rewrites.
 
+### Embedded Claude templates for portability
+
+Claude Code configuration templates (skills, agents, hooks, rules, and config templates) are embedded directly into the `adb` binary using Go's `//go:embed` directive. This was chosen because:
+
+- **Self-contained binary**: No need to ship a separate `templates/` directory alongside the binary or resolve template paths at runtime.
+- **Simplified installation**: Users download a single binary with all templates included. No risk of missing template files breaking `adb init-claude` or `adb sync-claude-user`.
+- **Version consistency**: Templates are locked to the binary version. Upgrading `adb` upgrades templates atomically.
+- **Cross-platform path handling**: Embedded filesystems always use forward slashes (`path.Join`), eliminating OS-specific path separator issues.
+
+The `templates/claude` package exports an `embed.FS` named `FS` containing all template files. CLI commands (`internal/cli/syncclaudeuser.go`, `internal/cli/initclaude.go`) import `github.com/valter-silva-au/ai-dev-brain/templates/claude` and read from `claudetpl.FS` instead of the disk filesystem.
+
+The tradeoff is that template customization requires recompiling the binary. For users who need per-project template overrides, `.taskrc` still supports custom template paths for task templates (notes.md, design.md) as described in the Extension Points section.
+
 ---
 
 ## Extension Points
@@ -1268,6 +1287,23 @@ The `AIContextGenerator` produces root-level context files (`CLAUDE.md`, `kiro.m
 
 Individual sections can be regenerated with `RegenerateSection(section)` without rebuilding the entire file.
 
+### Claude Code templates
+
+Claude Code configuration templates are embedded in the `adb` binary via the `templates/claude` package. The commands `adb init-claude` and `adb sync-claude-user` read from the embedded filesystem (`claudetpl.FS`) rather than resolving a template directory at runtime. This ensures:
+
+- **Portable binary**: No external template directory required
+- **Consistent behavior**: Templates version-locked to the binary
+- **Simplified deployment**: Single-file distribution with all templates included
+
+The embedded templates include:
+- **Skills**: git workflow skills (commit, pr, push, review, sync, changelog)
+- **Agents**: universal code-reviewer agent
+- **Hooks**: SessionEnd hook for automatic session capture
+- **Rules**: workspace.md, go-standards.md, cli-patterns.md
+- **Config templates**: .claudeignore, settings.json
+
+For per-project customization of task templates (notes.md, design.md), `.taskrc` template overrides (described above) remain available and are read from disk.
+
 ### Knowledge feedback loop
 
 The `KnowledgeExtractor` creates a feedback loop from completed tasks back into organizational documentation:
@@ -1324,4 +1360,5 @@ This is a static configuration file read by AI assistants (e.g., Claude Code). I
 | `internal/observability` | Event logging, metrics, alerting, notifications | `EventLog`, `MetricsCalculator`, `AlertEngine`, `Notifier` |
 | `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager`, `KnowledgeStoreManager`, `SessionStoreManager` |
 | `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner`, `TranscriptParser` |
+| `templates/claude` | Embedded Claude Code templates | `FS` (embed.FS containing skills, agents, hooks, rules, config templates) |
 | `pkg/models` | Shared data types | `Task`, `GlobalConfig`, `RepoConfig`, `MergedConfig`, `Communication`, `ExtractedKnowledge`, `HandoffDocument`, `Decision`, `KnowledgeEntry`, `KnowledgeIndex`, `Topic`, `TopicGraph`, `Entity`, `EntityRegistry`, `Timeline`, `TimelineEntry`, `ChannelItem`, `OutputItem`, `ChannelConfig`, `CapturedSession`, `SessionTurn`, `SessionFilter`, `SessionCaptureConfig`, `SessionIndex` |

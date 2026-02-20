@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // defaultTaskIDPattern is the fallback when no prefix is provided.

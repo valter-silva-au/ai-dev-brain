@@ -3,7 +3,7 @@ package cli
 import (
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // mockKnowledgeMgrForHelper implements core.KnowledgeManager for testing

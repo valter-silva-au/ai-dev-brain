@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
 	"pgregory.net/rapid"
 )

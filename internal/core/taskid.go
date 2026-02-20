@@ -69,6 +69,15 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 	return fmt.Sprintf("%s-%d", g.prefix, counter), nil
 }
 
+// NormalizeTaskID converts backslashes to forward slashes and strips trailing
+// slashes from a task ID. This ensures consistent lookup on Windows where users
+// may pass path-based task IDs with OS-native separators.
+func NormalizeTaskID(taskID string) string {
+	normalized := filepath.ToSlash(taskID)
+	normalized = strings.TrimRight(normalized, "/")
+	return normalized
+}
+
 // legacyTaskIDPattern matches traditional TASK-XXXXX style IDs.
 var legacyTaskIDPattern = regexp.MustCompile(`^[A-Z0-9]+-\d+$`)
 

@@ -17,6 +17,7 @@ Layered architecture: CLI -> Core -> Storage/Integration/Observability. All depe
 - `internal/integration/` -- External system integrations. Git worktrees, CLI execution with alias resolution, Taskfile runner, tab renaming, screenshot OCR pipeline, offline mode with operation queuing, Claude Code JSONL transcript parsing.
 - `internal/observability/` -- Event logging, metrics calculation, and alerting. Uses append-only JSONL files for event persistence. Derives metrics and evaluates alert conditions on-demand from the event log.
 - `pkg/models/` -- Shared domain types. Task, Communication, Config (including NotificationConfig, SessionCaptureConfig), Knowledge/Handoff/Decision models, CapturedSession/SessionTurn/SessionFilter types.
+- `templates/claude/` -- Embedded Claude Code templates. Package `claudetpl` uses `//go:embed` to bundle skills, agents, hooks, rules, and config templates into the binary. Accessed via `claudetpl.FS` (embed.FS).
 
 ## Technology Stack
 
@@ -93,6 +94,12 @@ pkg/models/
   communication.go            # Communication, CommunicationTag
   session.go                  # CapturedSession, SessionTurn, SessionFilter, SessionCaptureConfig, SessionIndex
   knowledge.go                # ExtractedKnowledge, Decision, HandoffDocument, WikiUpdate, RunbookUpdate
+templates/claude/
+  embed.go                    # Embedded template files (//go:embed directive, exports FS as embed.FS)
+  skills/                     # Reusable Claude Code skills (17 skills, embedded)
+  agents/                     # Specialized agent definitions (11 agents, embedded)
+  hooks/                      # Quality gate hook scripts (5 hooks, embedded)
+  rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md, embedded)
 .claude/
   settings.json               # Permissions and hooks configuration
   agents/                     # Specialized Claude Code agent definitions (11 agents)
@@ -136,6 +143,7 @@ templates/claude/hooks/
 - **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
 - **Property tests** use `rapid.Check` with the `TestProperty` prefix naming convention.
 - **Template rendering** via `text/template` for `notes.md`, `design.md`, `handoff.md`.
+- **Embedded templates**: Claude Code templates (skills, agents, hooks, rules) are embedded into the binary via `//go:embed` in `templates/claude/embed.go`. The `claudetpl` package exports `FS` as an `embed.FS`. CLI commands (`initclaude.go`, `syncclaudeuser.go`) read templates from `claudetpl.FS` using `path.Join` (forward slashes only, required for embed.FS cross-platform compatibility). Template writing uses `writeIfNotExists(path, data)` pattern instead of file copying.
 - **File-based storage**: YAML for structured data (`backlog.yaml`, `status.yaml`), Markdown for human-readable docs (`context.md`, `notes.md`, `design.md`, communications, sessions).
 - **Base path resolution**: checks `ADB_HOME` env var, then walks up directory tree looking for `.taskconfig`, falls back to cwd.
 - **JSONL event logging**: `internal/observability/` uses append-only JSONL files (`.adb_events.jsonl`) for structured event persistence. Events are JSON-encoded with time, level, type, message, and data fields. Metrics and alerts are derived on-demand from the event log.

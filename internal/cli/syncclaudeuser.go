@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	claudetpl "github.com/valter-silva-au/ai-dev-brain/templates/claude"
 )
 
 var syncClaudeUserCmd = &cobra.Command{
@@ -33,18 +36,6 @@ to pick up template changes.`,
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		syncMCP, _ := cmd.Flags().GetBool("mcp")
 
-		// Resolve template directory
-		templateDir := filepath.Join(BasePath, "repos", "github.com", "valter-silva-au", "ai-dev-brain", "templates", "claude")
-		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-			execPath, execErr := os.Executable()
-			if execErr == nil {
-				templateDir = filepath.Join(filepath.Dir(execPath), "templates", "claude")
-			}
-			if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-				return fmt.Errorf("template directory not found: run from an adb workspace or set ADB_HOME")
-			}
-		}
-
 		// Resolve user claude directory
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -57,7 +48,7 @@ to pick up template changes.`,
 		// Sync skills
 		skills := []string{"commit", "pr", "push", "review", "sync", "changelog"}
 		for _, skill := range skills {
-			src := filepath.Join(templateDir, "skills", skill, "SKILL.md")
+			embeddedPath := path.Join("skills", skill, "SKILL.md")
 			dst := filepath.Join(userClaudeDir, "skills", skill, "SKILL.md")
 
 			if dryRun {
@@ -69,7 +60,7 @@ to pick up template changes.`,
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return fmt.Errorf("creating skill directory for %s: %w", skill, err)
 			}
-			data, err := os.ReadFile(src)
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: skipping skill %s: %v\n", skill, err)
 				continue
@@ -84,7 +75,7 @@ to pick up template changes.`,
 		// Sync agents
 		agents := []string{"code-reviewer.md"}
 		for _, agent := range agents {
-			src := filepath.Join(templateDir, "agents", agent)
+			embeddedPath := path.Join("agents", agent)
 			dst := filepath.Join(userClaudeDir, "agents", agent)
 
 			if dryRun {
@@ -96,7 +87,7 @@ to pick up template changes.`,
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return fmt.Errorf("creating agents directory: %w", err)
 			}
-			data, err := os.ReadFile(src)
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: skipping agent %s: %v\n", agent, err)
 				continue
@@ -109,7 +100,7 @@ to pick up template changes.`,
 		}
 
 		// Sync session capture hook
-		hookCount, hookErr := syncSessionHook(templateDir, userClaudeDir, dryRun)
+		hookCount, hookErr := syncSessionHook(userClaudeDir, dryRun)
 		if hookErr != nil {
 			fmt.Fprintf(os.Stderr, "  warning: session hook sync failed: %v\n", hookErr)
 		} else {
@@ -118,7 +109,7 @@ to pick up template changes.`,
 
 		// Sync MCP servers into ~/.claude.json
 		if syncMCP {
-			mcpCount, err := syncMCPServers(templateDir, home, dryRun)
+			mcpCount, err := syncMCPServers(home, dryRun)
 			if err != nil {
 				return fmt.Errorf("syncing MCP servers: %w", err)
 			}
@@ -138,14 +129,13 @@ to pick up template changes.`,
 	},
 }
 
-// syncMCPServers merges MCP server definitions from the template into ~/.claude.json.
+// syncMCPServers merges MCP server definitions from the embedded template into ~/.claude.json.
 // Existing servers are updated, new servers are added, unrelated keys are preserved.
-func syncMCPServers(templateDir, home string, dryRun bool) (int, error) {
-	// Read template MCP servers
-	templatePath := filepath.Join(templateDir, "mcp-servers.json")
-	templateData, err := os.ReadFile(templatePath)
+func syncMCPServers(home string, dryRun bool) (int, error) {
+	// Read template MCP servers from embedded FS
+	templateData, err := claudetpl.FS.ReadFile("mcp-servers.json")
 	if err != nil {
-		return 0, fmt.Errorf("reading MCP template: %w", err)
+		return 0, fmt.Errorf("reading embedded MCP template: %w", err)
 	}
 
 	var templateServers map[string]interface{}
@@ -226,11 +216,10 @@ func checkEnvVars() {
 
 // syncSessionHook installs the session capture hook script and merges
 // a SessionEnd entry into ~/.claude/settings.json.
-func syncSessionHook(templateDir, userClaudeDir string, dryRun bool) (int, error) {
+func syncSessionHook(userClaudeDir string, dryRun bool) (int, error) {
 	synced := 0
 
 	// 1. Copy hook script to ~/.claude/hooks/
-	hookSrc := filepath.Join(templateDir, "hooks", "adb-session-capture.sh")
 	hookDst := filepath.Join(userClaudeDir, "hooks", "adb-session-capture.sh")
 
 	if dryRun {
@@ -243,9 +232,9 @@ func syncSessionHook(templateDir, userClaudeDir string, dryRun bool) (int, error
 		return 0, fmt.Errorf("creating hooks directory: %w", err)
 	}
 
-	hookData, err := os.ReadFile(hookSrc)
+	hookData, err := claudetpl.FS.ReadFile(path.Join("hooks", "adb-session-capture.sh"))
 	if err != nil {
-		return 0, fmt.Errorf("reading hook template: %w", err)
+		return 0, fmt.Errorf("reading embedded hook template: %w", err)
 	}
 	if err := os.WriteFile(hookDst, hookData, 0o755); err != nil {
 		return 0, fmt.Errorf("writing hook script: %w", err)
