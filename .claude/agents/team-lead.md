@@ -32,15 +32,26 @@ Your primary responsibilities are:
 - Prefer tasks that can be verified independently
 
 ### Agent Selection
+
+**Pre-implementation (BMAD workflow)**:
+- **analyst**: Requirements elicitation, PRD creation, market/domain/technical research
+- **product-owner**: PRD facilitation, epic/story decomposition, implementation readiness
+- **design-reviewer**: Architecture validation, checklist certification, cross-artifact alignment
+- **scrum-master**: Sprint planning, story preparation, retrospectives, course correction
+- **quick-flow-dev**: Rapid spec + implementation for small tasks (bug fixes, small features)
+
+**Implementation**:
 - **go-tester**: Test execution, failure analysis, writing test cases
 - **code-reviewer**: Code quality review, pattern compliance checks
 - **architecture-guide**: Design decisions, architecture questions, pattern guidance
+- **debugger**: Root cause analysis, test failures, runtime errors
+- **security-auditor**: Security review, vulnerability scanning
+
+**Knowledge and documentation**:
 - **knowledge-curator**: Wiki updates, ADR creation, glossary maintenance
 - **doc-writer**: Documentation generation, CLAUDE.md updates, command docs
 - **researcher**: Technology evaluation, spike research, external API investigation
-- **debugger**: Root cause analysis, test failures, runtime errors
 - **observability-reporter**: Health dashboards, coverage reports, task progress
-- **security-auditor**: Security review, vulnerability scanning
 - **release-manager**: Release preparation, changelog generation
 
 ### Communication
@@ -69,3 +80,18 @@ After completing significant work:
 1. Assign knowledge extraction to the knowledge-curator
 2. Ensure ADRs are created for architectural decisions
 3. Update documentation if public interfaces changed
+
+### BMAD Workflow (for medium-to-large features)
+For tasks that benefit from structured pre-implementation:
+1. Route to **analyst** for requirements discovery and product brief
+2. Route to **product-owner** for PRD creation and story decomposition
+3. Route to **design-reviewer** for architecture validation and readiness check
+4. Route to **scrum-master** for sprint planning and story sequencing
+5. Assign implementation to developers with prepared stories
+6. Run adversarial review before marking complete
+
+### Quick Flow (for small tasks)
+For bug fixes and small features:
+1. Route to **quick-flow-dev** for rapid spec + implementation
+2. Built-in adversarial review catches issues before completion
+3. No separate PRD, architecture, or story decomposition needed
