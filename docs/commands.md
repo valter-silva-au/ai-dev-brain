@@ -44,6 +44,7 @@ graph LR
     subgraph "Claude Code"
         initclaude["adb init-claude"]
         syncuser["adb sync-claude-user"]
+        hook["adb hook"]
     end
 
     subgraph "Knowledge & Channels"
@@ -2412,6 +2413,323 @@ adb sync-claude-user --mcp --dry-run
 
 ---
 
+## Hook Commands
+
+### adb hook
+
+Parent command for Claude Code hook event processing.
+
+**Synopsis**
+
+```
+adb hook <subcommand>
+```
+
+**Description**
+
+Process Claude Code hook events and update adb artifacts. Each subcommand
+handles a specific hook type by reading JSON from stdin and performing the
+appropriate actions (validation, formatting, tracking, quality checks,
+knowledge extraction).
+
+These commands are called by shell wrapper scripts installed in `.claude/hooks/`.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `install` | Install adb hook wrapper scripts |
+| `status` | Show hook configuration status |
+| `pre-tool-use` | Handle PreToolUse events (blocking) |
+| `post-tool-use` | Handle PostToolUse events (non-blocking) |
+| `stop` | Handle Stop events (advisory) |
+| `task-completed` | Handle TaskCompleted events (blocking) |
+| `session-end` | Handle SessionEnd events (non-blocking) |
+
+---
+
+### adb hook install
+
+Install adb hook wrapper scripts for Claude Code.
+
+**Synopsis**
+
+```
+adb hook install [flags]
+```
+
+**Description**
+
+Generate shell wrapper scripts and update `.claude/settings.json` to use
+adb-native hooks instead of standalone shell scripts.
+
+This creates `.claude/hooks/` wrapper scripts that set `ADB_HOOK_ACTIVE=1`
+(to prevent recursive hook invocation), pipe stdin to `adb hook <type>`,
+and propagate exit codes for blocking hooks.
+
+Safe to run multiple times -- existing wrapper scripts are overwritten,
+and `settings.json` hooks section is replaced.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dir` | string | `"."` | Target directory (defaults to current directory) |
+
+**Output**
+
+Lists each wrapper script written and confirms installation:
+
+```
+  Wrote .claude/hooks/adb-hook-pre-tool-use.sh
+  Wrote .claude/hooks/adb-hook-post-tool-use.sh
+  Wrote .claude/hooks/adb-hook-stop.sh
+  Wrote .claude/hooks/adb-hook-task-completed.sh
+  Wrote .claude/hooks/adb-hook-session-end.sh
+  Wrote .claude/hooks/adb-hook-teammate-idle.sh
+  Updated .claude/settings.json
+
+Hook wrappers installed in .claude/hooks/
+Claude Code will now use adb-native hooks.
+```
+
+**Examples**
+
+```bash
+# Install hooks in the current directory
+adb hook install
+
+# Install hooks in a specific project
+adb hook install --dir ~/Code/my-project
+```
+
+---
+
+### adb hook status
+
+Show hook configuration status.
+
+**Synopsis**
+
+```
+adb hook status
+```
+
+**Description**
+
+Display which adb hooks are enabled and their current configuration.
+Reads hook configuration from `.taskconfig` under the `hooks:` key,
+falling back to `DefaultHookConfig()` when no hooks section is present.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+```
+Hook system: enabled
+
+PreToolUse:     enabled
+  block_vendor:       enabled
+  block_go_sum:       enabled
+  architecture_guard: disabled
+  adr_conflict_check: disabled
+
+PostToolUse:    enabled
+  go_format:            enabled
+  change_tracking:      enabled
+  dependency_detection: disabled
+  glossary_extraction:  disabled
+
+Stop:           enabled
+  uncommitted_check: enabled
+  build_check:       enabled
+  vet_check:         enabled
+  context_update:    enabled
+  status_timestamp:  enabled
+
+TaskCompleted:  enabled
+  check_uncommitted: enabled
+  run_tests:         enabled
+  run_lint:          enabled
+  test_command:      go test ./...
+  lint_command:      golangci-lint run
+  extract_knowledge: disabled
+  update_wiki:       disabled
+  generate_adrs:     disabled
+  update_context:    enabled
+
+SessionEnd:     enabled
+  capture_session:    enabled
+  min_turns_capture:  3
+  update_context:     enabled
+  extract_knowledge:  disabled
+  log_communications: disabled
+```
+
+**Examples**
+
+```bash
+# Check which hooks are active
+adb hook status
+```
+
+---
+
+### adb hook pre-tool-use
+
+Handle PreToolUse hook events (blocking).
+
+**Synopsis**
+
+```
+adb hook pre-tool-use
+```
+
+**Description**
+
+Validate before a tool executes. Reads `tool_name` and `tool_input`
+from stdin JSON (piped by Claude Code). Returns exit code 2 to block
+the tool execution if validation fails.
+
+**Blocking checks:**
+
+- Blocks edits to `vendor/` files (message: use `go mod vendor` instead)
+- Blocks direct edits to `go.sum` (message: use `go mod tidy` instead)
+- Architecture guard (Phase 2): blocks `core/` files that import `storage/` or `integration/`
+- ADR conflict check (Phase 3): warns if edits conflict with existing ADRs
+
+**Exit Codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Tool execution allowed |
+| `2` | Tool execution blocked (error message sent to Claude as feedback) |
+
+**Examples**
+
+```bash
+# Called by shell wrapper (not typically run directly)
+echo '{"tool_name":"Edit","tool_input":{"file_path":"vendor/foo.go"}}' | adb hook pre-tool-use
+# Exit code 2: BLOCKED: editing vendor/ files is not allowed
+```
+
+---
+
+### adb hook post-tool-use
+
+Handle PostToolUse hook events (non-blocking).
+
+**Synopsis**
+
+```
+adb hook post-tool-use
+```
+
+**Description**
+
+React after a tool executes. Reads `tool_name` and `tool_input` from
+stdin JSON. Always exits 0 (non-blocking).
+
+**Actions:**
+
+- Auto-formats Go files with `gofmt -s -w` after Edit/Write
+- Tracks changed file path to `.adb_session_changes` for batched context updates
+- Dependency change detection (Phase 2): notes go.mod modifications in context.md
+
+---
+
+### adb hook stop
+
+Handle Stop hook events (non-blocking, advisory).
+
+**Synopsis**
+
+```
+adb hook stop
+```
+
+**Description**
+
+Run advisory checks when a conversation is stopped. Always exits 0.
+Warnings are printed to stderr as advisory messages.
+
+**Actions:**
+
+- Advisory: warns if uncommitted changes are detected
+- Advisory: warns if `go build ./...` fails
+- Advisory: warns if `go vet ./...` fails
+- Updates context.md with a session summary from tracked changes
+- Updates status.yaml timestamp
+- Cleans up the `.adb_session_changes` tracker file
+
+---
+
+### adb hook task-completed
+
+Handle TaskCompleted hook events (blocking).
+
+**Synopsis**
+
+```
+adb hook task-completed
+```
+
+**Description**
+
+Validate task completion with a two-phase approach. Phase A is blocking
+(exit 2 on failure). Phase B is non-blocking (failures are logged but
+do not prevent task completion).
+
+**Phase A (blocking quality gates):**
+
+- Checks for uncommitted Go files
+- Runs test command (default: `go test ./...`)
+- Runs lint command (default: `golangci-lint run`)
+
+**Phase B (non-blocking knowledge):**
+
+- Extracts knowledge from task (Phase 2)
+- Updates wiki from extracted knowledge (Phase 2)
+- Generates ADR drafts from decisions (Phase 3)
+- Updates context.md with completion summary
+
+**Exit Codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Task completion allowed |
+| `2` | Task completion blocked (quality gate failed) |
+
+---
+
+### adb hook session-end
+
+Handle SessionEnd hook events (non-blocking).
+
+**Synopsis**
+
+```
+adb hook session-end
+```
+
+**Description**
+
+Handle session end by updating context.md with tracked changes. Session
+transcript capture is handled separately by the existing session capture
+pipeline. Always exits 0.
+
+**Actions:**
+
+- Updates context.md with session summary from tracked file changes
+
+---
+
 ## Enumerations
 
 ### Task Types
@@ -2453,6 +2771,7 @@ Statuses are displayed in this lifecycle order by `adb status`:
 |------|---------|
 | `0` | Command completed successfully |
 | `1` | General error (invalid arguments, missing resources, operation failed) |
+| `2` | Hook blocked the operation (used by `adb hook pre-tool-use` and `adb hook task-completed` to signal Claude Code that the action should not proceed) |
 | Non-zero (from `exec`/`run`) | Propagated from the external tool's exit code |
 
 When `adb exec` or `adb run` invokes an external tool that exits with a

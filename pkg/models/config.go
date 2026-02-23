@@ -40,8 +40,8 @@ type TeamRoutingConfig struct {
 	Rules   []TeamRoutingRule `yaml:"rules,omitempty" mapstructure:"rules"`
 }
 
-// HookConfig defines metadata for a hook execution policy.
-type HookConfig struct {
+// HookPolicyConfig defines metadata for a hook execution policy.
+type HookPolicyConfig struct {
 	Name       string `yaml:"name" mapstructure:"name"`
 	TimeoutSec int    `yaml:"timeout_sec,omitempty" mapstructure:"timeout_sec"`
 	Retries    int    `yaml:"retries,omitempty" mapstructure:"retries"`
@@ -63,7 +63,8 @@ type GlobalConfig struct {
 	Notifications    NotificationConfig   `yaml:"notifications,omitempty" mapstructure:"notifications"`
 	SessionCapture   SessionCaptureConfig `yaml:"session_capture,omitempty" mapstructure:"session_capture"`
 	TeamRouting      TeamRoutingConfig    `yaml:"team_routing,omitempty" mapstructure:"team_routing"`
-	Hooks            []HookConfig         `yaml:"hooks,omitempty" mapstructure:"hooks"`
+	HookPolicies     []HookPolicyConfig   `yaml:"hook_policies,omitempty" mapstructure:"hook_policies"`
+	Hooks            HookConfig           `yaml:"hooks,omitempty" mapstructure:"hooks"`
 }
 
 // RepoConfig holds per-repository settings read from .taskrc files.

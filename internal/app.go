@@ -195,6 +195,15 @@ func NewApp(basePath string) (*App, error) {
 	app.ConflictDt = core.NewConflictDetector(basePath)
 	app.ProjectInit = core.NewProjectInitializer()
 
+	// --- Hook engine ---
+	hookCfg := globalCfg.Hooks
+	// If no hooks section was configured, use sensible defaults.
+	if hookCfg == (models.HookConfig{}) {
+		hookCfg = models.DefaultHookConfig()
+	}
+	hookEngine := core.NewHookEngine(basePath, hookCfg, app.KnowledgeX, app.ConflictDt)
+	cli.HookEngine = hookEngine
+
 	// --- Wire CLI package-level variables ---
 	cli.BasePath = basePath
 	cli.TaskMgr = app.TaskMgr
