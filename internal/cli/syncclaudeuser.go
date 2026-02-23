@@ -15,21 +15,23 @@ import (
 var syncClaudeUserCmd = &cobra.Command{
 	Use:   "sync-claude-user",
 	Short: "Sync universal Claude Code skills, agents, and MCP servers to user config",
-	Long: `Sync universal (language-agnostic) Claude Code configuration from adb's
-canonical templates to the user-level ~/.claude/ directory.
+	Long: `Sync Claude Code configuration from adb's embedded templates to the
+user-level ~/.claude/ directory.
 
-By default, syncs skills, agents, and the adb MCP server. The adb MCP
-server (adb mcp serve) is always registered in ~/.claude.json so that
-adb tools (get_task, list_tasks, update_task_status, get_metrics, get_alerts)
-are available in every project and to all agent teams.
+By default, syncs all BMAD-method agents (analyst, product-owner,
+design-reviewer, scrum-master, quick-flow-dev, team-lead, and more),
+workflow skills (create-brief, create-prd, create-architecture,
+create-stories, quick-spec, quick-dev, adversarial-review, and more),
+quality gate checklists, artifact templates, and the adb MCP server.
 
 Use --mcp to also merge third-party MCP server definitions (aws-docs,
 aws-knowledge, context7) into ~/.claude.json. These are opt-in because
 they require external dependencies (uvx, API keys, network access).
 
-Skills and agents are overwritten if they already exist (templates are the
-source of truth). MCP servers are merged -- existing servers are updated,
-new servers are added, and servers not in the template are left untouched.
+Skills, agents, checklists, and artifact templates are overwritten if
+they already exist (embedded templates are the source of truth). MCP
+servers are merged -- existing servers are updated, new servers are
+added, and servers not in the template are left untouched.
 
 Run this after installing adb on a new machine, or after upgrading adb
 to pick up template changes.`,
@@ -47,8 +49,22 @@ to pick up template changes.`,
 
 		var synced int
 
-		// Sync skills
-		skills := []string{"commit", "pr", "push", "review", "sync", "changelog"}
+		// Sync skills (git workflow + BMAD workflow + project tools)
+		skills := []string{
+			// Git workflow skills
+			"commit", "pr", "push", "review", "sync", "changelog",
+			// BMAD workflow skills
+			"create-brief", "create-prd", "create-architecture", "create-stories",
+			"check-readiness", "correct-course", "run-checklist",
+			"quick-spec", "quick-dev", "adversarial-review",
+			// Project tool skills
+			"build", "test", "lint", "security", "docker", "release",
+			"add-command", "add-interface",
+			"coverage-report", "status-check", "health-dashboard",
+			"context-refresh", "dependency-check", "knowledge-extract",
+			"onboard", "standup", "retrospective",
+			"browser-automate", "playwright", "ui-review",
+		}
 		for _, skill := range skills {
 			embeddedPath := path.Join("skills", skill, "SKILL.md")
 			dst := filepath.Join(userClaudeDir, "skills", skill, "SKILL.md")
@@ -74,8 +90,17 @@ to pick up template changes.`,
 			synced++
 		}
 
-		// Sync agents
-		agents := []string{"code-reviewer.md"}
+		// Sync agents (BMAD personas + supporting agents)
+		agents := []string{
+			// BMAD workflow agents
+			"analyst.md", "product-owner.md", "design-reviewer.md",
+			"scrum-master.md", "quick-flow-dev.md", "team-lead.md",
+			// Supporting agents
+			"code-reviewer.md", "architecture-guide.md", "researcher.md",
+			"debugger.md", "doc-writer.md", "knowledge-curator.md",
+			"go-tester.md", "security-auditor.md", "release-manager.md",
+			"observability-reporter.md", "browser-qa.md", "playwright-browser.md",
+		}
 		for _, agent := range agents {
 			embeddedPath := path.Join("agents", agent)
 			dst := filepath.Join(userClaudeDir, "agents", agent)
@@ -98,6 +123,67 @@ to pick up template changes.`,
 				return fmt.Errorf("writing agent %s: %w", agent, err)
 			}
 			fmt.Printf("  synced agent: %s\n", agent)
+			synced++
+		}
+
+		// Sync quality gate checklists
+		checklists := []string{
+			"prd-checklist.md", "architecture-checklist.md",
+			"story-checklist.md", "readiness-checklist.md",
+			"code-review-checklist.md",
+		}
+		for _, checklist := range checklists {
+			embeddedPath := path.Join("checklists", checklist)
+			dst := filepath.Join(userClaudeDir, "checklists", checklist)
+
+			if dryRun {
+				fmt.Printf("  [dry-run] checklist: %s\n", checklist)
+				synced++
+				continue
+			}
+
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return fmt.Errorf("creating checklists directory: %w", err)
+			}
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: skipping checklist %s: %v\n", checklist, err)
+				continue
+			}
+			if err := os.WriteFile(dst, data, 0o644); err != nil {
+				return fmt.Errorf("writing checklist %s: %w", checklist, err)
+			}
+			fmt.Printf("  synced checklist: %s\n", checklist)
+			synced++
+		}
+
+		// Sync artifact templates
+		artifacts := []string{
+			"product-brief.md", "prd.md", "architecture-doc.md",
+			"epics.md", "tech-spec.md",
+		}
+		for _, artifact := range artifacts {
+			embeddedPath := path.Join("artifacts", artifact)
+			dst := filepath.Join(userClaudeDir, "artifacts", artifact)
+
+			if dryRun {
+				fmt.Printf("  [dry-run] artifact template: %s\n", artifact)
+				synced++
+				continue
+			}
+
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return fmt.Errorf("creating artifacts directory: %w", err)
+			}
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: skipping artifact %s: %v\n", artifact, err)
+				continue
+			}
+			if err := os.WriteFile(dst, data, 0o644); err != nil {
+				return fmt.Errorf("writing artifact %s: %w", artifact, err)
+			}
+			fmt.Printf("  synced artifact template: %s\n", artifact)
 			synced++
 		}
 
