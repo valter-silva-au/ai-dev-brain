@@ -34,6 +34,12 @@ With no arguments, lists all configured CLI aliases.`,
 			return cmd.Help()
 		}
 
+		// Handle --simple flag: set CLAUDE_CODE_SIMPLE=1 for reduced output.
+		if len(args) > 0 && args[0] == "--simple" {
+			_ = os.Setenv("CLAUDE_CODE_SIMPLE", "1")
+			args = args[1:]
+		}
+
 		if Executor == nil {
 			return fmt.Errorf("CLI executor not initialized")
 		}

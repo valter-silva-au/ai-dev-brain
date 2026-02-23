@@ -30,6 +30,12 @@ Use --list to display all available Taskfile tasks.`,
 			return cmd.Help()
 		}
 
+		// Handle --simple flag: set CLAUDE_CODE_SIMPLE=1 for reduced output.
+		if len(args) > 0 && args[0] == "--simple" {
+			_ = os.Setenv("CLAUDE_CODE_SIMPLE", "1")
+			args = args[1:]
+		}
+
 		if Runner == nil {
 			return fmt.Errorf("taskfile runner not initialized")
 		}

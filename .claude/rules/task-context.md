@@ -1,10 +1,9 @@
 # Task Context: github.com/valter-silva-au/ai-dev-brain/claude-code-2-1-50
 
-This worktree is for task github.com/valter-silva-au/ai-dev-brain/claude-code-2-1-50 (claude-code-2-1-50).
+This worktree is for task github.com/valter-silva-au/ai-dev-brain/claude-code-2-1-50 (feat/ai-dev-brain/claude-code-2-1-50).
 
 - **Type**: feat
 - **Branch**: feat/ai-dev-brain/claude-code-2-1-50
-- **Status**: backlog (newly created)
 - **Ticket**: /home/valter/Code/github.com/valter-silva-au/life/tickets/github.com/valter-silva-au/ai-dev-brain/claude-code-2-1-50
 
 ## Key Files

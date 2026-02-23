@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -83,6 +84,7 @@ and not overwritten. Templates are embedded in the adb binary.`,
 		hookScripts := []string{
 			"adb-worktree-create.sh",
 			"adb-worktree-remove.sh",
+			"adb-worktree-boundary.sh",
 		}
 		for _, hookName := range hookScripts {
 			hookData, err := claudetpl.FS.ReadFile(path.Join("hooks", hookName))
@@ -114,9 +116,42 @@ and not overwritten. Templates are embedded in the adb binary.`,
 			}
 		}
 
+		// Handle --managed flag: add "managed: true" to settings.json.
+		managed, _ := cmd.Flags().GetBool("managed")
+		if managed {
+			settingsPath := filepath.Join(settingsDir, "settings.json")
+			if err := addManagedFlag(settingsPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not set managed flag: %v\n", err)
+			} else {
+				fmt.Println("  Set managed: true in settings.json")
+			}
+		}
+
 		fmt.Printf("\nClaude Code configuration initialized at %s\n", absPath)
 		return nil
 	},
+}
+
+// addManagedFlag adds "managed": true to a settings.json file.
+func addManagedFlag(settingsPath string) error {
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return fmt.Errorf("reading settings: %w", err)
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return fmt.Errorf("parsing settings: %w", err)
+	}
+
+	settings["managed"] = true
+
+	output, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling settings: %w", err)
+	}
+
+	return os.WriteFile(settingsPath, output, 0o644)
 }
 
 // writeIfNotExists writes data to dst if dst does not already exist.
@@ -134,5 +169,6 @@ func writeIfNotExists(data []byte, dst string, created, skipped *[]string) error
 }
 
 func init() {
+	initClaudeCmd.Flags().Bool("managed", false, "Set managed: true in settings.json for enterprise deployments")
 	rootCmd.AddCommand(initClaudeCmd)
 }

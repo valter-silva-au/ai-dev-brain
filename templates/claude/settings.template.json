@@ -12,6 +12,17 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-worktree-boundary.sh"
+          }
+        ]
+      }
+    ],
     "WorktreeCreate": [
       {
         "hooks": [

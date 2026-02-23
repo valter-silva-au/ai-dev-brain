@@ -113,8 +113,43 @@ are missing.`,
 	},
 }
 
+var worktreeHookViolationCmd = &cobra.Command{
+	Use:   "violation",
+	Short: "Log a worktree boundary violation",
+	Long: `Log a worktree isolation violation event to .adb_events.jsonl with HIGH severity.
+
+Called by the PreToolUse boundary validation hook when a tool attempts to
+access a path outside the worktree boundary.`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		violationPath, _ := cmd.Flags().GetString("path")
+		taskID := os.Getenv("ADB_TASK_ID")
+		worktreePath := os.Getenv("ADB_WORKTREE_PATH")
+
+		if EventLog != nil {
+			_ = EventLog.Write(observability.Event{
+				Time:    time.Now().UTC(),
+				Level:   "WARN",
+				Type:    "worktree.isolation_violation",
+				Message: "worktree.isolation_violation",
+				Data: map[string]any{
+					"task_id":        taskID,
+					"worktree_path":  worktreePath,
+					"violation_path": violationPath,
+					"severity":       "HIGH",
+				},
+			})
+		}
+
+		fmt.Fprintf(os.Stderr, "Isolation violation: %s (outside %s)\n", violationPath, worktreePath)
+		return nil
+	},
+}
+
 func init() {
+	worktreeHookViolationCmd.Flags().String("path", "", "The path that violated the boundary")
 	worktreeHookCmd.AddCommand(worktreeHookCreateCmd)
 	worktreeHookCmd.AddCommand(worktreeHookRemoveCmd)
+	worktreeHookCmd.AddCommand(worktreeHookViolationCmd)
 	rootCmd.AddCommand(worktreeHookCmd)
 }
