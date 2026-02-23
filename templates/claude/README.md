@@ -13,21 +13,34 @@ Bootstraps a `.claude/` directory for a new repository:
 - Copies `claudeignore.template` → `.claudeignore`
 - Copies `settings.template.json` → `.claude/settings.json`
 - Creates `.claude/rules/workspace.md` from project analysis
+- Copies `statusline.sh` → `.claude/statusline.sh` (made executable)
 
 ## `adb sync-claude-user`
 
-Syncs all agents, skills, checklists, artifact templates, and hooks to `~/.claude/`:
+Syncs all agents, skills, checklists, artifact templates, status line, and hooks to `~/.claude/`:
 
 - Copies `agents/*.md` → `~/.claude/agents/*.md` (18 agents)
 - Copies `skills/*/SKILL.md` → `~/.claude/skills/*/SKILL.md` (36 skills)
 - Copies `checklists/*.md` → `~/.claude/checklists/*.md` (5 quality gate checklists)
 - Copies `artifacts/*.md` → `~/.claude/artifacts/*.md` (5 artifact templates)
+- Copies `statusline.sh` → `~/.claude/statusline.sh` (made executable)
+- Merges `statusLine` config into `~/.claude/settings.json`
 - Installs `hooks/adb-session-capture.sh` and SessionEnd hook entry
 
 With `--mcp` flag, also merges MCP servers into `~/.claude.json`:
 
 - Reads `mcp-servers.json` and merges each server into the user config
 - Existing servers are updated, new ones added, unrelated keys preserved
+
+## Status Line
+
+The `statusline.sh` script provides tiered context in Claude Code's status bar:
+
+| Tier | Gate | Data shown |
+|------|------|-----------|
+| 1 (always) | none | project name, model, context%, cost, lines +/-, duration, agent |
+| 2 (git) | `git rev-parse` | branch, dirty count, ahead/behind |
+| 3 (adb) | `.taskconfig` found | task ID/type/priority/status, portfolio counts, alerts |
 
 ## New machine setup
 
@@ -44,6 +57,7 @@ templates/claude/
 ├── embed.go                        # Embeds all templates into the binary
 ├── claudeignore.template           # Default .claudeignore
 ├── settings.template.json          # Default .claude/settings.json
+├── statusline.sh                   # Universal status line script (tiered enrichment)
 ├── mcp-servers.json                # MCP servers for ~/.claude.json
 │
 ├── agents/                         # BMAD agent personas + supporting agents

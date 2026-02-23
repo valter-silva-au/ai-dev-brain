@@ -73,6 +73,26 @@ and not overwritten. Templates are embedded in the adb binary.`,
 			return fmt.Errorf("creating workspace.md: %w", err)
 		}
 
+		// Create .claude/statusline.sh
+		statuslineDst := filepath.Join(settingsDir, "statusline.sh")
+		statuslineData, err := claudetpl.FS.ReadFile("statusline.sh")
+		if err != nil {
+			// Non-fatal: statusline is nice-to-have
+			fmt.Fprintf(os.Stderr, "  warning: skipping statusline.sh: %v\n", err)
+		} else {
+			if err := writeIfNotExists(statuslineData, statuslineDst, &created, &skipped); err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: skipping statusline.sh: %v\n", err)
+			} else {
+				// Make executable if it was created
+				for _, p := range created {
+					if p == statuslineDst {
+						_ = os.Chmod(statuslineDst, 0o755)
+						break
+					}
+				}
+			}
+		}
+
 		if len(created) > 0 {
 			fmt.Println("Created:")
 			for _, p := range created {
