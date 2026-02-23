@@ -74,7 +74,11 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 // slashes from a task ID. This ensures consistent lookup on Windows where users
 // may pass path-based task IDs with OS-native separators.
 func NormalizeTaskID(taskID string) string {
-	normalized := filepath.ToSlash(taskID)
+	// Replace backslashes with forward slashes first
+	normalized := strings.ReplaceAll(taskID, "\\", "/")
+	// Then normalize path separators to forward slashes
+	normalized = filepath.ToSlash(normalized)
+	// Finally, trim trailing slashes
 	normalized = strings.TrimRight(normalized, "/")
 	return normalized
 }
@@ -126,7 +130,10 @@ func ValidatePathTaskID(taskID string) error {
 // string if the repo path is not under basePath (e.g. an absolute path from a
 // different workspace).
 func NormalizeRepoToPrefix(repoPath, basePath string) string {
-	cleaned := filepath.ToSlash(repoPath)
+	// Replace backslashes with forward slashes first
+	cleaned := strings.ReplaceAll(repoPath, "\\", "/")
+	// Then normalize path separators to forward slashes
+	cleaned = filepath.ToSlash(cleaned)
 
 	// Clean relative path components (./, ../) before further processing.
 	// Use path.Clean (not filepath.Clean) since we've already converted to

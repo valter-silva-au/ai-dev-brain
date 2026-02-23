@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/viper"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // validPrefixPattern matches uppercase alphanumeric prefixes between 1 and 10 characters.

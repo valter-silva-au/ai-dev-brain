@@ -51,13 +51,14 @@ type App struct {
 	FeedbackLoop core.FeedbackLoopOrchestrator
 
 	// Integration services
-	WorktreeMgr integration.GitWorktreeManager
-	OfflineMgr  integration.OfflineManager
-	TabMgr      integration.TabManager
-	ScreenPipe  integration.ScreenshotPipeline
-	Executor    integration.CLIExecutor
-	Runner      integration.TaskfileRunner
-	RepoSyncMgr *integration.RepoSyncManager
+	WorktreeMgr    integration.GitWorktreeManager
+	OfflineMgr     integration.OfflineManager
+	TabMgr         integration.TabManager
+	ScreenPipe     integration.ScreenshotPipeline
+	Executor       integration.CLIExecutor
+	Runner         integration.TaskfileRunner
+	RepoSyncMgr    *integration.RepoSyncManager
+	VersionChecker integration.ClaudeCodeVersionChecker
 
 	// Observability
 	EventLog    observability.EventLog
@@ -97,6 +98,7 @@ func NewApp(basePath string) (*App, error) {
 	app.Executor = integration.NewCLIExecutor()
 	app.Runner = integration.NewTaskfileRunner(app.Executor)
 	app.RepoSyncMgr = integration.NewRepoSyncManager(basePath)
+	app.VersionChecker = integration.NewClaudeCodeVersionChecker()
 
 	// --- Channel adapters ---
 	app.ChannelReg = core.NewChannelRegistry()
@@ -202,6 +204,7 @@ func NewApp(basePath string) (*App, error) {
 	cli.Runner = app.Runner
 	cli.ProjectInit = app.ProjectInit
 	cli.RepoSyncMgr = app.RepoSyncMgr
+	cli.VersionChecker = app.VersionChecker
 
 	cli.ChannelReg = app.ChannelReg
 	cli.KnowledgeMgr = app.KnowledgeMgr

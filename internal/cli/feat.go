@@ -233,12 +233,31 @@ func launchWorkflow(taskID, branch, worktreePath, ticketPath string, resume bool
 	if resume {
 		claudeArgs = append(claudeArgs, "--resume")
 	}
+
+	// Check Claude Code version for feature support.
+	if VersionChecker != nil {
+		ver, verErr := VersionChecker.DetectVersion()
+		if verErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not detect Claude Code version: %v\n", verErr)
+		} else {
+			supported, featErr := VersionChecker.SupportsFeature("worktree_isolation")
+			if featErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not check worktree feature support: %v\n", featErr)
+			} else if supported {
+				claudeArgs = append(claudeArgs, "--worktree")
+			}
+			// Log detected version.
+			fmt.Printf("  Claude Code v%d.%d.%d detected\n", ver.Major, ver.Minor, ver.Patch)
+		}
+	}
+
 	// Build ADB environment variables for both Claude and the shell.
 	adbEnv := append(os.Environ(),
 		"ADB_TASK_ID="+taskID,
 		"ADB_BRANCH="+branch,
 		"ADB_WORKTREE_PATH="+worktreePath,
 		"ADB_TICKET_PATH="+ticketPath,
+		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
 	)
 
 	claudeCmd := exec.Command(claudePath, claudeArgs...)
