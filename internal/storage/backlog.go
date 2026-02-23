@@ -5,10 +5,21 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
 )
+
+// normalizeTaskID converts backslashes to forward slashes and strips trailing
+// slashes, ensuring consistent lookup on Windows.
+// NOTE: intentionally duplicated from core.NormalizeTaskID to avoid an import
+// cycle (core already imports storage).
+func normalizeTaskID(taskID string) string {
+	normalized := filepath.ToSlash(taskID)
+	normalized = strings.TrimRight(normalized, "/")
+	return normalized
+}
 
 // BacklogEntry represents a single task entry in the backlog.
 type BacklogEntry struct {
@@ -87,6 +98,7 @@ func (m *fileBacklogManager) AddTask(entry BacklogEntry) error {
 }
 
 func (m *fileBacklogManager) UpdateTask(taskID string, updates BacklogEntry) error {
+	taskID = normalizeTaskID(taskID)
 	existing, exists := m.data.Tasks[taskID]
 	if !exists {
 		return fmt.Errorf("updating task: task %s not found", taskID)
@@ -131,6 +143,7 @@ func (m *fileBacklogManager) UpdateTask(taskID string, updates BacklogEntry) err
 }
 
 func (m *fileBacklogManager) RemoveTask(taskID string) error {
+	taskID = normalizeTaskID(taskID)
 	if _, exists := m.data.Tasks[taskID]; !exists {
 		return fmt.Errorf("removing task: task %s not found", taskID)
 	}
@@ -139,6 +152,7 @@ func (m *fileBacklogManager) RemoveTask(taskID string) error {
 }
 
 func (m *fileBacklogManager) GetTask(taskID string) (*BacklogEntry, error) {
+	taskID = normalizeTaskID(taskID)
 	entry, exists := m.data.Tasks[taskID]
 	if !exists {
 		return nil, fmt.Errorf("task %s not found", taskID)

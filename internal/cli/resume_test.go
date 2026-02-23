@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 func TestResumeCommand_Registration(t *testing.T) {
@@ -87,12 +87,20 @@ func TestResumeCommand_TaskNotFound(t *testing.T) {
 	}
 }
 
-func TestResumeCommand_RequiresArg(t *testing.T) {
-	// Cobra's ExactArgs(1) validator should reject empty args.
+func TestResumeCommand_AcceptsZeroArgs(t *testing.T) {
+	// resume now accepts zero args (interactive picker) or one arg.
 	validator := resumeCmd.Args
 	err := validator(resumeCmd, []string{})
+	if err != nil {
+		t.Fatalf("expected no error for zero args, got: %v", err)
+	}
+	err = validator(resumeCmd, []string{"TASK-00001"})
+	if err != nil {
+		t.Fatalf("expected no error for one arg, got: %v", err)
+	}
+	err = validator(resumeCmd, []string{"TASK-00001", "TASK-00002"})
 	if err == nil {
-		t.Fatal("expected error when no task ID provided")
+		t.Fatal("expected error for two args")
 	}
 }
 

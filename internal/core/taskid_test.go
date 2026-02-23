@@ -248,6 +248,38 @@ func TestGenerateTaskID_LargeCounterExceedsPadWidth(t *testing.T) {
 }
 
 // =============================================================================
+// Unit tests: NormalizeTaskID
+// =============================================================================
+
+func TestNormalizeTaskID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"already normalized", "github.com/org/repo", "github.com/org/repo"},
+		{"backslashes", `github.com\org\repo`, "github.com/org/repo"},
+		{"mixed separators", `github.com\org/repo`, "github.com/org/repo"},
+		{"trailing slash", "github.com/org/repo/", "github.com/org/repo"},
+		{"trailing backslash", `github.com\org\repo\`, "github.com/org/repo"},
+		{"multiple trailing slashes", "task///", "task"},
+		{"empty string", "", ""},
+		{"single segment", "TASK-00001", "TASK-00001"},
+		{"single backslash", `task\`, "task"},
+		{"only slashes", "///", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NormalizeTaskID(tc.input)
+			if got != tc.want {
+				t.Errorf("NormalizeTaskID(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// =============================================================================
 // Unit tests: Path-based task ID functions
 // =============================================================================
 
@@ -340,6 +372,13 @@ func TestNormalizeRepoToPrefix(t *testing.T) {
 		{"simple repo path", "github.com/org/repo", "", "github.com/org/repo"},
 		{"with repos prefix", "repos/github.com/org/repo", "", "github.com/org/repo"},
 		{"trailing slash", "github.com/org/repo/", "", "github.com/org/repo"},
+		{"unix absolute path not under basePath", "/home/user/code/myrepo", "/home/user/.adb", ""},
+		{"windows absolute path not under basePath", "C:/Users/dev/code/myrepo", "C:/Users/dev/.adb", ""},
+		{"windows backslash path not under basePath", `C:\Users\dev\code\myrepo`, `C:\Users\dev\.adb`, ""},
+		{"absolute path under basePath stripped", "/home/user/.adb/repos/github.com/org/repo", "/home/user/.adb", "github.com/org/repo"},
+		{"relative dot-slash prefix", "./repos/github.com/org/repo", "", "github.com/org/repo"},
+		{"relative backslash dot prefix", `.\repos\github.com\org\repo`, "", "github.com/org/repo"},
+		{"relative with trailing slash", `.\repos\code.aws.dev\org\repo\`, "", "code.aws.dev/org/repo"},
 	}
 
 	for _, tc := range tests {

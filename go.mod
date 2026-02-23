@@ -1,4 +1,4 @@
-module github.com/drapaimern/ai-dev-brain
+module github.com/valter-silva-au/ai-dev-brain
 
 go 1.26
 

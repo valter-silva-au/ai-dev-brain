@@ -4,7 +4,7 @@ This worktree is for task github.com/valter-silva-au/ai-dev-brain/bmad-method (b
 
 - **Type**: feat
 - **Branch**: feat/bmad-method
-- **Status**: backlog (newly created)
+- **Status**: in_progress
 - **Ticket**: tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/
 
 ## Key Files
@@ -33,4 +33,3 @@ This worktree is for task github.com/valter-silva-au/ai-dev-brain/bmad-method (b
 - **2026-02-14**: decision: Per-agency base + per-seat scaling pricing model (TASK-00037)
 - **2026-02-14**: decision: Hybrid CRM integration -- MCP inside container for real-time, Lambda CrmAdapter for async batch (TASK-00037)
 - **2026-02-14**: decision: Single Docker image with tier-based skill filtering at container boot (TASK-00037)
-

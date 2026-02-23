@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -69,6 +70,15 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 	return fmt.Sprintf("%s-%d", g.prefix, counter), nil
 }
 
+// NormalizeTaskID converts backslashes to forward slashes and strips trailing
+// slashes from a task ID. This ensures consistent lookup on Windows where users
+// may pass path-based task IDs with OS-native separators.
+func NormalizeTaskID(taskID string) string {
+	normalized := filepath.ToSlash(taskID)
+	normalized = strings.TrimRight(normalized, "/")
+	return normalized
+}
+
 // legacyTaskIDPattern matches traditional TASK-XXXXX style IDs.
 var legacyTaskIDPattern = regexp.MustCompile(`^[A-Z0-9]+-\d+$`)
 
@@ -112,9 +122,16 @@ func ValidatePathTaskID(taskID string) error {
 }
 
 // NormalizeRepoToPrefix strips the "repos/" prefix from a repo path and returns
-// the remaining platform/org/repo portion as a task ID prefix.
+// the remaining platform/org/repo portion as a task ID prefix. Returns empty
+// string if the repo path is not under basePath (e.g. an absolute path from a
+// different workspace).
 func NormalizeRepoToPrefix(repoPath, basePath string) string {
 	cleaned := filepath.ToSlash(repoPath)
+
+	// Clean relative path components (./, ../) before further processing.
+	// Use path.Clean (not filepath.Clean) since we've already converted to
+	// forward slashes.
+	cleaned = path.Clean(cleaned)
 
 	// Strip basePath prefix if present.
 	if basePath != "" {
@@ -128,6 +145,15 @@ func NormalizeRepoToPrefix(repoPath, basePath string) string {
 
 	// Strip trailing slashes.
 	cleaned = strings.TrimRight(cleaned, "/")
+
+	// If the result is still an absolute path (e.g. the repo is not under
+	// basePath), it cannot be used as a task ID prefix. This happens when
+	// detectGitRoot() returns an absolute OS path for a repo outside the
+	// adb workspace. Check for Unix-style leading slash, Windows drive
+	// letters (C:), and filepath.IsAbs for platform-native detection.
+	if strings.HasPrefix(cleaned, "/") || filepath.IsAbs(cleaned) || (len(cleaned) >= 2 && cleaned[1] == ':') {
+		return ""
+	}
 
 	return cleaned
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // KnowledgeStoreAccess is the subset of storage.KnowledgeStoreManager that the

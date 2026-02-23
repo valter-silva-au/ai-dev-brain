@@ -1,4 +1,12 @@
 {
+  "adb": {
+    "type": "stdio",
+    "command": "adb",
+    "args": [
+      "mcp",
+      "serve"
+    ]
+  },
   "aws-docs": {
     "type": "stdio",
     "command": "uvx",

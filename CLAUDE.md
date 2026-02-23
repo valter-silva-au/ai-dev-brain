@@ -11,12 +11,13 @@ Layered architecture: CLI -> Core -> Storage/Integration/Observability. All depe
 ### Package Responsibilities
 
 - `cmd/adb/` -- Entry point. Sets version info (ldflags), resolves base path, creates App, executes CLI.
-- `internal/cli/` -- Cobra command definitions. Package-level variables (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `EventLog`, `AlertEngine`, `MetricsCalc`) are set during App init.
-- `internal/core/` -- Business logic. Task management, bootstrap, configuration, templates, AI context generation, update generation, design doc generation, knowledge extraction, conflict detection. Defines `EventLogger` local interface for observability decoupling.
-- `internal/storage/` -- Persistence layer. Backlog (YAML), context (Markdown), communication (Markdown files per entry).
-- `internal/integration/` -- External system integrations. Git worktrees, CLI execution with alias resolution, Taskfile runner, tab renaming, screenshot OCR pipeline, offline mode with operation queuing.
+- `internal/cli/` -- Cobra command definitions. Package-level variables (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`) are set during App init.
+- `internal/core/` -- Business logic. Task management, bootstrap, configuration, templates, AI context generation (with context evolution tracking), update generation, design doc generation, knowledge extraction, conflict detection. Defines `EventLogger` and `SessionCapturer` local interfaces for cross-package decoupling.
+- `internal/storage/` -- Persistence layer. Backlog (YAML), context (Markdown), communication (Markdown files per entry), session store (YAML index + per-session directories).
+- `internal/integration/` -- External system integrations. Git worktrees, CLI execution with alias resolution, Taskfile runner, tab renaming, screenshot OCR pipeline, offline mode with operation queuing, Claude Code JSONL transcript parsing.
 - `internal/observability/` -- Event logging, metrics calculation, and alerting. Uses append-only JSONL files for event persistence. Derives metrics and evaluates alert conditions on-demand from the event log.
-- `pkg/models/` -- Shared domain types. Task, Communication, Config (including NotificationConfig), Knowledge/Handoff/Decision models.
+- `pkg/models/` -- Shared domain types. Task, Communication, Config (including NotificationConfig, SessionCaptureConfig), Knowledge/Handoff/Decision models, CapturedSession/SessionTurn/SessionFilter types.
+- `templates/claude/` -- Embedded Claude Code templates. Package `claudetpl` uses `//go:embed` to bundle skills, agents, hooks, rules, and config templates into the binary. Accessed via `claudetpl.FS` (embed.FS).
 
 ## Technology Stack
 
@@ -31,7 +32,7 @@ Layered architecture: CLI -> Core -> Storage/Integration/Observability. All depe
 ```
 cmd/adb/main.go              # Entry point
 internal/
-  app.go                      # Dependency wiring, adapters (incl. eventLogAdapter)
+  app.go                      # Dependency wiring, adapters (incl. eventLogAdapter, sessionCapturerAdapter)
   cli/
     root.go                   # Root command and version
     feat.go                   # feat/bug/spike/refactor task creation
@@ -47,8 +48,9 @@ internal/
     run.go                    # Run Taskfile tasks
     alerts.go                 # Show active alerts and warnings
     metrics.go                # Display task and agent metrics
-    session.go                # Manage session summaries (save)
-    vars.go                   # Package-level observability variables (EventLog, AlertEngine, MetricsCalc)
+    session.go                # Manage session summaries (save, ingest)
+    sessioncapture.go         # Session capture commands (capture --from-hook, list, show)
+    vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture)
   core/
     config.go                 # ConfigurationManager (Viper-based)
     bootstrap.go              # BootstrapSystem (task init, directory scaffold incl. sessions/ and knowledge/)
@@ -58,7 +60,8 @@ internal/
     templates.go              # TemplateManager (notes.md, design.md per type)
     doctemplates.go           # Built-in template content (unused alias)
     updategen.go              # UpdateGenerator (stakeholder communication plans)
-    aicontext.go              # AIContextGenerator (CLAUDE.md, kiro.md) with critical decisions and recent sessions sections
+    aicontext.go              # AIContextGenerator (CLAUDE.md, kiro.md) with critical decisions, recent sessions, context evolution tracking ("What's Changed"), and captured sessions sections
+    sessioncapturer.go        # SessionCapturer local interface (avoids importing storage)
     designdoc.go              # TaskDesignDocGenerator (task-level design docs)
     knowledge.go              # KnowledgeExtractor (learnings, ADRs, wiki)
     conflict.go               # ConflictDetector (ADR/decision/requirement checks)
@@ -68,12 +71,14 @@ internal/
     backlog.go                # BacklogManager (backlog.yaml CRUD)
     context.go                # ContextManager (per-task context.md, notes.md)
     communication.go          # CommunicationManager (per-task comms as .md files)
+    sessionstore.go           # SessionStoreManager (workspace-level captured session storage)
     ticketpath.go             # Ticket path resolution for storage layer
   integration/
     worktree.go               # GitWorktreeManager (git worktree operations)
     cliexec.go                # CLIExecutor (external tool invocation, alias resolution)
     taskfilerunner.go         # TaskfileRunner (Taskfile.yaml discovery and execution)
     tab.go                    # TabManager (terminal tab renaming via ANSI)
+    transcript.go             # TranscriptParser and StructuralSummarizer (Claude Code JSONL transcript parsing)
     screenshot.go             # ScreenshotPipeline (capture, OCR, classify, file)
     offline.go                # OfflineManager (connectivity detection, op queuing)
   observability/
@@ -87,12 +92,21 @@ pkg/models/
   task.go                     # Task (incl. Teams field), TaskType, TaskStatus, Priority
   config.go                   # GlobalConfig (incl. NotificationConfig), RepoConfig, MergedConfig, CLIAliasConfig
   communication.go            # Communication, CommunicationTag
+  session.go                  # CapturedSession, SessionTurn, SessionFilter, SessionCaptureConfig, SessionIndex
   knowledge.go                # ExtractedKnowledge, Decision, HandoffDocument, WikiUpdate, RunbookUpdate
+templates/claude/
+  embed.go                    # Embedded template files (//go:embed directive, exports FS as embed.FS)
+  skills/                     # Reusable Claude Code skills (17 skills, embedded)
+  agents/                     # Specialized agent definitions (11 agents, embedded)
+  hooks/                      # Quality gate hook scripts (5 hooks, embedded)
+  rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md, embedded)
 .claude/
   settings.json               # Permissions and hooks configuration
   agents/                     # Specialized Claude Code agent definitions (11 agents)
   skills/                     # Reusable Claude Code skills (17 skills)
   hooks/                      # Quality gate hook scripts (5 hooks)
+templates/claude/hooks/
+  adb-session-capture.sh      # SessionEnd hook script for automatic session capture
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md)
 .mcp.json                     # MCP server configuration (aws-knowledge, context7)
 ```
@@ -115,7 +129,7 @@ pkg/models/
 ## Go Coding Standards
 
 - Wrap errors with `fmt.Errorf("context: %w", err)` to preserve the error chain.
-- Define interfaces close to where they are consumed, not where they are implemented. Core package defines local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) to avoid importing storage/integration/observability.
+- Define interfaces close to where they are consumed, not where they are implemented. Core package defines local interfaces (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `SessionCapturer`) to avoid importing storage/integration/observability.
 - Use constructor functions that return interfaces: `func NewFoo(...) FooInterface { return &foo{...} }`.
 - All struct fields that need persistence use `yaml` struct tags.
 - File permissions: directories `0o755`, files `0o644`.
@@ -124,11 +138,12 @@ pkg/models/
 
 ## Key Patterns in This Codebase
 
-- **Local interface definitions** in `core/` (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`) avoid importing `storage`/`integration`/`observability` packages.
-- **Adapter pattern** in `internal/app.go` bridges packages: `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `eventLogAdapter`.
-- **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
+- **Local interface definitions** in `core/` (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `SessionCapturer`) avoid importing `storage`/`integration`/`observability` packages.
+- **Adapter pattern** in `internal/app.go` bridges packages: `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `eventLogAdapter`, `sessionCapturerAdapter`.
+- **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
 - **Property tests** use `rapid.Check` with the `TestProperty` prefix naming convention.
 - **Template rendering** via `text/template` for `notes.md`, `design.md`, `handoff.md`.
+- **Embedded templates**: Claude Code templates (skills, agents, hooks, rules) are embedded into the binary via `//go:embed` in `templates/claude/embed.go`. The `claudetpl` package exports `FS` as an `embed.FS`. CLI commands (`initclaude.go`, `syncclaudeuser.go`) read templates from `claudetpl.FS` using `path.Join` (forward slashes only, required for embed.FS cross-platform compatibility). Template writing uses `writeIfNotExists(path, data)` pattern instead of file copying.
 - **File-based storage**: YAML for structured data (`backlog.yaml`, `status.yaml`), Markdown for human-readable docs (`context.md`, `notes.md`, `design.md`, communications, sessions).
 - **Base path resolution**: checks `ADB_HOME` env var, then walks up directory tree looking for `.taskconfig`, falls back to cwd.
 - **JSONL event logging**: `internal/observability/` uses append-only JSONL files (`.adb_events.jsonl`) for structured event persistence. Events are JSON-encoded with time, level, type, message, and data fields. Metrics and alerts are derived on-demand from the event log.
@@ -155,7 +170,8 @@ pkg/models/
 | `TaskIDGenerator` | Generate sequential TASK-XXXXX IDs via file-based counter |
 | `TemplateManager` | Apply task-type-specific templates (notes.md, design.md) |
 | `UpdateGenerator` | Analyze task context/comms to produce stakeholder update plans |
-| `AIContextGenerator` | Generate root-level AI context files (CLAUDE.md, kiro.md) with critical decisions and recent sessions sections |
+| `AIContextGenerator` | Generate root-level AI context files (CLAUDE.md, kiro.md) with critical decisions, recent sessions, captured sessions, and context evolution ("What's Changed") sections |
+| `SessionCapturer` | Local interface for session capture operations (capture, list, get, query) -- avoids importing storage |
 | `TaskDesignDocGenerator` | Manage task-level technical design documents |
 | `KnowledgeExtractor` | Extract learnings, decisions, gotchas from completed tasks |
 | `ConflictDetector` | Check proposed changes against ADRs, decisions, requirements |
@@ -173,6 +189,7 @@ pkg/models/
 | `BacklogManager` | CRUD operations on backlog.yaml (central task registry) |
 | `ContextManager` | Persist and load per-task context (context.md, notes.md) |
 | `CommunicationManager` | Store and search task communications as markdown files |
+| `SessionStoreManager` | CRUD operations for captured sessions (YAML index + per-session directories with session.yaml, turns.yaml, summary.md) |
 
 ### Integration Package (`internal/integration/`)
 
@@ -183,6 +200,7 @@ pkg/models/
 | `TaskfileRunner` | Discover and execute Taskfile.yaml tasks |
 | `TabManager` | Rename terminal tabs via ANSI escape sequences |
 | `ScreenshotPipeline` | Capture screenshots, OCR, classify, and file content |
+| `TranscriptParser` | Parse Claude Code JSONL session transcripts into structured turn data (TranscriptResult) |
 | `OfflineManager` | Detect connectivity, queue operations for later sync |
 
 ### Observability Package (`internal/observability/`)
@@ -217,6 +235,10 @@ pkg/models/
 - Precedence: `.taskrc` > `.taskconfig` > defaults
 - `.task_counter` -- File-based sequential counter for task ID generation
 - `.adb_events.jsonl` -- Append-only event log used by the observability package
+- `.session_counter` -- File-based sequential counter for captured session ID generation (S-XXXXX format)
+- `.context_state.yaml` -- Context evolution state snapshot (section hashes, task counts) used by `sync-context`
+- `.context_changelog.md` -- Accumulated context change log (pruned to 50 entries) used for "What's Changed" section
+- `sessions/` -- Workspace-level directory for captured Claude Code sessions (YAML index + per-session subdirectories)
 - `.mcp.json` -- MCP server configuration for external knowledge services (aws-knowledge, context7)
 - `.claude/settings.json` -- Claude Code permissions and hooks configuration
 
@@ -258,6 +280,10 @@ Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d,
 - `adb metrics [--json] [--since 7d]` -- Display task and agent metrics from the event log
 - `adb alerts` -- Show active alerts (blocked tasks, stale tasks, long reviews, backlog size)
 - `adb session save [task-id]` -- Save a session summary to the task's sessions/ directory
+- `adb session ingest [task-id]` -- Ingest knowledge from the latest session file
+- `adb session capture --from-hook` -- Capture a Claude Code session from a JSONL transcript (called by SessionEnd hook)
+- `adb session list [--task-id ID] [--since 7d]` -- List captured sessions with optional filters
+- `adb session show <session-id>` -- Show details and turns for a captured session
 - `adb version` -- Print version information
 
 ## Observability
@@ -297,6 +323,8 @@ The AIContextGenerator assembles these sections into CLAUDE.md/kiro.md:
 | Active Tasks | `backlog.yaml` filtered by active statuses |
 | Critical Decisions | `tickets/*/knowledge/decisions.yaml` from active tasks |
 | Recent Sessions | Latest `tickets/*/sessions/*.md` from active tasks (truncated to 20 lines) |
+| Captured Sessions | Recent captured sessions from workspace-level `sessions/` store (via SessionCapturer) |
+| What's Changed | Semantic diff of context state since last sync: tasks added/completed, new knowledge, section hash changes (`.context_state.yaml`) |
 | Stakeholders/Contacts | `docs/stakeholders.md`, `docs/contacts.md` |
 
 Additionally, `BootstrapSystem.generateTaskContext` writes a per-worktree `.claude/rules/task-context.md` file at task creation time (not part of `AIContextGenerator` or `sync-context`).
@@ -367,6 +395,7 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 | `stop-quality-check.sh` | `Stop` | Checks for uncommitted changes, runs build and vet before stopping |
 | `post-edit-go-fmt.sh` | `PostToolUse` (Edit\|Write) | Auto-formats Go files with `gofmt -s -w` after Edit/Write tool use |
 | `pre-edit-validate.sh` | `PreToolUse` (Edit\|Write) | Blocks editing vendor/ files and go.sum directly |
+| `adb-session-capture.sh` | `SessionEnd` (user-level) | Calls `adb session capture --from-hook` to automatically capture Claude Code sessions workspace-wide. Installed by `adb sync-claude-user`. |
 
 ### MCP Servers (`.mcp.json`)
 

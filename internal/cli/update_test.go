@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 )
 
 // mockUpdateGenerator implements core.UpdateGenerator for testing.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/spf13/cobra"
 )
 

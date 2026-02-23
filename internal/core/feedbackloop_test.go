@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // fakeKnowledgeManager implements KnowledgeManager for testing.
