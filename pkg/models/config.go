@@ -27,6 +27,27 @@ type NotificationConfig struct {
 	Alerts  AlertThresholds `yaml:"alerts,omitempty" mapstructure:"alerts"`
 }
 
+// TeamRoutingRule maps task tags to team configurations for automatic team assignment.
+type TeamRoutingRule struct {
+	Tags     []string `yaml:"tags" mapstructure:"tags"`
+	TeamName string   `yaml:"team_name" mapstructure:"team_name"`
+	Members  []string `yaml:"members,omitempty" mapstructure:"members"`
+}
+
+// TeamRoutingConfig holds team routing configuration for multi-agent orchestration.
+type TeamRoutingConfig struct {
+	Enabled bool              `yaml:"enabled" mapstructure:"enabled"`
+	Rules   []TeamRoutingRule `yaml:"rules,omitempty" mapstructure:"rules"`
+}
+
+// HookPolicyConfig defines metadata for a hook execution policy.
+type HookPolicyConfig struct {
+	Name       string `yaml:"name" mapstructure:"name"`
+	TimeoutSec int    `yaml:"timeout_sec,omitempty" mapstructure:"timeout_sec"`
+	Retries    int    `yaml:"retries,omitempty" mapstructure:"retries"`
+	OnFailure  string `yaml:"on_failure,omitempty" mapstructure:"on_failure"` // warn, block, ignore
+}
+
 // GlobalConfig holds system-wide settings read from .taskconfig via Viper.
 type GlobalConfig struct {
 	DefaultAI        string               `yaml:"default_ai" mapstructure:"default_ai"`
@@ -41,6 +62,8 @@ type GlobalConfig struct {
 	CLIAliases       []CLIAliasConfig     `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
 	Notifications    NotificationConfig   `yaml:"notifications,omitempty" mapstructure:"notifications"`
 	SessionCapture   SessionCaptureConfig `yaml:"session_capture,omitempty" mapstructure:"session_capture"`
+	TeamRouting      TeamRoutingConfig    `yaml:"team_routing,omitempty" mapstructure:"team_routing"`
+	HookPolicies     []HookPolicyConfig   `yaml:"hook_policies,omitempty" mapstructure:"hook_policies"`
 	Hooks            HookConfig           `yaml:"hooks,omitempty" mapstructure:"hooks"`
 }
 

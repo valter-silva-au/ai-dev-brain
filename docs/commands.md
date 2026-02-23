@@ -2327,7 +2327,7 @@ adb init-claude ~/Code/my-project
 
 ### adb sync-claude-user
 
-Sync universal Claude Code skills, agents, and MCP servers to user config.
+Sync universal Claude Code skills, agents, status line, and MCP servers to user config.
 
 **Synopsis**
 
@@ -2340,16 +2340,19 @@ adb sync-claude-user [flags]
 Sync universal (language-agnostic) Claude Code configuration from adb's
 embedded templates to the user-level `~/.claude/` directory.
 
-By default, syncs skills and agents. Use `--mcp` to also merge MCP server
-definitions into `~/.claude.json` so they are available in every project.
+By default, syncs skills, agents, and the status line script. Use `--mcp`
+to also merge MCP server definitions into `~/.claude.json` so they are
+available in every project.
 
 This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, shared MCP servers, and the automatic session
-capture hook are available on any machine after a single command.
+the generic code-reviewer agent, the tiered status line, shared MCP servers,
+and the automatic session capture hook are available on any machine after a
+single command.
 
-Skills and agents are overwritten if they already exist (embedded templates are
-the source of truth). MCP servers are merged -- existing servers are updated,
-new servers are added, and servers not in the template are left untouched.
+Skills, agents, and the status line script are overwritten if they already
+exist (embedded templates are the source of truth). MCP servers are merged --
+existing servers are updated, new servers are added, and servers not in the
+template are left untouched.
 
 Templates are compiled into the binary, so this command works from anywhere
 without requiring an adb workspace. Run this after installing adb on a new
@@ -2367,6 +2370,7 @@ machine, or after upgrading adb to pick up template changes.
 | Skill | `changelog` | Changelog generation from commits |
 | Agent | `code-reviewer` | Generic code review agent |
 | Hook | `adb-session-capture.sh` | SessionEnd hook for automatic session capture (installed to `~/.claude/settings.json`) |
+| Script | `statusline.sh` | Tiered status line with project, git, and adb context (copied to `~/.claude/statusline.sh`, configured in `~/.claude/settings.json`) |
 
 With `--mcp`:
 

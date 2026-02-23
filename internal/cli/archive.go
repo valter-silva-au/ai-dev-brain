@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 var archiveForce bool

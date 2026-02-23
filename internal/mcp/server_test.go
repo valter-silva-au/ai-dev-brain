@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
-	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // --- Fake implementations ---

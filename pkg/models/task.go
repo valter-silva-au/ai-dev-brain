@@ -37,21 +37,29 @@ const (
 // Task represents a unit of work identified by a unique TASK-XXXXX ID,
 // containing all context, communications, and artifacts related to that work item.
 type Task struct {
-	ID           string     `yaml:"id"`
-	Title        string     `yaml:"title"`
-	Type         TaskType   `yaml:"type"`
-	Status       TaskStatus `yaml:"status"`
-	Priority     Priority   `yaml:"priority"`
-	Owner        string     `yaml:"owner"`
-	Repo         string     `yaml:"repo"`
-	Branch       string     `yaml:"branch"`
-	WorktreePath string     `yaml:"worktree"`
-	TicketPath   string     `yaml:"ticket_path"`
-	Created      time.Time  `yaml:"created"`
-	Updated      time.Time  `yaml:"updated"`
-	Tags         []string   `yaml:"tags"`
-	BlockedBy    []string   `yaml:"blocked_by"`
-	Related      []string   `yaml:"related"`
-	Teams        []string   `yaml:"teams,omitempty"`
-	Source       string     `yaml:"source,omitempty"`
+	ID           string        `yaml:"id"`
+	Title        string        `yaml:"title"`
+	Type         TaskType      `yaml:"type"`
+	Status       TaskStatus    `yaml:"status"`
+	Priority     Priority      `yaml:"priority"`
+	Owner        string        `yaml:"owner"`
+	Repo         string        `yaml:"repo"`
+	Branch       string        `yaml:"branch"`
+	WorktreePath string        `yaml:"worktree"`
+	TicketPath   string        `yaml:"ticket_path"`
+	Created      time.Time     `yaml:"created"`
+	Updated      time.Time     `yaml:"updated"`
+	Tags         []string      `yaml:"tags"`
+	BlockedBy    []string      `yaml:"blocked_by"`
+	Related      []string      `yaml:"related"`
+	Teams        []string      `yaml:"teams,omitempty"`
+	Source       string        `yaml:"source,omitempty"`
+	TeamMetadata *TeamMetadata `yaml:"team_metadata,omitempty"`
+}
+
+// TeamMetadata stores team session information for a task.
+type TeamMetadata struct {
+	TeamName       string   `yaml:"team_name,omitempty"`
+	Members        []string `yaml:"members,omitempty"`
+	ConversationID string   `yaml:"conversation_id,omitempty"`
 }

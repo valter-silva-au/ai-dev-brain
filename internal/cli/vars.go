@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
 )
 
@@ -24,3 +25,7 @@ var SessionCapture core.SessionCapturer
 // HookEngine provides hook event processing.
 // Set during app initialization in app.go.
 var HookEngine core.HookEngine
+
+// VersionChecker provides Claude Code version detection and feature gating.
+// Set during app initialization in app.go.
+var VersionChecker integration.ClaudeCodeVersionChecker

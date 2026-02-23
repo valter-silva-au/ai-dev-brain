@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 // RepoSyncMgr is set during App init in app.go.

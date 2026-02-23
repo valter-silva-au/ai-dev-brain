@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 )
 
 // Runner is the TaskfileRunner used by the run command.
@@ -28,6 +28,12 @@ Use --list to display all available Taskfile tasks.`,
 		// Handle --help / -h manually since DisableFlagParsing is true.
 		if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 			return cmd.Help()
+		}
+
+		// Handle --simple flag: set CLAUDE_CODE_SIMPLE=1 for reduced output.
+		if len(args) > 0 && args[0] == "--simple" {
+			_ = os.Setenv("CLAUDE_CODE_SIMPLE", "1")
+			args = args[1:]
 		}
 
 		if Runner == nil {
