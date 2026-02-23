@@ -20,7 +20,7 @@ if git diff --cached --name-only 2>/dev/null | grep -q '\.go$'; then
 fi
 
 echo "Running tests..."
-if ! go test ./... -count=1 2>&1; then
+if ! CGO_ENABLED=0 go test ./... -count=1 2>&1; then
     echo "FAIL: Tests failed"
     exit 2
 fi

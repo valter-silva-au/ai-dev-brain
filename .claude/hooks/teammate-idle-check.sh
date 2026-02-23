@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
-# Hook: TeammateIdle - Advisory check, never blocks idle (exit 0 always)
-# Teammates going idle is normal after each turn. Blocking idle with exit 2
-# prevents agents from shutting down and causes them to hang indefinitely.
-set -u
-
-cd "$(git rev-parse --show-toplevel)" 2>/dev/null || exit 0
-
-echo "Running vet (advisory)..."
-if ! go vet ./... 2>&1; then
-    echo "WARNING: vet issues detected (advisory only)"
-fi
-
+# Hook: TeammateIdle - No-op. Always exits 0.
+# Teammates go idle after EVERY turn, so any work here runs dozens of times
+# per team session. Keep this hook empty to avoid unnecessary overhead.
+# Use TaskCompleted hooks for quality gates instead.
 exit 0

@@ -422,6 +422,67 @@ func TestBootstrap_StatusYAMLWriteError(t *testing.T) {
 	}
 }
 
+func TestBootstrap_TaskContextUsesAbsoluteTicketPath(t *testing.T) {
+	dir := t.TempDir()
+	idGen := NewTaskIDGenerator(dir, "TASK", 5)
+	tmplMgr := NewTemplateManager(dir)
+
+	// Create a worktree directory to satisfy generateTaskContext.
+	worktreeDir := filepath.Join(dir, "worktrees", "TASK-00001")
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mockWt := &mockWorktreeCreator{createdPath: worktreeDir}
+	bs := NewBootstrapSystem(dir, idGen, mockWt, tmplMgr)
+
+	result, err := bs.Bootstrap(BootstrapConfig{
+		Type:       models.TaskTypeFeat,
+		Title:      "Absolute path test",
+		RepoPath:   "github.com/org/repo",
+		BranchName: "feat/abs-paths",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Read the generated task-context.md.
+	taskContextPath := filepath.Join(result.WorktreePath, ".claude", "rules", "task-context.md")
+	data, err := os.ReadFile(taskContextPath)
+	if err != nil {
+		t.Fatalf("task-context.md should exist: %v", err)
+	}
+	content := string(data)
+
+	// Verify it uses absolute ticket path, not relative "tickets/TASK-00001/".
+	expectedTicketPath := result.TicketPath
+	if !strings.Contains(content, "**Ticket**: "+expectedTicketPath) {
+		t.Errorf("task-context.md should reference absolute ticket path %q, got:\n%s", expectedTicketPath, content)
+	}
+
+	// Verify key files use absolute paths.
+	if !strings.Contains(content, expectedTicketPath+"/context.md") {
+		t.Error("task-context.md should reference absolute path for context.md")
+	}
+	if !strings.Contains(content, expectedTicketPath+"/notes.md") {
+		t.Error("task-context.md should reference absolute path for notes.md")
+	}
+	if !strings.Contains(content, expectedTicketPath+"/design.md") {
+		t.Error("task-context.md should reference absolute path for design.md")
+	}
+	if !strings.Contains(content, expectedTicketPath+"/sessions/") {
+		t.Error("task-context.md should reference absolute path for sessions/")
+	}
+	if !strings.Contains(content, expectedTicketPath+"/knowledge/") {
+		t.Error("task-context.md should reference absolute path for knowledge/")
+	}
+
+	// Verify it does NOT contain relative "tickets/" prefix.
+	if strings.Contains(content, "tickets/TASK-00001/context.md") {
+		t.Error("task-context.md should NOT contain relative ticket paths")
+	}
+}
+
 func TestBootstrap_StoresTagsAndSource(t *testing.T) {
 	dir := t.TempDir()
 	idGen := NewTaskIDGenerator(dir, "TASK", 5)
