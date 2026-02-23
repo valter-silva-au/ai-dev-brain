@@ -14,7 +14,7 @@ import (
 
 var syncClaudeUserCmd = &cobra.Command{
 	Use:   "sync-claude-user",
-	Short: "Sync universal Claude Code skills, agents, and MCP servers to user config",
+	Short: "Sync universal Claude Code skills, agents, MCP servers, and status line to user config",
 	Long: `Sync universal (language-agnostic) Claude Code configuration from adb's
 canonical templates to the user-level ~/.claude/ directory.
 
@@ -27,9 +27,17 @@ Use --mcp to also merge third-party MCP server definitions (aws-docs,
 aws-knowledge, context7) into ~/.claude.json. These are opt-in because
 they require external dependencies (uvx, API keys, network access).
 
-Skills and agents are overwritten if they already exist (templates are the
-source of truth). MCP servers are merged -- existing servers are updated,
-new servers are added, and servers not in the template are left untouched.
+Skills, agents, and the status line are overwritten if they already exist
+(templates are the source of truth). MCP servers are merged -- existing
+servers are updated, new servers are added, and servers not in the template
+are left untouched.
+
+The status line script (~/.claude/statusline.sh) provides tiered context:
+  - Tier 1 (always): project name, model, context%, cost, lines, duration
+  - Tier 2 (git):    branch, dirty count, ahead/behind
+  - Tier 3 (adb):    task ID/type/priority, portfolio counts, alerts
+
+The command also configures ~/.claude/settings.json to use the status line.
 
 Run this after installing adb on a new machine, or after upgrading adb
 to pick up template changes.`,

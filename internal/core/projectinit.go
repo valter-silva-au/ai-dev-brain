@@ -161,6 +161,7 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 		{"claude-skill-sync.md", filepath.Join(".claude", "skills", "sync", "SKILL.md"), false},
 		{"claude-skill-changelog.md", filepath.Join(".claude", "skills", "changelog", "SKILL.md"), false},
 		{"claude-agent-code-reviewer.md", filepath.Join(".claude", "agents", "code-reviewer.md"), false},
+		{"claude-statusline.sh", filepath.Join(".claude", "statusline.sh"), false},
 	}
 	for _, cf := range claudeFiles {
 		target := filepath.Join(config.BasePath, cf.target)
@@ -175,6 +176,12 @@ func (pi *projectInitializer) Init(config InitConfig) (*InitResult, error) {
 				return nil, err
 			}
 		}
+	}
+
+	// Make statusline.sh executable.
+	statuslinePath := filepath.Join(config.BasePath, ".claude", "statusline.sh")
+	if _, err := os.Stat(statuslinePath); err == nil {
+		_ = os.Chmod(statuslinePath, 0o755)
 	}
 
 	// Write .vscode/settings.json (editor configuration for terminal tab naming).

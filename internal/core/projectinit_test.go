@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -65,6 +66,7 @@ func TestInit_CreatesFullStructure(t *testing.T) {
 		".claude/skills/sync/SKILL.md",
 		".claude/skills/changelog/SKILL.md",
 		".claude/agents/code-reviewer.md",
+		".claude/statusline.sh",
 		".vscode/settings.json",
 		"docs/stakeholders.md",
 		"docs/contacts.md",
@@ -354,10 +356,10 @@ func TestInit_ResultSummary(t *testing.T) {
 	//              .vscode = 19
 	// Files: .taskconfig + .task_counter + .gitignore + backlog.yaml + CLAUDE.md +
 	//        4 READMEs + settings.json + workspace.md + 7 SKILLs + agent +
-	//        .vscode/settings.json +
-	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 24
+	//        statusline.sh + .vscode/settings.json +
+	//        stakeholders.md + contacts.md + glossary.md + ADR-TEMPLATE.md = 25
 	// Git: .git = 1
-	totalExpected := 44
+	totalExpected := 45
 	totalGot := len(result.Created) + len(result.Skipped)
 	if totalGot != totalExpected {
 		t.Errorf("expected %d total items, got %d (created=%d, skipped=%d)",
@@ -468,6 +470,25 @@ func TestInit_ClaudeCodeConfiguration(t *testing.T) {
 		if !strings.Contains(string(data), "name: "+s.name) {
 			t.Errorf("%s skill should have name frontmatter", s.name)
 		}
+	}
+
+	// Verify statusline.sh exists and is executable (Unix only).
+	slInfo, err := os.Stat(filepath.Join(base, ".claude", "statusline.sh"))
+	if err != nil {
+		t.Fatalf("failed to stat statusline.sh: %v", err)
+	}
+	if runtime.GOOS != "windows" && slInfo.Mode().Perm()&0o111 == 0 {
+		t.Error("statusline.sh should have executable permission")
+	}
+	slData, err := os.ReadFile(filepath.Join(base, ".claude", "statusline.sh"))
+	if err != nil {
+		t.Fatalf("failed to read statusline.sh: %v", err)
+	}
+	if !strings.Contains(string(slData), "#!/usr/bin/env bash") {
+		t.Error("statusline.sh should have bash shebang")
+	}
+	if !strings.Contains(string(slData), "Universal Claude Code Status Line") {
+		t.Error("statusline.sh should contain universal header")
 	}
 
 	// Verify agent exists.
