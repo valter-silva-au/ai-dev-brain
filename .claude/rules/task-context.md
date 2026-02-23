@@ -1,18 +1,18 @@
-# Task Context: github.com/valter-silva-au/ai-dev-brain/onecontext
+# Task Context: github.com/valter-silva-au/ai-dev-brain/bmad-method
 
-This worktree is for task github.com/valter-silva-au/ai-dev-brain/onecontext (onecontext).
+This worktree is for task github.com/valter-silva-au/ai-dev-brain/bmad-method (bmad-method).
 
 - **Type**: feat
-- **Branch**: feat/ai-dev-brain/onecontext
-- **Status**: backlog (newly created)
-- **Ticket**: tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/
+- **Branch**: feat/bmad-method
+- **Status**: in_progress
+- **Ticket**: tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/
 
 ## Key Files
-- tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/context.md -- Running context (update as you work)
-- tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/notes.md -- Requirements and acceptance criteria
-- tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/design.md -- Technical design document
-- tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/sessions/ -- Session summaries (save progress between sessions)
-- tickets/github.com/valter-silva-au/ai-dev-brain/onecontext/knowledge/ -- Extracted decisions and facts
+- tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/context.md -- Running context (update as you work)
+- tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/notes.md -- Requirements and acceptance criteria
+- tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/design.md -- Technical design document
+- tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/sessions/ -- Session summaries (save progress between sessions)
+- tickets/github.com/valter-silva-au/ai-dev-brain/bmad-method/knowledge/ -- Extracted decisions and facts
 
 ## Instructions
 - Update context.md with progress, decisions, and blockers as you work
@@ -33,4 +33,3 @@ This worktree is for task github.com/valter-silva-au/ai-dev-brain/onecontext (on
 - **2026-02-14**: decision: Per-agency base + per-seat scaling pricing model (TASK-00037)
 - **2026-02-14**: decision: Hybrid CRM integration -- MCP inside container for real-time, Lambda CrmAdapter for async batch (TASK-00037)
 - **2026-02-14**: decision: Single Docker image with tier-based skill filtering at container boot (TASK-00037)
-

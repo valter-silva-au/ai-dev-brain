@@ -352,7 +352,12 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 
 | Agent | Model | Description |
 |-------|-------|-------------|
-| `team-lead` | opus | Orchestrates multi-agent teams. Breaks down work, assigns tasks, monitors progress, synthesizes results. |
+| `team-lead` | opus | Orchestrates multi-agent teams. Breaks down work, assigns tasks, monitors progress, synthesizes results. Routes to BMAD workflow personas. |
+| `analyst` | sonnet | Requirements elicitation, PRD creation, market/domain/technical research. BMAD discovery phase. Has project memory. |
+| `product-owner` | sonnet | PRD facilitation, epic/story decomposition, backlog prioritization, implementation readiness. Has project memory. |
+| `design-reviewer` | sonnet | Architecture validation, checklist certification, cross-artifact alignment checks. Has project memory. |
+| `scrum-master` | sonnet | Sprint planning, story preparation, retrospectives, course correction. Has project memory. |
+| `quick-flow-dev` | sonnet | Rapid spec + implementation for small tasks with built-in adversarial review. Has project memory. |
 | `go-tester` | sonnet | Runs tests, analyzes failures, writes missing test cases. Has project memory. |
 | `code-reviewer` | sonnet | Reviews Go code for quality, security, correctness, and adherence to project patterns. Has project memory. |
 | `architecture-guide` | sonnet | Explains architecture, guides design decisions, ensures new code follows patterns. Has project memory. |
@@ -385,6 +390,9 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 | `context-refresh` | Update a task's context.md with latest progress from git history | `<task-id>` |
 | `onboard` | Generate an onboarding guide for new contributors or AI sessions | -- |
 | `dependency-check` | Identify blocked/blocking tasks and priority conflicts in the backlog | -- |
+| `quick-spec` | Create implementation-ready tech spec through code investigation | `<task-id or description>` |
+| `quick-dev` | Implement from tech spec or instructions with self-checking and adversarial review | `<task-id or tech-spec path>` |
+| `adversarial-review` | Self-review uncommitted changes with hostile intent and information asymmetry | -- |
 
 ### Hooks (`.claude/settings.json` and `.claude/hooks/`)
 
