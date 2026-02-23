@@ -1,0 +1,33 @@
+# Binaries
+adb
+adb.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+dist/
+bin/
+
+# Test output
+coverage.out
+coverage.html
+*.test
+
+# Event log (local observability data)
+.adb_events.jsonl
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local scripts
+build.ps1
