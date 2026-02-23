@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 )
 
 // Runner is the TaskfileRunner used by the run command.

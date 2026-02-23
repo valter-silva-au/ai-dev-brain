@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 // ChannelReg is set during app initialization in app.go.

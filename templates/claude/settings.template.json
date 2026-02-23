@@ -10,5 +10,27 @@
       "Bash(curl * | bash)",
       "Bash(wget * | bash)"
     ]
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-worktree-create.sh"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-worktree-remove.sh"
+          }
+        ]
+      }
+    ]
   }
 }

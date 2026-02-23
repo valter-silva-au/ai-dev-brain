@@ -370,3 +370,99 @@ func TestStructuralSummarizer_NoUserMessage(t *testing.T) {
 		t.Errorf("expected '(no user message)' when no user turns, got: %s", got)
 	}
 }
+
+// --- Schema version detection tests ---
+
+func TestTranscriptParser_WithSchemaVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTranscript(t, dir,
+		`{"type":"user","version":"1.0","message":{"role":"user","content":"hello"},"timestamp":"2025-01-15T10:00:00Z"}`,
+	)
+
+	parser := NewTranscriptParser()
+	result, err := parser.ParseTranscript(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.SchemaVersion != "1.0" {
+		t.Errorf("expected schema version '1.0', got %q", result.SchemaVersion)
+	}
+}
+
+func TestTranscriptParser_WithoutSchemaVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTranscript(t, dir,
+		`{"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2025-01-15T10:00:00Z"}`,
+	)
+
+	parser := NewTranscriptParser()
+	result, err := parser.ParseTranscript(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.SchemaVersion != "unknown" {
+		t.Errorf("expected schema version 'unknown', got %q", result.SchemaVersion)
+	}
+}
+
+func TestTranscriptParser_UnsupportedSchemaVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTranscript(t, dir,
+		`{"type":"user","version":"99.9","message":{"role":"user","content":"hello"},"timestamp":"2025-01-15T10:00:00Z"}`,
+	)
+
+	parser := NewTranscriptParser()
+	result, err := parser.ParseTranscript(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should still parse and return the version, but warn to stderr.
+	if result.SchemaVersion != "99.9" {
+		t.Errorf("expected schema version '99.9', got %q", result.SchemaVersion)
+	}
+	// Note: Warning goes to stderr, we don't test it directly here.
+	// The parser should continue parsing despite unsupported version.
+	if result.TurnCount != 1 {
+		t.Errorf("expected 1 turn despite unsupported version, got %d", result.TurnCount)
+	}
+}
+
+func TestTranscriptParser_VersionInLaterLine(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTranscript(t, dir,
+		`{"type":"user","message":{"role":"user","content":"first"},"timestamp":"2025-01-15T10:00:00Z"}`,
+		`{"type":"assistant","version":"1.0","message":{"role":"assistant","content":[{"type":"text","text":"response"}]},"timestamp":"2025-01-15T10:01:00Z"}`,
+	)
+
+	parser := NewTranscriptParser()
+	result, err := parser.ParseTranscript(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Version should be detected from the second line (within first 5 lines).
+	if result.SchemaVersion != "1.0" {
+		t.Errorf("expected schema version '1.0' from line 2, got %q", result.SchemaVersion)
+	}
+}
+
+func TestTranscriptParser_VersionBeyondFifthLine(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTranscript(t, dir,
+		`{"type":"user","message":{"role":"user","content":"line1"},"timestamp":"2025-01-15T10:00:00Z"}`,
+		`{"type":"user","message":{"role":"user","content":"line2"},"timestamp":"2025-01-15T10:01:00Z"}`,
+		`{"type":"user","message":{"role":"user","content":"line3"},"timestamp":"2025-01-15T10:02:00Z"}`,
+		`{"type":"user","message":{"role":"user","content":"line4"},"timestamp":"2025-01-15T10:03:00Z"}`,
+		`{"type":"user","message":{"role":"user","content":"line5"},"timestamp":"2025-01-15T10:04:00Z"}`,
+		`{"type":"user","version":"1.0","message":{"role":"user","content":"line6"},"timestamp":"2025-01-15T10:05:00Z"}`,
+	)
+
+	parser := NewTranscriptParser()
+	result, err := parser.ParseTranscript(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Version on line 6 should be ignored, default to "unknown".
+	if result.SchemaVersion != "unknown" {
+		t.Errorf("expected schema version 'unknown' (version beyond line 5), got %q", result.SchemaVersion)
+	}
+}

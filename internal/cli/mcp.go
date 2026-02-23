@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/signal"
 
-	adbmcp "github.com/valter-silva-au/ai-dev-brain/internal/mcp"
 	"github.com/spf13/cobra"
+	adbmcp "github.com/valter-silva-au/ai-dev-brain/internal/mcp"
 )
 
 var mcpCmd = &cobra.Command{

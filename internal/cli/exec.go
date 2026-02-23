@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 )
 
 // Executor is the CLIExecutor used by the exec command.

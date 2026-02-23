@@ -178,7 +178,12 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 	// Generate .claude/rules/task-context.md in the worktree.
 	if result.WorktreePath != "" {
 		// Non-fatal: log but don't fail bootstrap.
-		_ = bs.generateTaskContext(result.WorktreePath, taskID, ticketPath, config)
+		// Ensure ticketPath is absolute before passing to generateTaskContext.
+		absTicketPath, err := filepath.Abs(ticketPath)
+		if err != nil {
+			absTicketPath = ticketPath
+		}
+		_ = bs.generateTaskContext(result.WorktreePath, taskID, absTicketPath, config)
 	}
 
 	task.TicketPath = ticketPath

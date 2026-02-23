@@ -14,12 +14,13 @@ import (
 
 // TranscriptResult holds the parsed output of a Claude Code JSONL transcript.
 type TranscriptResult struct {
-	Turns     []models.SessionTurn
-	Summary   string
-	StartedAt time.Time
-	EndedAt   time.Time
-	TurnCount int
-	ToolsUsed map[string]int
+	Turns         []models.SessionTurn
+	Summary       string
+	StartedAt     time.Time
+	EndedAt       time.Time
+	TurnCount     int
+	ToolsUsed     map[string]int
+	SchemaVersion string
 }
 
 // TranscriptParser parses Claude Code JSONL session transcripts into structured turn data.
@@ -35,9 +36,13 @@ func NewTranscriptParser() TranscriptParser {
 	return &transcriptParser{}
 }
 
+// supportedSchemaVersions lists known JSONL transcript schema versions.
+var supportedSchemaVersions = []string{"1.0", "unknown"}
+
 // jsonlLine represents a single line in the Claude Code JSONL transcript.
 type jsonlLine struct {
 	Type      string          `json:"type"`
+	Version   string          `json:"version,omitempty"`
 	IsMeta    bool            `json:"isMeta,omitempty"`
 	Message   json.RawMessage `json:"message,omitempty"`
 	Summary   string          `json:"summary,omitempty"`
@@ -68,15 +73,18 @@ func (p *transcriptParser) ParseTranscript(filePath string) (*TranscriptResult, 
 	defer func() { _ = f.Close() }()
 
 	result := &TranscriptResult{
-		ToolsUsed: make(map[string]int),
+		ToolsUsed:     make(map[string]int),
+		SchemaVersion: "unknown", // Default until detected.
 	}
 
 	turnIndex := 0
+	lineNum := 0
 	scanner := bufio.NewScanner(f)
 	// Increase buffer size for large JSONL lines (e.g., assistant responses with tool output).
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
 	for scanner.Scan() {
+		lineNum++
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -86,6 +94,22 @@ func (p *transcriptParser) ParseTranscript(filePath string) (*TranscriptResult, 
 		if err := json.Unmarshal(line, &entry); err != nil {
 			// Skip malformed lines.
 			continue
+		}
+
+		// Detect schema version from first 5 lines.
+		if lineNum <= 5 && result.SchemaVersion == "unknown" && entry.Version != "" {
+			result.SchemaVersion = entry.Version
+			// Check if version is supported.
+			supported := false
+			for _, v := range supportedSchemaVersions {
+				if v == result.SchemaVersion {
+					supported = true
+					break
+				}
+			}
+			if !supported {
+				fmt.Fprintf(os.Stderr, "Warning: unknown transcript schema version %q, parsing may be incomplete\n", result.SchemaVersion)
+			}
 		}
 
 		switch entry.Type {

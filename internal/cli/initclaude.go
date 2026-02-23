@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -71,6 +72,31 @@ and not overwritten. Templates are embedded in the adb binary.`,
 		workspacePath := filepath.Join(rulesDir, "workspace.md")
 		if err := writeIfNotExists(workspaceData, workspacePath, &created, &skipped); err != nil {
 			return fmt.Errorf("creating workspace.md: %w", err)
+		}
+
+		// Create .claude/hooks/ directory and copy hook scripts
+		hooksDir := filepath.Join(settingsDir, "hooks")
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+			return fmt.Errorf("creating hooks directory: %w", err)
+		}
+
+		hookScripts := []string{
+			"adb-worktree-create.sh",
+			"adb-worktree-remove.sh",
+		}
+		for _, hookName := range hookScripts {
+			hookData, err := claudetpl.FS.ReadFile(path.Join("hooks", hookName))
+			if err != nil {
+				return fmt.Errorf("reading embedded hook template %s: %w", hookName, err)
+			}
+			hookPath := filepath.Join(hooksDir, hookName)
+			if err := writeIfNotExists(hookData, hookPath, &created, &skipped); err != nil {
+				return fmt.Errorf("creating hook %s: %w", hookName, err)
+			}
+			// Make hooks executable
+			if _, err := os.Stat(hookPath); err == nil {
+				_ = os.Chmod(hookPath, 0o755)
+			}
 		}
 
 		if len(created) > 0 {
