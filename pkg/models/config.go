@@ -29,18 +29,19 @@ type NotificationConfig struct {
 
 // GlobalConfig holds system-wide settings read from .taskconfig via Viper.
 type GlobalConfig struct {
-	DefaultAI        string             `yaml:"default_ai" mapstructure:"default_ai"`
-	TaskIDPrefix     string             `yaml:"task_id_prefix" mapstructure:"task_id_prefix"`
-	TaskIDCounter    int                `yaml:"task_id_counter" mapstructure:"task_id_counter"`
-	TaskIDPadWidth   int                `yaml:"task_id_pad_width" mapstructure:"task_id_pad_width"`
-	BranchPattern    string             `yaml:"branch_pattern" mapstructure:"branch_pattern"`
-	DefaultPriority  Priority           `yaml:"default_priority" mapstructure:"default_priority"`
-	DefaultOwner     string             `yaml:"default_owner" mapstructure:"default_owner"`
-	ScreenshotHotkey string             `yaml:"screenshot_hotkey" mapstructure:"screenshot_hotkey"`
-	OfflineMode      bool               `yaml:"offline_mode" mapstructure:"offline_mode"`
-	CLIAliases       []CLIAliasConfig   `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
-	Notifications    NotificationConfig `yaml:"notifications,omitempty" mapstructure:"notifications"`
+	DefaultAI        string               `yaml:"default_ai" mapstructure:"default_ai"`
+	TaskIDPrefix     string               `yaml:"task_id_prefix" mapstructure:"task_id_prefix"`
+	TaskIDCounter    int                  `yaml:"task_id_counter" mapstructure:"task_id_counter"`
+	TaskIDPadWidth   int                  `yaml:"task_id_pad_width" mapstructure:"task_id_pad_width"`
+	BranchPattern    string               `yaml:"branch_pattern" mapstructure:"branch_pattern"`
+	DefaultPriority  Priority             `yaml:"default_priority" mapstructure:"default_priority"`
+	DefaultOwner     string               `yaml:"default_owner" mapstructure:"default_owner"`
+	ScreenshotHotkey string               `yaml:"screenshot_hotkey" mapstructure:"screenshot_hotkey"`
+	OfflineMode      bool                 `yaml:"offline_mode" mapstructure:"offline_mode"`
+	CLIAliases       []CLIAliasConfig     `yaml:"cli_aliases,omitempty" mapstructure:"cli_aliases"`
+	Notifications    NotificationConfig   `yaml:"notifications,omitempty" mapstructure:"notifications"`
 	SessionCapture   SessionCaptureConfig `yaml:"session_capture,omitempty" mapstructure:"session_capture"`
+	Hooks            HookConfig           `yaml:"hooks,omitempty" mapstructure:"hooks"`
 }
 
 // RepoConfig holds per-repository settings read from .taskrc files.

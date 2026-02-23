@@ -11,12 +11,13 @@ Layered architecture: CLI -> Core -> Storage/Integration/Observability. All depe
 ### Package Responsibilities
 
 - `cmd/adb/` -- Entry point. Sets version info (ldflags), resolves base path, creates App, executes CLI.
-- `internal/cli/` -- Cobra command definitions. Package-level variables (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`) are set during App init.
-- `internal/core/` -- Business logic. Task management, bootstrap, configuration, templates, AI context generation (with context evolution tracking), update generation, design doc generation, knowledge extraction, conflict detection. Defines `EventLogger` and `SessionCapturer` local interfaces for cross-package decoupling.
+- `internal/cli/` -- Cobra command definitions. Package-level variables (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `HookEngine`) are set during App init.
+- `internal/core/` -- Business logic. Task management, bootstrap, configuration, templates, AI context generation (with context evolution tracking), update generation, design doc generation, knowledge extraction, conflict detection, hook engine. Defines `EventLogger` and `SessionCapturer` local interfaces for cross-package decoupling.
+- `internal/hooks/` -- Hook support library. Stdin JSON parsing (generic `ParseStdin[T]`), session change tracker (`.adb_session_changes` append-only file), and artifact helpers (context.md append, status.yaml timestamp, change grouping/formatting).
 - `internal/storage/` -- Persistence layer. Backlog (YAML), context (Markdown), communication (Markdown files per entry), session store (YAML index + per-session directories).
 - `internal/integration/` -- External system integrations. Git worktrees, CLI execution with alias resolution, Taskfile runner, tab renaming, screenshot OCR pipeline, offline mode with operation queuing, Claude Code JSONL transcript parsing.
 - `internal/observability/` -- Event logging, metrics calculation, and alerting. Uses append-only JSONL files for event persistence. Derives metrics and evaluates alert conditions on-demand from the event log.
-- `pkg/models/` -- Shared domain types. Task, Communication, Config (including NotificationConfig, SessionCaptureConfig), Knowledge/Handoff/Decision models, CapturedSession/SessionTurn/SessionFilter types.
+- `pkg/models/` -- Shared domain types. Task, Communication, Config (including NotificationConfig, SessionCaptureConfig, HookConfig), Knowledge/Handoff/Decision models, CapturedSession/SessionTurn/SessionFilter types.
 - `templates/claude/` -- Embedded Claude Code templates. Package `claudetpl` uses `//go:embed` to bundle skills, agents, hooks, rules, and config templates into the binary. Accessed via `claudetpl.FS` (embed.FS).
 
 ## Technology Stack
@@ -50,7 +51,13 @@ internal/
     metrics.go                # Display task and agent metrics
     session.go                # Manage session summaries (save, ingest)
     sessioncapture.go         # Session capture commands (capture --from-hook, list, show)
-    vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture)
+    hook.go                   # Parent hook command, install, status subcommands
+    hook_pretooluse.go        # PreToolUse hook handler (blocking, exit 2 on block)
+    hook_posttooluse.go       # PostToolUse hook handler (non-blocking)
+    hook_stop.go              # Stop hook handler (non-blocking, advisory)
+    hook_taskcompleted.go     # TaskCompleted hook handler (blocking, exit 2 on failure)
+    hook_sessionend.go        # SessionEnd hook handler (non-blocking)
+    vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture, HookEngine)
   core/
     config.go                 # ConfigurationManager (Viper-based)
     bootstrap.go              # BootstrapSystem (task init, directory scaffold incl. sessions/ and knowledge/)
@@ -67,6 +74,7 @@ internal/
     conflict.go               # ConflictDetector (ADR/decision/requirement checks)
     projectinit.go            # ProjectInitializer (full workspace scaffolding)
     eventlogger.go            # EventLogger local interface (avoids importing observability)
+    hookengine.go             # HookEngine interface and implementation (PreToolUse, PostToolUse, Stop, TaskCompleted, SessionEnd)
   storage/
     backlog.go                # BacklogManager (backlog.yaml CRUD)
     context.go                # ContextManager (per-task context.md, notes.md)
@@ -86,11 +94,17 @@ internal/
     eventlog.go               # EventLog interface and JSONL implementation
     metrics.go                # MetricsCalculator interface and implementation
     alerting.go               # AlertEngine interface, alert thresholds, and alert conditions
+  hooks/
+    doc.go                    # Package documentation
+    stdin.go                  # Stdin JSON structs and generic ParseStdin[T] parser
+    tracker.go                # ChangeTracker for .adb_session_changes file (append/read/cleanup)
+    artifacts.go              # Context append, status timestamp update, change grouping/formatting
   integration_test.go         # Cross-package integration tests
   qa_edge_cases_test.go       # QA edge case tests
 pkg/models/
   task.go                     # Task (incl. Teams field), TaskType, TaskStatus, Priority
-  config.go                   # GlobalConfig (incl. NotificationConfig), RepoConfig, MergedConfig, CLIAliasConfig
+  config.go                   # GlobalConfig (incl. NotificationConfig, HookConfig), RepoConfig, MergedConfig, CLIAliasConfig
+  hooks.go                    # HookConfig, sub-configs (PreToolUse, PostToolUse, Stop, TaskCompleted, SessionEnd), SessionChangeEntry, DefaultHookConfig()
   communication.go            # Communication, CommunicationTag
   session.go                  # CapturedSession, SessionTurn, SessionFilter, SessionCaptureConfig, SessionIndex
   knowledge.go                # ExtractedKnowledge, Decision, HandoffDocument, WikiUpdate, RunbookUpdate
@@ -98,7 +112,7 @@ templates/claude/
   embed.go                    # Embedded template files (//go:embed directive, exports FS as embed.FS)
   skills/                     # Reusable Claude Code skills (17 skills, embedded)
   agents/                     # Specialized agent definitions (11 agents, embedded)
-  hooks/                      # Quality gate hook scripts (5 hooks, embedded)
+  hooks/                      # Shell wrapper scripts for adb-native hooks (6 scripts) + legacy hooks (embedded)
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md, embedded)
 .claude/
   settings.json               # Permissions and hooks configuration
@@ -106,7 +120,13 @@ templates/claude/
   skills/                     # Reusable Claude Code skills (17 skills)
   hooks/                      # Quality gate hook scripts (5 hooks)
 templates/claude/hooks/
-  adb-session-capture.sh      # SessionEnd hook script for automatic session capture
+  adb-hook-pre-tool-use.sh    # Shell wrapper: pipes stdin to adb hook pre-tool-use (blocking)
+  adb-hook-post-tool-use.sh   # Shell wrapper: pipes stdin to adb hook post-tool-use (non-blocking)
+  adb-hook-stop.sh            # Shell wrapper: pipes stdin to adb hook stop (non-blocking)
+  adb-hook-task-completed.sh  # Shell wrapper: pipes stdin to adb hook task-completed (blocking)
+  adb-hook-session-end.sh     # Shell wrapper: pipes stdin to adb hook session-end (non-blocking)
+  adb-hook-teammate-idle.sh   # No-op: exit 0
+  adb-session-capture.sh      # Legacy SessionEnd hook script for automatic session capture
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md)
 .mcp.json                     # MCP server configuration (aws-knowledge, context7)
 ```
@@ -140,7 +160,7 @@ templates/claude/hooks/
 
 - **Local interface definitions** in `core/` (`BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `EventLogger`, `SessionCapturer`) avoid importing `storage`/`integration`/`observability` packages.
 - **Adapter pattern** in `internal/app.go` bridges packages: `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `eventLogAdapter`, `sessionCapturerAdapter`.
-- **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
+- **CLI package-level variables** (`TaskMgr`, `UpdateGen`, `AICtxGen`, `Executor`, `Runner`, `ExecAliases`, `EventLog`, `AlertEngine`, `MetricsCalc`, `SessionCapture`, `HookEngine`, `BasePath`, `ProjectInit`) are set during `App` init in `app.go`.
 - **Property tests** use `rapid.Check` with the `TestProperty` prefix naming convention.
 - **Template rendering** via `text/template` for `notes.md`, `design.md`, `handoff.md`.
 - **Embedded templates**: Claude Code templates (skills, agents, hooks, rules) are embedded into the binary via `//go:embed` in `templates/claude/embed.go`. The `claudetpl` package exports `FS` as an `embed.FS`. CLI commands (`initclaude.go`, `syncclaudeuser.go`) read templates from `claudetpl.FS` using `path.Join` (forward slashes only, required for embed.FS cross-platform compatibility). Template writing uses `writeIfNotExists(path, data)` pattern instead of file copying.
@@ -150,6 +170,10 @@ templates/claude/hooks/
 - **Graceful degradation**: Observability is non-fatal. If the event log file cannot be created, observability features are disabled without affecting core functionality.
 - **Task context generation**: Bootstrap creates `.claude/rules/task-context.md` inside worktrees so AI assistants have immediate task awareness.
 - **Post-command workflow**: `launchWorkflow` in `internal/cli/feat.go` renames the terminal tab, launches Claude Code in the worktree, then drops the user into an interactive shell. Accepts a `resume bool` parameter: task creation commands pass `false` (launches Claude Code without `--resume`), while `adb resume` passes `true` (launches with `--resume` to continue the most recent conversation).
+- **Hybrid hook execution**: Thin shell wrapper scripts (in `templates/claude/hooks/`) set `ADB_HOOK_ACTIVE=1` env var and pipe stdin to `adb hook <type>`. The Go binary does all validation, formatting, tracking, and knowledge work. Recursion is prevented by checking `ADB_HOOK_ACTIVE` before exporting it.
+- **Change tracker pattern**: PostToolUse appends modified file paths to `.adb_session_changes` (append-only, `timestamp|tool|filepath` per line). Stop and SessionEnd hooks consume this file to produce batched context summaries, then clean up.
+- **Two-phase TaskCompleted**: Phase A (blocking) runs quality gates (tests, lint, uncommitted check) with `os.Exit(2)` on failure. Phase B (non-blocking) runs knowledge extraction, wiki updates, and ADR generation. Quality gates are never weakened by knowledge failures.
+- **Hook configuration**: `models.HookConfig` in `.taskconfig` under `hooks:` key controls all features per hook type. `DefaultHookConfig()` enables Phase 1 features; Phase 2/3 features are disabled by default and opt-in via config.
 
 ## Task Types and Statuses
 
@@ -175,6 +199,7 @@ templates/claude/hooks/
 | `TaskDesignDocGenerator` | Manage task-level technical design documents |
 | `KnowledgeExtractor` | Extract learnings, decisions, gotchas from completed tasks |
 | `ConflictDetector` | Check proposed changes against ADRs, decisions, requirements |
+| `HookEngine` | Process Claude Code hook events: PreToolUse (blocking), PostToolUse (non-blocking), Stop (advisory), TaskCompleted (blocking quality gates + non-blocking knowledge), SessionEnd (non-blocking) |
 | `ProjectInitializer` | Initialize full project workspace with directory structure, config, and docs |
 | `EventLogger` | Local interface for event logging, avoids importing observability package |
 | `BacklogStore` | Local interface mirroring storage.BacklogManager for decoupling |
@@ -218,7 +243,7 @@ templates/claude/hooks/
 - Integration tests: `internal/integration_test.go`
 - Edge case tests: `internal/qa_edge_cases_test.go`
 - All tests use `t.TempDir()` for filesystem isolation
-- 14 property test files across core, storage, and integration packages
+- 16 property test files across core, storage, hooks, and integration packages
 - Test files live alongside their implementation files
 
 ## File Naming Conventions
@@ -230,7 +255,8 @@ templates/claude/hooks/
 
 ## Configuration Files
 
-- `.taskconfig` -- Global config (YAML, read via Viper). Contains `defaults.ai`, `task_id.prefix`, `task_id.counter`, `defaults.priority`, `defaults.owner`, `screenshot.hotkey`, `offline_mode`, `cli_aliases`, `notifications`.
+- `.taskconfig` -- Global config (YAML, read via Viper). Contains `defaults.ai`, `task_id.prefix`, `task_id.counter`, `defaults.priority`, `defaults.owner`, `screenshot.hotkey`, `offline_mode`, `cli_aliases`, `notifications`, `hooks`.
+- `.adb_session_changes` -- Append-only change tracker file (per session). Format: `timestamp|tool|filepath` per line. Written by PostToolUse, consumed by Stop/SessionEnd, cleaned up after consumption.
 - `.taskrc` -- Per-repo config (YAML, read via Viper). Contains `build_command`, `test_command`, `default_reviewers`, `conventions`, `templates`.
 - Precedence: `.taskrc` > `.taskconfig` > defaults
 - `.task_counter` -- File-based sequential counter for task ID generation
@@ -260,6 +286,54 @@ notifications:
 
 Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d, max backlog 10.
 
+### Hook Configuration
+
+The `hooks` key in `.taskconfig` controls adb-native hook behavior:
+
+```yaml
+hooks:
+  enabled: true
+  pre_tool_use:
+    enabled: true
+    block_vendor: true
+    block_go_sum: true
+    architecture_guard: false    # Phase 2: blocks core/ importing storage/
+    adr_conflict_check: false    # Phase 3: warns on ADR conflicts
+  post_tool_use:
+    enabled: true
+    go_format: true
+    change_tracking: true
+    dependency_detection: false   # Phase 2: monitors go.mod changes
+    glossary_extraction: false    # Phase 2: extracts terms
+  stop:
+    enabled: true
+    uncommitted_check: true
+    build_check: true
+    vet_check: true
+    context_update: true
+    status_timestamp: true
+  task_completed:
+    enabled: true
+    check_uncommitted: true
+    run_tests: true
+    run_lint: true
+    test_command: "go test ./..."
+    lint_command: "golangci-lint run"
+    extract_knowledge: false      # Phase 2
+    update_wiki: false            # Phase 2
+    generate_adrs: false          # Phase 3
+    update_context: true
+  session_end:
+    enabled: true
+    capture_session: true
+    min_turns_capture: 3
+    update_context: true
+    extract_knowledge: false      # Phase 2
+    log_communications: false     # Phase 3
+```
+
+When no `hooks` section is present, `DefaultHookConfig()` provides sensible defaults with Phase 1 features enabled.
+
 ## CLI Commands
 
 - `adb feat <branch>` -- Create a feature task
@@ -284,6 +358,13 @@ Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d,
 - `adb session capture --from-hook` -- Capture a Claude Code session from a JSONL transcript (called by SessionEnd hook)
 - `adb session list [--task-id ID] [--since 7d]` -- List captured sessions with optional filters
 - `adb session show <session-id>` -- Show details and turns for a captured session
+- `adb hook install [--dir DIR]` -- Install adb hook wrapper scripts and update .claude/settings.json
+- `adb hook status` -- Show hook configuration (enabled/disabled flags for all hook types)
+- `adb hook pre-tool-use` -- Handle PreToolUse events from stdin (blocking, exit 2 on block)
+- `adb hook post-tool-use` -- Handle PostToolUse events from stdin (non-blocking)
+- `adb hook stop` -- Handle Stop events from stdin (non-blocking, advisory)
+- `adb hook task-completed` -- Handle TaskCompleted events from stdin (blocking, exit 2 on failure)
+- `adb hook session-end` -- Handle SessionEnd events from stdin (non-blocking)
 - `adb version` -- Print version information
 
 ## Observability
@@ -395,6 +476,19 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 | `adversarial-review` | Self-review uncommitted changes with hostile intent and information asymmetry | -- |
 
 ### Hooks (`.claude/settings.json` and `.claude/hooks/`)
+
+**adb-native hooks** (installed via `adb hook install`): Shell wrappers delegate to `adb hook <type>` for compiled Go execution.
+
+| Hook | Trigger | What It Does |
+|------|---------|--------------|
+| `adb-hook-pre-tool-use.sh` | `PreToolUse` (Edit\|Write) | Blocks vendor/, go.sum edits. Architecture guard (Phase 2). ADR conflict check (Phase 3). Exit 2 to block. |
+| `adb-hook-post-tool-use.sh` | `PostToolUse` (Edit\|Write) | Auto-formats Go files with gofmt. Tracks changed files to `.adb_session_changes`. Dependency change detection (Phase 2). |
+| `adb-hook-stop.sh` | `Stop` | Advisory checks: uncommitted changes, build, vet. Updates context.md with session summary. Updates status.yaml timestamp. |
+| `adb-hook-task-completed.sh` | `TaskCompleted` | Phase A (blocking): uncommitted check, tests, lint. Phase B (non-blocking): knowledge extraction, wiki, ADRs, context update. |
+| `adb-hook-session-end.sh` | `SessionEnd` | Captures Claude Code session transcript. Updates context.md from tracked changes. |
+| `adb-hook-teammate-idle.sh` | `TeammateIdle` | No-op (exit 0). |
+
+**Legacy hooks** (pre-adb-native, still available):
 
 | Hook | Trigger | What It Does |
 |------|---------|--------------|
