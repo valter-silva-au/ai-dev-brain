@@ -63,14 +63,46 @@ func pickResumableTask() (string, error) {
 		return tasks[i].Priority < tasks[j].Priority
 	})
 
+	// Compute dynamic column widths from actual data.
+	colNum := len(fmt.Sprintf("%d", len(tasks)))
+	if colNum < 1 {
+		colNum = 1
+	}
+	colID, colType, colPri, colStatus := len("ID"), len("TYPE"), len("PRI"), len("STATUS")
+	for _, t := range tasks {
+		if l := len(t.ID); l > colID {
+			colID = l
+		}
+		if l := len(string(t.Type)); l > colType {
+			colType = l
+		}
+		if l := len(string(t.Priority)); l > colPri {
+			colPri = l
+		}
+		if l := len(string(t.Status)); l > colStatus {
+			colStatus = l
+		}
+	}
+
+	// Build format string with computed widths.
+	rowFmt := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s\n",
+		colNum, colID, colType, colPri, colStatus)
+
 	// Display the list.
 	fmt.Println("\nResumable tasks:")
 	fmt.Println()
-	fmt.Printf("  %-4s %-20s %-6s %-4s %-12s %s\n", "#", "ID", "TYPE", "PRI", "STATUS", "BRANCH")
-	fmt.Printf("  %-4s %-20s %-6s %-4s %-12s %s\n", "---", "---", "----", "---", "------", "------")
+	fmt.Printf(rowFmt, "#", "ID", "TYPE", "PRI", "STATUS", "BRANCH")
+	// Separator line matching each column width.
+	fmt.Printf(rowFmt,
+		strings.Repeat("-", colNum),
+		strings.Repeat("-", colID),
+		strings.Repeat("-", colType),
+		strings.Repeat("-", colPri),
+		strings.Repeat("-", colStatus),
+		strings.Repeat("-", 6))
 	for i, t := range tasks {
-		fmt.Printf("  %-4d %-20s %-6s %-4s %-12s %s\n",
-			i+1, t.ID, t.Type, t.Priority, t.Status, t.Branch)
+		fmt.Printf(rowFmt,
+			fmt.Sprintf("%d", i+1), t.ID, string(t.Type), string(t.Priority), string(t.Status), t.Branch)
 	}
 	fmt.Println()
 
