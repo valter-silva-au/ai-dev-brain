@@ -44,6 +44,12 @@ graph LR
     subgraph "Claude Code"
         initclaude["adb init-claude"]
         syncuser["adb sync-claude-user"]
+        team["adb team"]
+        agents["adb agents"]
+    end
+
+    subgraph "Worktree Automation"
+        wtlifecycle["adb worktree-lifecycle"]
     end
 
     subgraph "Knowledge & Channels"
@@ -60,7 +66,8 @@ graph LR
     end
 
     subgraph "MCP Server"
-        mcp["adb mcp serve"]
+        mcpserve["adb mcp serve"]
+        mcpcheck["adb mcp check"]
     end
 ```
 
@@ -760,6 +767,57 @@ adb sync-context
 
 # Typically run after making wiki or ADR changes
 adb sync-context
+```
+
+---
+
+### adb sync-task-context
+
+Regenerate task context for the current worktree.
+
+**Synopsis**
+
+```
+adb sync-task-context [flags]
+```
+
+**Description**
+
+Regenerate the `.claude/rules/task-context.md` file in the current
+worktree from environment variables. This file provides AI assistants
+with immediate task awareness when working in a task worktree.
+
+The command reads `ADB_TASK_ID`, `ADB_BRANCH`, `ADB_WORKTREE_PATH`, and
+`ADB_TICKET_PATH` environment variables to populate the task context file.
+
+Use `--hook-mode` when calling from a ConfigChange hook. In hook mode,
+the command runs silently (no output on success) and logs a
+`config.task_context_synced` event to the observability system.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--hook-mode` | bool | `false` | Silent mode for use in ConfigChange hooks |
+
+**Output**
+
+Without `--hook-mode`: prints the path to the regenerated task context file.
+
+With `--hook-mode`: prints nothing on success (silent mode).
+
+**Examples**
+
+```bash
+# Regenerate task context manually
+adb sync-task-context
+
+# Called from ConfigChange hook (silent mode)
+adb sync-task-context --hook-mode
 ```
 
 ---
@@ -2235,6 +2293,7 @@ Parent command for MCP (Model Context Protocol) server operations.
 | Subcommand | Description |
 |------------|-------------|
 | `serve` | Start the adb MCP server on stdio |
+| `check` | Validate configured MCP servers |
 
 ---
 
@@ -2274,6 +2333,59 @@ None.
 ```bash
 # Start the MCP server (typically called by an AI assistant, not manually)
 adb mcp serve
+```
+
+---
+
+### adb mcp check
+
+Validate configured MCP servers.
+
+**Synopsis**
+
+```
+adb mcp check [flags]
+```
+
+**Description**
+
+Validate the health of configured MCP servers by performing connectivity
+checks. HTTP servers are checked via GET request (healthy if status < 500).
+Stdio servers are checked via command existence using `exec.LookPath`.
+
+Results are cached in `.adb_mcp_cache.json` with a 5-minute TTL to avoid
+excessive health checks. Use `--no-cache` to skip the cache and force fresh
+checks.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--no-cache` | bool | `false` | Skip cache and force fresh health checks |
+
+**Output**
+
+A table with columns: Name, Type, Status, Response Time.
+
+```
+NAME            TYPE    STATUS      RESPONSE TIME
+aws-knowledge   http    healthy     142ms
+context7        http    healthy     89ms
+aws-docs        stdio   healthy     -
+```
+
+**Examples**
+
+```bash
+# Check all configured MCP servers (uses cache if fresh)
+adb mcp check
+
+# Force fresh health checks without cache
+adb mcp check --no-cache
 ```
 
 ---
@@ -2408,6 +2520,328 @@ adb sync-claude-user --mcp
 
 # Preview everything that would be synced
 adb sync-claude-user --mcp --dry-run
+```
+
+---
+
+### adb team
+
+Launch a multi-agent team session with task context.
+
+**Synopsis**
+
+```
+adb team <team-name> <prompt>
+```
+
+**Description**
+
+Launch a multi-agent team session using Claude Code's experimental agent
+teams feature. The command checks that Claude Code version >= 2.1.32
+supports agent teams, sets the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+environment variable, and injects task context from `ADB_TASK_ID`,
+`ADB_BRANCH`, `ADB_WORKTREE_PATH`, and `ADB_TICKET_PATH` environment
+variables into the prompt.
+
+The command logs `team.session_started` and `team.session_ended` events
+to the observability system for tracking multi-agent workflows.
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `team-name` | Yes | The team configuration name (e.g., `design-review`, `security-audit`) |
+| `prompt` | Yes | The task prompt for the team |
+
+**Flags**
+
+None.
+
+**Output**
+
+Launches Claude Code with the team configuration and prompt. Streams
+output from the team session.
+
+**Errors**
+
+- If Claude Code is not installed, returns an error with installation
+  instructions.
+- If Claude Code version is < 2.1.32, returns an error indicating agent
+  teams are not supported.
+
+**Examples**
+
+```bash
+# Launch a design review team
+adb team design-review "Evaluate TASK-00042 architecture"
+
+# Launch a security audit team
+adb team security-audit "Review auth module changes"
+
+# Launch a team with task context injected from environment
+adb team refactoring-squad "Clean up database access layer"
+```
+
+---
+
+### adb agents
+
+List available Claude Code agents.
+
+**Synopsis**
+
+```
+adb agents
+```
+
+**Description**
+
+List all available Claude Code agents by scanning both project-level
+(`.claude/agents/`) and user-level (`~/.claude/agents/`) directories.
+
+First tries the `claude agents` command if Claude Code is installed.
+If the command fails or Claude Code is not installed, falls back to
+scanning agent directories for `.md` files.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Lists agent names, one per line.
+
+```
+team-lead
+analyst
+product-owner
+design-reviewer
+scrum-master
+quick-flow-dev
+go-tester
+code-reviewer
+architecture-guide
+knowledge-curator
+doc-writer
+researcher
+debugger
+observability-reporter
+security-auditor
+release-manager
+```
+
+**Examples**
+
+```bash
+# List all available agents
+adb agents
+
+# Use in scripts to check if an agent exists
+if adb agents | grep -q "security-auditor"; then
+  echo "Security auditor agent is available"
+fi
+```
+
+---
+
+## Worktree Automation Commands
+
+### adb worktree-lifecycle
+
+Run worktree lifecycle hooks.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle <subcommand>
+```
+
+**Description**
+
+Parent command for worktree lifecycle automation. Provides subcommands
+for pre- and post-hooks around worktree creation and removal. These hooks
+ensure clean worktree operations by checking for blockers, validating state,
+and cleaning up after operations.
+
+The lifecycle hooks use `ADB_TASK_ID`, `ADB_WORKTREE_PATH`, and
+`ADB_TICKET_PATH` environment variables to operate on the current task.
+
+**Subcommands**
+
+| Subcommand | Description |
+|------------|-------------|
+| `pre-create` | Check for blockers before creating a worktree |
+| `post-create` | Validate worktree state after creation |
+| `pre-remove` | Warn about uncommitted changes before removal |
+| `post-remove` | Clean up after worktree removal |
+
+---
+
+### adb worktree-lifecycle pre-create
+
+Check for blockers before creating a worktree.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle pre-create
+```
+
+**Description**
+
+Check for conditions that would block worktree creation:
+- Uncommitted changes in the current repository (via `git status --porcelain`)
+- Unresolved merge conflicts (via `git diff --name-only --diff-filter=U`)
+
+If any blockers are found, the command fails with a non-zero exit code
+and descriptive error message.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+On success (no blockers): prints nothing and exits 0.
+
+On failure: prints blocker details and exits 1.
+
+**Examples**
+
+```bash
+# Check before creating a worktree
+adb worktree-lifecycle pre-create
+```
+
+---
+
+### adb worktree-lifecycle post-create
+
+Validate worktree state after creation.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle post-create
+```
+
+**Description**
+
+Validate that the worktree was created successfully and that the
+task context file exists at `.claude/rules/task-context.md`.
+
+Logs a `worktree.post_created` event to the observability system with
+task details.
+
+Reads `ADB_TASK_ID` and `ADB_WORKTREE_PATH` from environment variables.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+On success: prints validation message and exits 0.
+
+On failure: prints validation error and exits 1.
+
+**Examples**
+
+```bash
+# Validate after creating a worktree
+adb worktree-lifecycle post-create
+```
+
+---
+
+### adb worktree-lifecycle pre-remove
+
+Warn about uncommitted changes before removal.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle pre-remove
+```
+
+**Description**
+
+Check for uncommitted changes and unpushed commits in the worktree before
+removal. Prints warnings if found but does not fail (non-fatal).
+
+This gives the user a chance to review and save work before the worktree
+is deleted.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints warnings for uncommitted changes or unpushed commits. Always exits 0
+(warnings are non-fatal).
+
+**Examples**
+
+```bash
+# Check before removing a worktree
+adb worktree-lifecycle pre-remove
+```
+
+---
+
+### adb worktree-lifecycle post-remove
+
+Clean up after worktree removal.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle post-remove
+```
+
+**Description**
+
+Clean up temporary files from the task's ticket directory after worktree
+removal. Deletes all `*.tmp` files in the ticket path.
+
+Logs a `worktree.post_removed` event to the observability system.
+
+Reads `ADB_TASK_ID` and `ADB_TICKET_PATH` from environment variables.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints cleanup summary (number of temporary files deleted). Exits 0.
+
+**Examples**
+
+```bash
+# Clean up after removing a worktree
+adb worktree-lifecycle post-remove
 ```
 
 ---
