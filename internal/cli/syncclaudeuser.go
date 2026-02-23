@@ -11,20 +11,29 @@ import (
 
 var syncClaudeUserCmd = &cobra.Command{
 	Use:   "sync-claude-user",
-	Short: "Sync universal Claude Code skills, agents, and MCP servers to user config",
+	Short: "Sync universal Claude Code skills, agents, MCP servers, and status line to user config",
 	Long: `Sync universal (language-agnostic) Claude Code configuration from adb's
 canonical templates to the user-level ~/.claude/ directory.
 
-By default, syncs skills and agents. Use --mcp to also merge MCP server
-definitions into ~/.claude.json so they are available in every project.
+By default, syncs skills, agents, and the status line script. Use --mcp
+to also merge MCP server definitions into ~/.claude.json so they are
+available in every project.
 
 This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, and shared MCP servers are available on any
-machine after a single command.
+the generic code-reviewer agent, the universal status line, and shared MCP
+servers are available on any machine after a single command.
 
-Skills and agents are overwritten if they already exist (templates are the
-source of truth). MCP servers are merged -- existing servers are updated,
-new servers are added, and servers not in the template are left untouched.
+Skills, agents, and the status line are overwritten if they already exist
+(templates are the source of truth). MCP servers are merged -- existing
+servers are updated, new servers are added, and servers not in the template
+are left untouched.
+
+The status line script (~/.claude/statusline.sh) provides tiered context:
+  - Tier 1 (always): project name, model, context%, cost, lines, duration
+  - Tier 2 (git):    branch, dirty count, ahead/behind
+  - Tier 3 (adb):    task ID/type/priority, portfolio counts, alerts
+
+The command also configures ~/.claude/settings.json to use the status line.
 
 Run this after installing adb on a new machine, or after upgrading adb
 to pick up template changes.`,
@@ -106,6 +115,33 @@ to pick up template changes.`,
 			}
 			fmt.Printf("  synced agent: %s\n", agent)
 			synced++
+		}
+
+		// Sync statusline.sh
+		{
+			src := filepath.Join(templateDir, "statusline.sh")
+			dst := filepath.Join(userClaudeDir, "statusline.sh")
+
+			if dryRun {
+				fmt.Printf("  [dry-run] statusline: statusline.sh\n")
+				synced++
+			} else {
+				data, err := os.ReadFile(src)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  warning: skipping statusline: %v\n", err)
+				} else {
+					if err := os.WriteFile(dst, data, 0o755); err != nil {
+						return fmt.Errorf("writing statusline.sh: %w", err)
+					}
+					fmt.Printf("  synced statusline: statusline.sh\n")
+					synced++
+				}
+			}
+		}
+
+		// Merge statusLine config into ~/.claude/settings.json
+		if err := mergeStatusLineConfig(userClaudeDir, dryRun); err != nil {
+			fmt.Fprintf(os.Stderr, "  warning: could not update settings.json: %v\n", err)
 		}
 
 		// Sync MCP servers into ~/.claude.json
@@ -214,6 +250,53 @@ func checkEnvVars() {
 			fmt.Println(m)
 		}
 	}
+}
+
+// mergeStatusLineConfig ensures ~/.claude/settings.json has a statusLine block
+// pointing to ~/.claude/statusline.sh. Preserves all existing keys.
+func mergeStatusLineConfig(claudeDir string, dryRun bool) error {
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+
+	if dryRun {
+		fmt.Printf("  [dry-run] settings.json: add statusLine config\n")
+		return nil
+	}
+
+	var settings map[string]interface{}
+
+	existing, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			settings = make(map[string]interface{})
+		} else {
+			return fmt.Errorf("reading settings.json: %w", err)
+		}
+	} else {
+		if err := json.Unmarshal(existing, &settings); err != nil {
+			return fmt.Errorf("parsing settings.json: %w", err)
+		}
+	}
+
+	settings["statusLine"] = map[string]interface{}{
+		"type":    "command",
+		"command": "~/.claude/statusline.sh",
+	}
+
+	output, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling settings.json: %w", err)
+	}
+	output = append(output, '\n')
+
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		return fmt.Errorf("creating claude directory: %w", err)
+	}
+	if err := os.WriteFile(settingsPath, output, 0o644); err != nil {
+		return fmt.Errorf("writing settings.json: %w", err)
+	}
+
+	fmt.Printf("  updated settings.json: statusLine -> ~/.claude/statusline.sh\n")
+	return nil
 }
 
 func init() {

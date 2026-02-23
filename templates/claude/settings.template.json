@@ -10,5 +10,9 @@
       "Bash(curl * | bash)",
       "Bash(wget * | bash)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/statusline.sh"
   }
 }
