@@ -372,6 +372,13 @@ func TestNormalizeRepoToPrefix(t *testing.T) {
 		{"simple repo path", "github.com/org/repo", "", "github.com/org/repo"},
 		{"with repos prefix", "repos/github.com/org/repo", "", "github.com/org/repo"},
 		{"trailing slash", "github.com/org/repo/", "", "github.com/org/repo"},
+		{"unix absolute path not under basePath", "/home/user/code/myrepo", "/home/user/.adb", ""},
+		{"windows absolute path not under basePath", "C:/Users/dev/code/myrepo", "C:/Users/dev/.adb", ""},
+		{"windows backslash path not under basePath", `C:\Users\dev\code\myrepo`, `C:\Users\dev\.adb`, ""},
+		{"absolute path under basePath stripped", "/home/user/.adb/repos/github.com/org/repo", "/home/user/.adb", "github.com/org/repo"},
+		{"relative dot-slash prefix", "./repos/github.com/org/repo", "", "github.com/org/repo"},
+		{"relative backslash dot prefix", `.\repos\github.com\org\repo`, "", "github.com/org/repo"},
+		{"relative with trailing slash", `.\repos\code.aws.dev\org\repo\`, "", "code.aws.dev/org/repo"},
 	}
 
 	for _, tc := range tests {

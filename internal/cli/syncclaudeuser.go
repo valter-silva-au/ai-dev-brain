@@ -18,12 +18,14 @@ var syncClaudeUserCmd = &cobra.Command{
 	Long: `Sync universal (language-agnostic) Claude Code configuration from adb's
 canonical templates to the user-level ~/.claude/ directory.
 
-By default, syncs skills and agents. Use --mcp to also merge MCP server
-definitions into ~/.claude.json so they are available in every project.
+By default, syncs skills, agents, and the adb MCP server. The adb MCP
+server (adb mcp serve) is always registered in ~/.claude.json so that
+adb tools (get_task, list_tasks, update_task_status, get_metrics, get_alerts)
+are available in every project and to all agent teams.
 
-This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, and shared MCP servers are available on any
-machine after a single command.
+Use --mcp to also merge third-party MCP server definitions (aws-docs,
+aws-knowledge, context7) into ~/.claude.json. These are opt-in because
+they require external dependencies (uvx, API keys, network access).
 
 Skills and agents are overwritten if they already exist (templates are the
 source of truth). MCP servers are merged -- existing servers are updated,
@@ -107,11 +109,18 @@ to pick up template changes.`,
 			synced += hookCount
 		}
 
-		// Sync MCP servers into ~/.claude.json
+		// Always sync the adb MCP server into ~/.claude.json (zero external deps)
+		adbCount, err := syncAdbMCPServer(home, dryRun)
+		if err != nil {
+			return fmt.Errorf("syncing adb MCP server: %w", err)
+		}
+		synced += adbCount
+
+		// Sync third-party MCP servers into ~/.claude.json (opt-in via --mcp)
 		if syncMCP {
-			mcpCount, err := syncMCPServers(home, dryRun)
+			mcpCount, err := syncThirdPartyMCPServers(home, dryRun)
 			if err != nil {
-				return fmt.Errorf("syncing MCP servers: %w", err)
+				return fmt.Errorf("syncing third-party MCP servers: %w", err)
 			}
 			synced += mcpCount
 		}
@@ -129,9 +138,31 @@ to pick up template changes.`,
 	},
 }
 
-// syncMCPServers merges MCP server definitions from the embedded template into ~/.claude.json.
-// Existing servers are updated, new servers are added, unrelated keys are preserved.
-func syncMCPServers(home string, dryRun bool) (int, error) {
+// adbMCPServerName is the key used for the adb MCP server in ~/.claude.json.
+const adbMCPServerName = "adb"
+
+// adbMCPServerConfig returns the MCP server definition for adb's own server.
+func adbMCPServerConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"type":    "stdio",
+		"command": "adb",
+		"args":    []interface{}{"mcp", "serve"},
+	}
+}
+
+// syncAdbMCPServer registers the adb MCP server in ~/.claude.json.
+// This is always called (not gated behind --mcp) because the adb server
+// has zero external dependencies -- it only needs the adb binary on PATH.
+func syncAdbMCPServer(home string, dryRun bool) (int, error) {
+	servers := map[string]interface{}{
+		adbMCPServerName: adbMCPServerConfig(),
+	}
+	return mergeMCPServers(servers, home, dryRun)
+}
+
+// syncThirdPartyMCPServers merges third-party MCP server definitions from the
+// embedded template into ~/.claude.json, excluding the adb server (already synced).
+func syncThirdPartyMCPServers(home string, dryRun bool) (int, error) {
 	// Read template MCP servers from embedded FS
 	templateData, err := claudetpl.FS.ReadFile("mcp-servers.json")
 	if err != nil {
@@ -143,23 +174,34 @@ func syncMCPServers(home string, dryRun bool) (int, error) {
 		return 0, fmt.Errorf("parsing MCP template: %w", err)
 	}
 
-	if dryRun {
-		for name := range templateServers {
-			fmt.Printf("  [dry-run] mcp server: %s\n", name)
-		}
-		return len(templateServers), nil
+	// Exclude the adb server -- it is already synced unconditionally
+	delete(templateServers, adbMCPServerName)
+
+	if len(templateServers) == 0 {
+		return 0, nil
 	}
 
-	// Read existing ~/.claude.json
+	return mergeMCPServers(templateServers, home, dryRun)
+}
+
+// mergeMCPServers merges the given server definitions into ~/.claude.json.
+// Existing servers are updated, new servers are added, unrelated keys are preserved.
+func mergeMCPServers(servers map[string]interface{}, home string, dryRun bool) (int, error) {
+	if dryRun {
+		for name := range servers {
+			fmt.Printf("  [dry-run] mcp server: %s\n", name)
+		}
+		return len(servers), nil
+	}
+
 	claudeJSONPath := filepath.Join(home, ".claude.json")
 	var claudeConfig map[string]interface{}
 
 	existing, err := os.ReadFile(claudeJSONPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// No existing config -- create a minimal one
 			claudeConfig = map[string]interface{}{
-				"mcpServers": templateServers,
+				"mcpServers": servers,
 			}
 		} else {
 			return 0, fmt.Errorf("reading ~/.claude.json: %w", err)
@@ -169,18 +211,16 @@ func syncMCPServers(home string, dryRun bool) (int, error) {
 			return 0, fmt.Errorf("parsing ~/.claude.json: %w", err)
 		}
 
-		// Merge MCP servers
 		existingServers, ok := claudeConfig["mcpServers"].(map[string]interface{})
 		if !ok {
 			existingServers = make(map[string]interface{})
 		}
-		for name, config := range templateServers {
+		for name, config := range servers {
 			existingServers[name] = config
 		}
 		claudeConfig["mcpServers"] = existingServers
 	}
 
-	// Write back
 	output, err := json.MarshalIndent(claudeConfig, "", "  ")
 	if err != nil {
 		return 0, fmt.Errorf("marshaling ~/.claude.json: %w", err)
@@ -189,10 +229,10 @@ func syncMCPServers(home string, dryRun bool) (int, error) {
 		return 0, fmt.Errorf("writing ~/.claude.json: %w", err)
 	}
 
-	for name := range templateServers {
+	for name := range servers {
 		fmt.Printf("  synced mcp server: %s\n", name)
 	}
-	return len(templateServers), nil
+	return len(servers), nil
 }
 
 // checkEnvVars prints warnings for required environment variables that are not set.
@@ -330,6 +370,6 @@ func syncSessionHook(userClaudeDir string, dryRun bool) (int, error) {
 
 func init() {
 	syncClaudeUserCmd.Flags().Bool("dry-run", false, "Preview changes without writing files")
-	syncClaudeUserCmd.Flags().Bool("mcp", false, "Also sync MCP server definitions to ~/.claude.json")
+	syncClaudeUserCmd.Flags().Bool("mcp", false, "Also sync third-party MCP servers (aws-docs, aws-knowledge, context7) to ~/.claude.json")
 	rootCmd.AddCommand(syncClaudeUserCmd)
 }

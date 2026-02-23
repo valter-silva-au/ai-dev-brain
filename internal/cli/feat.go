@@ -5,11 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 // TaskMgr is the TaskManager used by task lifecycle commands.
@@ -101,7 +102,7 @@ files, and registers the task in the backlog.`, taskType),
 				if task.Repo != "" {
 					_ = os.Setenv("ADB_REPO_SHORT", repoShortName(task.Repo))
 				}
-				launchWorkflow(task.ID, task.Branch, task.WorktreePath, false)
+				launchWorkflow(task.ID, task.Branch, task.WorktreePath, task.TicketPath, false)
 			}
 
 			return nil
@@ -176,12 +177,39 @@ func detectRepoPrefix(repoPath, basePath string) string {
 	return core.NormalizeRepoToPrefix(repoPath, basePath)
 }
 
+// resolveShell returns the path to an interactive shell appropriate for the
+// current platform. On Windows it tries COMSPEC, then bash (for Git Bash/WSL),
+// then powershell, then falls back to cmd.exe. On Unix it respects the SHELL
+// env var, then tries exec.LookPath("bash"), then falls back to /bin/bash.
+func resolveShell() string {
+	if runtime.GOOS == "windows" {
+		if comspec := os.Getenv("COMSPEC"); comspec != "" {
+			return comspec
+		}
+		if p, err := exec.LookPath("bash"); err == nil {
+			return p
+		}
+		if p, err := exec.LookPath("powershell"); err == nil {
+			return p
+		}
+		return "cmd.exe"
+	}
+	if shell := os.Getenv("SHELL"); shell != "" {
+		return shell
+	}
+	if p, err := exec.LookPath("bash"); err == nil {
+		return p
+	}
+	return "/bin/bash"
+}
+
 // launchWorkflow renames the terminal tab, launches Claude Code in the
 // worktree directory, and then drops the user into a shell in the worktree
 // so they remain in the work directory after Claude exits.
-func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
+func launchWorkflow(taskID, branch, worktreePath, ticketPath string, resume bool) {
 	// Check if worktree directory exists.
 	if _, err := os.Stat(worktreePath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: worktree directory does not exist: %s\n", worktreePath)
 		return
 	}
 
@@ -205,8 +233,17 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 	if resume {
 		claudeArgs = append(claudeArgs, "--resume")
 	}
+	// Build ADB environment variables for both Claude and the shell.
+	adbEnv := append(os.Environ(),
+		"ADB_TASK_ID="+taskID,
+		"ADB_BRANCH="+branch,
+		"ADB_WORKTREE_PATH="+worktreePath,
+		"ADB_TICKET_PATH="+ticketPath,
+	)
+
 	claudeCmd := exec.Command(claudePath, claudeArgs...)
 	claudeCmd.Dir = worktreePath
+	claudeCmd.Env = adbEnv
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr
@@ -221,10 +258,7 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 
 	// Drop the user into an interactive shell in the worktree directory so
 	// they remain in the work directory after Claude exits.
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/bash"
-	}
+	shell := resolveShell()
 
 	fmt.Printf("\nDropping into shell at %s\n", worktreePath)
 	fmt.Printf("Type 'exit' to return to your original directory.\n\n")
@@ -232,15 +266,16 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 	// Build the printf command that sets the terminal title via ANSI OSC 0.
 	titleSeq := fmt.Sprintf(`printf "\033]0;%s\007"`, title)
 
-	shellEnv := append(os.Environ(),
-		"ADB_TASK_ID="+taskID,
-		"ADB_BRANCH="+branch,
-		"ADB_WORKTREE_PATH="+worktreePath,
-	)
+	shellEnv := adbEnv
 
 	var shellCmd *exec.Cmd
 
-	if strings.HasSuffix(shell, "/zsh") {
+	if runtime.GOOS == "windows" {
+		// On Windows, skip ZDOTDIR and PROMPT_COMMAND logic -- just launch
+		// the resolved shell directly with Dir set to the worktree.
+		shellCmd = exec.Command(shell)
+		shellCmd.Env = shellEnv
+	} else if strings.HasSuffix(shell, "/zsh") {
 		// For zsh, create a temporary ZDOTDIR with a .zshenv that sources
 		// the user's real config and then installs a precmd hook to maintain
 		// the terminal title on every prompt.
@@ -290,5 +325,7 @@ func launchWorkflow(taskID, branch, worktreePath string, resume bool) {
 	shellCmd.Stdout = os.Stdout
 	shellCmd.Stderr = os.Stderr
 
-	_ = shellCmd.Run()
+	if err := shellCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Shell exited with error: %v\n", err)
+	}
 }
