@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 )
 
 // ProjectInit is the ProjectInitializer used by the init command.

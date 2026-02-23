@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 )
 
 // FeedbackLoop is set during app initialization in app.go.

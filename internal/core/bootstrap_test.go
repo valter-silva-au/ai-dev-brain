@@ -477,9 +477,11 @@ func TestBootstrap_TaskContextUsesAbsoluteTicketPath(t *testing.T) {
 		t.Error("task-context.md should reference absolute path for knowledge/")
 	}
 
-	// Verify it does NOT contain relative "tickets/" prefix.
-	if strings.Contains(content, "tickets/TASK-00001/context.md") {
-		t.Error("task-context.md should NOT contain relative ticket paths")
+	// Verify it does NOT contain relative "tickets/" prefix at the start of a line.
+	// (Absolute paths like "/tmp/.../tickets/TASK-00001" will contain the substring
+	// "tickets/TASK-00001" but should not trigger this check.)
+	if strings.Contains(content, "- tickets/TASK-00001/") || strings.Contains(content, "\ntickets/TASK-00001/") {
+		t.Errorf("task-context.md should NOT contain relative ticket paths. Full content:\n%s", content)
 	}
 }
 
