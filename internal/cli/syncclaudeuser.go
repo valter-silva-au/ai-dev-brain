@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	claudetpl "github.com/valter-silva-au/ai-dev-brain/templates/claude"
 )
 
 var syncClaudeUserCmd = &cobra.Command{
@@ -15,13 +18,14 @@ var syncClaudeUserCmd = &cobra.Command{
 	Long: `Sync universal (language-agnostic) Claude Code configuration from adb's
 canonical templates to the user-level ~/.claude/ directory.
 
-By default, syncs skills, agents, and the status line script. Use --mcp
-to also merge MCP server definitions into ~/.claude.json so they are
-available in every project.
+By default, syncs skills, agents, and the adb MCP server. The adb MCP
+server (adb mcp serve) is always registered in ~/.claude.json so that
+adb tools (get_task, list_tasks, update_task_status, get_metrics, get_alerts)
+are available in every project and to all agent teams.
 
-This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, the universal status line, and shared MCP
-servers are available on any machine after a single command.
+Use --mcp to also merge third-party MCP server definitions (aws-docs,
+aws-knowledge, context7) into ~/.claude.json. These are opt-in because
+they require external dependencies (uvx, API keys, network access).
 
 Skills, agents, and the status line are overwritten if they already exist
 (templates are the source of truth). MCP servers are merged -- existing
@@ -42,18 +46,6 @@ to pick up template changes.`,
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		syncMCP, _ := cmd.Flags().GetBool("mcp")
 
-		// Resolve template directory
-		templateDir := filepath.Join(BasePath, "repos", "github.com", "valter-silva-au", "ai-dev-brain", "templates", "claude")
-		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-			execPath, execErr := os.Executable()
-			if execErr == nil {
-				templateDir = filepath.Join(filepath.Dir(execPath), "templates", "claude")
-			}
-			if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-				return fmt.Errorf("template directory not found: run from an adb workspace or set ADB_HOME")
-			}
-		}
-
 		// Resolve user claude directory
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -66,7 +58,7 @@ to pick up template changes.`,
 		// Sync skills
 		skills := []string{"commit", "pr", "push", "review", "sync", "changelog"}
 		for _, skill := range skills {
-			src := filepath.Join(templateDir, "skills", skill, "SKILL.md")
+			embeddedPath := path.Join("skills", skill, "SKILL.md")
 			dst := filepath.Join(userClaudeDir, "skills", skill, "SKILL.md")
 
 			if dryRun {
@@ -78,7 +70,7 @@ to pick up template changes.`,
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return fmt.Errorf("creating skill directory for %s: %w", skill, err)
 			}
-			data, err := os.ReadFile(src)
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: skipping skill %s: %v\n", skill, err)
 				continue
@@ -93,7 +85,7 @@ to pick up template changes.`,
 		// Sync agents
 		agents := []string{"code-reviewer.md"}
 		for _, agent := range agents {
-			src := filepath.Join(templateDir, "agents", agent)
+			embeddedPath := path.Join("agents", agent)
 			dst := filepath.Join(userClaudeDir, "agents", agent)
 
 			if dryRun {
@@ -105,7 +97,7 @@ to pick up template changes.`,
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return fmt.Errorf("creating agents directory: %w", err)
 			}
-			data, err := os.ReadFile(src)
+			data, err := claudetpl.FS.ReadFile(embeddedPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: skipping agent %s: %v\n", agent, err)
 				continue
@@ -117,38 +109,26 @@ to pick up template changes.`,
 			synced++
 		}
 
-		// Sync statusline.sh
-		{
-			src := filepath.Join(templateDir, "statusline.sh")
-			dst := filepath.Join(userClaudeDir, "statusline.sh")
-
-			if dryRun {
-				fmt.Printf("  [dry-run] statusline: statusline.sh\n")
-				synced++
-			} else {
-				data, err := os.ReadFile(src)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "  warning: skipping statusline: %v\n", err)
-				} else {
-					if err := os.WriteFile(dst, data, 0o755); err != nil {
-						return fmt.Errorf("writing statusline.sh: %w", err)
-					}
-					fmt.Printf("  synced statusline: statusline.sh\n")
-					synced++
-				}
-			}
+		// Sync session capture hook
+		hookCount, hookErr := syncSessionHook(userClaudeDir, dryRun)
+		if hookErr != nil {
+			fmt.Fprintf(os.Stderr, "  warning: session hook sync failed: %v\n", hookErr)
+		} else {
+			synced += hookCount
 		}
 
-		// Merge statusLine config into ~/.claude/settings.json
-		if err := mergeStatusLineConfig(userClaudeDir, dryRun); err != nil {
-			fmt.Fprintf(os.Stderr, "  warning: could not update settings.json: %v\n", err)
+		// Always sync the adb MCP server into ~/.claude.json (zero external deps)
+		adbCount, err := syncAdbMCPServer(home, dryRun)
+		if err != nil {
+			return fmt.Errorf("syncing adb MCP server: %w", err)
 		}
+		synced += adbCount
 
-		// Sync MCP servers into ~/.claude.json
+		// Sync third-party MCP servers into ~/.claude.json (opt-in via --mcp)
 		if syncMCP {
-			mcpCount, err := syncMCPServers(templateDir, home, dryRun)
+			mcpCount, err := syncThirdPartyMCPServers(home, dryRun)
 			if err != nil {
-				return fmt.Errorf("syncing MCP servers: %w", err)
+				return fmt.Errorf("syncing third-party MCP servers: %w", err)
 			}
 			synced += mcpCount
 		}
@@ -166,14 +146,35 @@ to pick up template changes.`,
 	},
 }
 
-// syncMCPServers merges MCP server definitions from the template into ~/.claude.json.
-// Existing servers are updated, new servers are added, unrelated keys are preserved.
-func syncMCPServers(templateDir, home string, dryRun bool) (int, error) {
-	// Read template MCP servers
-	templatePath := filepath.Join(templateDir, "mcp-servers.json")
-	templateData, err := os.ReadFile(templatePath)
+// adbMCPServerName is the key used for the adb MCP server in ~/.claude.json.
+const adbMCPServerName = "adb"
+
+// adbMCPServerConfig returns the MCP server definition for adb's own server.
+func adbMCPServerConfig() map[string]interface{} {
+	return map[string]interface{}{
+		"type":    "stdio",
+		"command": "adb",
+		"args":    []interface{}{"mcp", "serve"},
+	}
+}
+
+// syncAdbMCPServer registers the adb MCP server in ~/.claude.json.
+// This is always called (not gated behind --mcp) because the adb server
+// has zero external dependencies -- it only needs the adb binary on PATH.
+func syncAdbMCPServer(home string, dryRun bool) (int, error) {
+	servers := map[string]interface{}{
+		adbMCPServerName: adbMCPServerConfig(),
+	}
+	return mergeMCPServers(servers, home, dryRun)
+}
+
+// syncThirdPartyMCPServers merges third-party MCP server definitions from the
+// embedded template into ~/.claude.json, excluding the adb server (already synced).
+func syncThirdPartyMCPServers(home string, dryRun bool) (int, error) {
+	// Read template MCP servers from embedded FS
+	templateData, err := claudetpl.FS.ReadFile("mcp-servers.json")
 	if err != nil {
-		return 0, fmt.Errorf("reading MCP template: %w", err)
+		return 0, fmt.Errorf("reading embedded MCP template: %w", err)
 	}
 
 	var templateServers map[string]interface{}
@@ -181,23 +182,34 @@ func syncMCPServers(templateDir, home string, dryRun bool) (int, error) {
 		return 0, fmt.Errorf("parsing MCP template: %w", err)
 	}
 
-	if dryRun {
-		for name := range templateServers {
-			fmt.Printf("  [dry-run] mcp server: %s\n", name)
-		}
-		return len(templateServers), nil
+	// Exclude the adb server -- it is already synced unconditionally
+	delete(templateServers, adbMCPServerName)
+
+	if len(templateServers) == 0 {
+		return 0, nil
 	}
 
-	// Read existing ~/.claude.json
+	return mergeMCPServers(templateServers, home, dryRun)
+}
+
+// mergeMCPServers merges the given server definitions into ~/.claude.json.
+// Existing servers are updated, new servers are added, unrelated keys are preserved.
+func mergeMCPServers(servers map[string]interface{}, home string, dryRun bool) (int, error) {
+	if dryRun {
+		for name := range servers {
+			fmt.Printf("  [dry-run] mcp server: %s\n", name)
+		}
+		return len(servers), nil
+	}
+
 	claudeJSONPath := filepath.Join(home, ".claude.json")
 	var claudeConfig map[string]interface{}
 
 	existing, err := os.ReadFile(claudeJSONPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// No existing config -- create a minimal one
 			claudeConfig = map[string]interface{}{
-				"mcpServers": templateServers,
+				"mcpServers": servers,
 			}
 		} else {
 			return 0, fmt.Errorf("reading ~/.claude.json: %w", err)
@@ -207,18 +219,16 @@ func syncMCPServers(templateDir, home string, dryRun bool) (int, error) {
 			return 0, fmt.Errorf("parsing ~/.claude.json: %w", err)
 		}
 
-		// Merge MCP servers
 		existingServers, ok := claudeConfig["mcpServers"].(map[string]interface{})
 		if !ok {
 			existingServers = make(map[string]interface{})
 		}
-		for name, config := range templateServers {
+		for name, config := range servers {
 			existingServers[name] = config
 		}
 		claudeConfig["mcpServers"] = existingServers
 	}
 
-	// Write back
 	output, err := json.MarshalIndent(claudeConfig, "", "  ")
 	if err != nil {
 		return 0, fmt.Errorf("marshaling ~/.claude.json: %w", err)
@@ -227,10 +237,10 @@ func syncMCPServers(templateDir, home string, dryRun bool) (int, error) {
 		return 0, fmt.Errorf("writing ~/.claude.json: %w", err)
 	}
 
-	for name := range templateServers {
+	for name := range servers {
 		fmt.Printf("  synced mcp server: %s\n", name)
 	}
-	return len(templateServers), nil
+	return len(servers), nil
 }
 
 // checkEnvVars prints warnings for required environment variables that are not set.
@@ -252,16 +262,36 @@ func checkEnvVars() {
 	}
 }
 
-// mergeStatusLineConfig ensures ~/.claude/settings.json has a statusLine block
-// pointing to ~/.claude/statusline.sh. Preserves all existing keys.
-func mergeStatusLineConfig(claudeDir string, dryRun bool) error {
-	settingsPath := filepath.Join(claudeDir, "settings.json")
+// syncSessionHook installs the session capture hook script and merges
+// a SessionEnd entry into ~/.claude/settings.json.
+func syncSessionHook(userClaudeDir string, dryRun bool) (int, error) {
+	synced := 0
+
+	// 1. Copy hook script to ~/.claude/hooks/
+	hookDst := filepath.Join(userClaudeDir, "hooks", "adb-session-capture.sh")
 
 	if dryRun {
-		fmt.Printf("  [dry-run] settings.json: add statusLine config\n")
-		return nil
+		fmt.Printf("  [dry-run] hook: adb-session-capture.sh\n")
+		fmt.Printf("  [dry-run] settings.json: SessionEnd hook entry\n")
+		return 2, nil
 	}
 
+	if err := os.MkdirAll(filepath.Dir(hookDst), 0o755); err != nil {
+		return 0, fmt.Errorf("creating hooks directory: %w", err)
+	}
+
+	hookData, err := claudetpl.FS.ReadFile(path.Join("hooks", "adb-session-capture.sh"))
+	if err != nil {
+		return 0, fmt.Errorf("reading embedded hook template: %w", err)
+	}
+	if err := os.WriteFile(hookDst, hookData, 0o755); err != nil {
+		return 0, fmt.Errorf("writing hook script: %w", err)
+	}
+	fmt.Printf("  synced hook: adb-session-capture.sh\n")
+	synced++
+
+	// 2. Merge SessionEnd hook entry into ~/.claude/settings.json
+	settingsPath := filepath.Join(userClaudeDir, "settings.json")
 	var settings map[string]interface{}
 
 	existing, err := os.ReadFile(settingsPath)
@@ -269,38 +299,85 @@ func mergeStatusLineConfig(claudeDir string, dryRun bool) error {
 		if os.IsNotExist(err) {
 			settings = make(map[string]interface{})
 		} else {
-			return fmt.Errorf("reading settings.json: %w", err)
+			return synced, fmt.Errorf("reading settings.json: %w", err)
 		}
 	} else {
 		if err := json.Unmarshal(existing, &settings); err != nil {
-			return fmt.Errorf("parsing settings.json: %w", err)
+			return synced, fmt.Errorf("parsing settings.json: %w", err)
 		}
 	}
 
-	settings["statusLine"] = map[string]interface{}{
+	// Build the SessionEnd hook entry.
+	hookCommand := "~/.claude/hooks/adb-session-capture.sh"
+	hookEntry := map[string]interface{}{
 		"type":    "command",
-		"command": "~/.claude/statusline.sh",
+		"command": hookCommand,
 	}
 
-	output, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling settings.json: %w", err)
-	}
-	output = append(output, '\n')
-
-	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
-		return fmt.Errorf("creating claude directory: %w", err)
-	}
-	if err := os.WriteFile(settingsPath, output, 0o644); err != nil {
-		return fmt.Errorf("writing settings.json: %w", err)
+	// Get or create the hooks section.
+	hooks, ok := settings["hooks"].(map[string]interface{})
+	if !ok {
+		hooks = make(map[string]interface{})
 	}
 
-	fmt.Printf("  updated settings.json: statusLine -> ~/.claude/statusline.sh\n")
-	return nil
+	// Get or create the SessionEnd array.
+	sessionEnd, ok := hooks["SessionEnd"].([]interface{})
+	if !ok {
+		sessionEnd = nil
+	}
+
+	// Check if our hook entry already exists.
+	alreadyPresent := false
+	for _, entry := range sessionEnd {
+		entryArr, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		hooksList, ok := entryArr["hooks"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, h := range hooksList {
+			hMap, ok := h.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if cmd, ok := hMap["command"].(string); ok && cmd == hookCommand {
+				alreadyPresent = true
+				break
+			}
+		}
+		if alreadyPresent {
+			break
+		}
+	}
+
+	if !alreadyPresent {
+		newEntry := map[string]interface{}{
+			"hooks": []interface{}{hookEntry},
+		}
+		sessionEnd = append(sessionEnd, newEntry)
+		hooks["SessionEnd"] = sessionEnd
+		settings["hooks"] = hooks
+
+		output, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			return synced, fmt.Errorf("marshaling settings.json: %w", err)
+		}
+		if err := os.WriteFile(settingsPath, output, 0o644); err != nil {
+			return synced, fmt.Errorf("writing settings.json: %w", err)
+		}
+		fmt.Printf("  synced settings.json: SessionEnd hook entry\n")
+	} else {
+		fmt.Printf("  settings.json: SessionEnd hook already present\n")
+	}
+	synced++
+
+	return synced, nil
 }
 
 func init() {
 	syncClaudeUserCmd.Flags().Bool("dry-run", false, "Preview changes without writing files")
-	syncClaudeUserCmd.Flags().Bool("mcp", false, "Also sync MCP server definitions to ~/.claude.json")
+	syncClaudeUserCmd.Flags().Bool("mcp", false, "Also sync third-party MCP servers (aws-docs, aws-knowledge, context7) to ~/.claude.json")
 	rootCmd.AddCommand(syncClaudeUserCmd)
 }

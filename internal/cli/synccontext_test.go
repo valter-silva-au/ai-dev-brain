@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 )
 
 // mockAIContextGenerator implements core.AIContextGenerator for testing.

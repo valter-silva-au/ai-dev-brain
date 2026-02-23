@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // mockTaskManager implements core.TaskManager for testing.
@@ -334,7 +335,7 @@ func TestSetTerminalTitle(t *testing.T) {
 func TestLaunchWorkflow_NonExistentWorktree(t *testing.T) {
 	// When worktree path doesn't exist, launchWorkflow returns early.
 	// This should not panic.
-	launchWorkflow("TASK-00001", "feat/test", "/nonexistent/path/that/does/not/exist", false)
+	launchWorkflow("TASK-00001", "feat/test", "/nonexistent/path/that/does/not/exist", "/tmp/tickets/TASK-00001", false)
 }
 
 func TestLaunchWorkflow_ExistingDirNoClaude(t *testing.T) {
@@ -347,7 +348,7 @@ func TestLaunchWorkflow_ExistingDirNoClaude(t *testing.T) {
 
 	// launchWorkflow should not panic; claude not found triggers the fallback print.
 	// We can't easily capture stdout here, so just verify no panic.
-	launchWorkflow("TASK-00001", "feat/test", tmpDir, false)
+	launchWorkflow("TASK-00001", "feat/test", tmpDir, "/tmp/tickets/TASK-00001", false)
 
 	// Restore PATH.
 	t.Setenv("PATH", origPath)
@@ -404,7 +405,7 @@ func TestLaunchWorkflow_WithFakeClaude_BashShell(t *testing.T) {
 	t.Setenv("SHELL", filepath.Join(tmpBin, "bash"))
 
 	// Should not panic. Exercises lines 148-170 and the else branch (bash) at lines 221-227, plus 229-234.
-	launchWorkflow("TASK-00099", "feat/test", worktree, false)
+	launchWorkflow("TASK-00099", "feat/test", worktree, "/tmp/tickets/TASK-00099", false)
 }
 
 func TestLaunchWorkflow_WithFakeClaude_ZshShell(t *testing.T) {
@@ -430,7 +431,7 @@ func TestLaunchWorkflow_WithFakeClaude_ZshShell(t *testing.T) {
 
 	// Should not panic. Exercises the zsh branch at lines 184-220 and the
 	// claude error path at lines 155-158.
-	launchWorkflow("TASK-00099", "feat/zsh-test", worktree, false)
+	launchWorkflow("TASK-00099", "feat/zsh-test", worktree, "/tmp/tickets/TASK-00099", false)
 }
 
 func TestLaunchWorkflow_WithFakeClaude_EmptyShellEnv(t *testing.T) {
@@ -449,7 +450,7 @@ func TestLaunchWorkflow_WithFakeClaude_EmptyShellEnv(t *testing.T) {
 
 	// Exercises the SHELL=="" -> "/bin/bash" fallback at lines 165-168.
 	// /bin/bash is expected to fail or run briefly (no stdin).
-	launchWorkflow("TASK-00099", "feat/no-shell", worktree, false)
+	launchWorkflow("TASK-00099", "feat/no-shell", worktree, "/tmp/tickets/TASK-00099", false)
 }
 
 func TestLaunchWorkflow_ResumeNoClaude(t *testing.T) {
@@ -459,7 +460,7 @@ func TestLaunchWorkflow_ResumeNoClaude(t *testing.T) {
 
 	t.Setenv("PATH", t.TempDir()) // empty dir -> no binaries found
 
-	launchWorkflow("TASK-00001", "feat/test", tmpDir, true)
+	launchWorkflow("TASK-00001", "feat/test", tmpDir, "/tmp/tickets/TASK-00001", true)
 }
 
 func TestLaunchWorkflow_ResumeWithFakeClaude_BashShell(t *testing.T) {
@@ -484,7 +485,7 @@ func TestLaunchWorkflow_ResumeWithFakeClaude_BashShell(t *testing.T) {
 	t.Setenv("SHELL", filepath.Join(tmpBin, "bash"))
 
 	// Should not panic. The fake claude verifies --resume is in the args.
-	launchWorkflow("TASK-00099", "feat/resume-test", worktree, true)
+	launchWorkflow("TASK-00099", "feat/resume-test", worktree, "/tmp/tickets/TASK-00099", true)
 }
 
 func TestLaunchWorkflow_ResumeWithFakeClaude_ZshShell(t *testing.T) {
@@ -509,7 +510,61 @@ func TestLaunchWorkflow_ResumeWithFakeClaude_ZshShell(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	// Should not panic. Exercises the zsh branch with resume=true.
-	launchWorkflow("TASK-00099", "feat/resume-zsh-test", worktree, true)
+	launchWorkflow("TASK-00099", "feat/resume-zsh-test", worktree, "/tmp/tickets/TASK-00099", true)
+}
+
+func TestLaunchWorkflow_ClaudeReceivesEnvVars(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell scripts are not executable on Windows")
+	}
+
+	// Verify that Claude Code subprocess receives ADB_* environment variables.
+	tmpBin := t.TempDir()
+	worktree := t.TempDir()
+	ticketDir := t.TempDir()
+
+	// Create a marker file path for the fake claude to write.
+	markerDir := t.TempDir()
+	markerFile := filepath.Join(markerDir, "env_marker.txt")
+
+	// Create a fake "claude" that writes env vars to a marker file.
+	claudeScript := filepath.Join(tmpBin, "claude")
+	scriptContent := fmt.Sprintf("#!/bin/sh\necho \"ADB_TASK_ID=$ADB_TASK_ID\" > %s\necho \"ADB_BRANCH=$ADB_BRANCH\" >> %s\necho \"ADB_WORKTREE_PATH=$ADB_WORKTREE_PATH\" >> %s\necho \"ADB_TICKET_PATH=$ADB_TICKET_PATH\" >> %s\nexit 0\n",
+		markerFile, markerFile, markerFile, markerFile)
+	if err := os.WriteFile(claudeScript, []byte(scriptContent), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a fake "bash" that exits immediately.
+	bashScript := filepath.Join(tmpBin, "bash")
+	if err := os.WriteFile(bashScript, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", tmpBin)
+	t.Setenv("SHELL", filepath.Join(tmpBin, "bash"))
+
+	launchWorkflow("TASK-00042", "feat/env-test", worktree, ticketDir, false)
+
+	// Read the marker file and verify env vars were set.
+	data, err := os.ReadFile(markerFile)
+	if err != nil {
+		t.Fatalf("marker file not created by fake claude: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "ADB_TASK_ID=TASK-00042") {
+		t.Errorf("expected ADB_TASK_ID=TASK-00042 in claude env, got:\n%s", content)
+	}
+	if !strings.Contains(content, "ADB_BRANCH=feat/env-test") {
+		t.Errorf("expected ADB_BRANCH=feat/env-test in claude env, got:\n%s", content)
+	}
+	if !strings.Contains(content, "ADB_WORKTREE_PATH="+worktree) {
+		t.Errorf("expected ADB_WORKTREE_PATH=%s in claude env, got:\n%s", worktree, content)
+	}
+	if !strings.Contains(content, "ADB_TICKET_PATH="+ticketDir) {
+		t.Errorf("expected ADB_TICKET_PATH=%s in claude env, got:\n%s", ticketDir, content)
+	}
 }
 
 func TestRepoShortName(t *testing.T) {
@@ -561,5 +616,5 @@ func TestLaunchWorkflow_ZshWithZDOTDIR(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	// Exercises ZDOTDIR != "" path at line 192.
-	launchWorkflow("TASK-00099", "feat/zdotdir-test", worktree, false)
+	launchWorkflow("TASK-00099", "feat/zdotdir-test", worktree, "/tmp/tickets/TASK-00099", false)
 }

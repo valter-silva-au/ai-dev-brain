@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drapaimern/ai-dev-brain/internal/storage"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"pgregory.net/rapid"
 )
 
@@ -42,7 +42,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 		}
 		_ = backlogMgr.Save()
 
-		gen := NewAIContextGenerator(dir, backlogMgr, nil)
+		gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 		// Choose random AI type.
 		aiTypes := []AIType{AITypeClaude, AITypeKiro}
@@ -95,7 +95,7 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		defer func() { _ = os.RemoveAll(dir) }()
 
 		backlogMgr := storage.NewBacklogManager(dir)
-		gen := NewAIContextGenerator(dir, backlogMgr, nil)
+		gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 		// Initial sync with some tasks.
 		nInitialTasks := rapid.IntRange(1, 3).Draw(t, "nInitial")
@@ -125,7 +125,7 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 
 		// Re-sync with a fresh generator that will pick up the new backlog state.
 		backlogMgr3 := storage.NewBacklogManager(dir)
-		gen2 := NewAIContextGenerator(dir, backlogMgr3, nil)
+		gen2 := NewAIContextGenerator(dir, backlogMgr3, nil, nil)
 		if err := gen2.SyncContext(); err != nil {
 			t.Fatal(err)
 		}

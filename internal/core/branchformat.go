@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // unsafeBranchChars matches characters that are not safe in git branch names.

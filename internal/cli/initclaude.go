@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	claudetpl "github.com/valter-silva-au/ai-dev-brain/templates/claude"
 )
 
 var initClaudeCmd = &cobra.Command{
@@ -19,8 +21,7 @@ templates. This creates:
   - .claude/rules/workspace.md with project conventions
 
 Safe to run on existing projects -- files that already exist are skipped
-and not overwritten. Templates are sourced from the adb installation's
-templates/claude/ directory.`,
+and not overwritten. Templates are embedded in the adb binary.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		targetPath := "."
@@ -32,28 +33,15 @@ templates/claude/ directory.`,
 			return fmt.Errorf("resolving path: %w", err)
 		}
 
-		// Resolve template directory relative to adb base path
-		templateDir := filepath.Join(BasePath, "repos", "github.com", "valter-silva-au", "ai-dev-brain", "templates", "claude")
-		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-			// Fall back to checking if templates are bundled alongside the binary
-			execPath, execErr := os.Executable()
-			if execErr == nil {
-				templateDir = filepath.Join(filepath.Dir(execPath), "templates", "claude")
-			}
-			if _, err := os.Stat(templateDir); os.IsNotExist(err) {
-				return fmt.Errorf("template directory not found: run from an adb workspace or set ADB_HOME")
-			}
-		}
-
 		var created, skipped []string
 
 		// Create .claudeignore
+		ignData, err := claudetpl.FS.ReadFile("claudeignore.template")
+		if err != nil {
+			return fmt.Errorf("reading embedded claudeignore template: %w", err)
+		}
 		ignPath := filepath.Join(absPath, ".claudeignore")
-		if err := copyTemplateIfNotExists(
-			filepath.Join(templateDir, "claudeignore.template"),
-			ignPath,
-			&created, &skipped,
-		); err != nil {
+		if err := writeIfNotExists(ignData, ignPath, &created, &skipped); err != nil {
 			return fmt.Errorf("creating .claudeignore: %w", err)
 		}
 
@@ -62,12 +50,12 @@ templates/claude/ directory.`,
 		if err := os.MkdirAll(settingsDir, 0o755); err != nil {
 			return fmt.Errorf("creating .claude directory: %w", err)
 		}
+		settingsData, err := claudetpl.FS.ReadFile("settings.template.json")
+		if err != nil {
+			return fmt.Errorf("reading embedded settings template: %w", err)
+		}
 		settingsPath := filepath.Join(settingsDir, "settings.json")
-		if err := copyTemplateIfNotExists(
-			filepath.Join(templateDir, "settings.template.json"),
-			settingsPath,
-			&created, &skipped,
-		); err != nil {
+		if err := writeIfNotExists(settingsData, settingsPath, &created, &skipped); err != nil {
 			return fmt.Errorf("creating settings.json: %w", err)
 		}
 
@@ -76,12 +64,12 @@ templates/claude/ directory.`,
 		if err := os.MkdirAll(rulesDir, 0o755); err != nil {
 			return fmt.Errorf("creating rules directory: %w", err)
 		}
+		workspaceData, err := claudetpl.FS.ReadFile("rules/workspace.template.md")
+		if err != nil {
+			return fmt.Errorf("reading embedded workspace template: %w", err)
+		}
 		workspacePath := filepath.Join(rulesDir, "workspace.md")
-		if err := copyTemplateIfNotExists(
-			filepath.Join(templateDir, "rules", "workspace.template.md"),
-			workspacePath,
-			&created, &skipped,
-		); err != nil {
+		if err := writeIfNotExists(workspaceData, workspacePath, &created, &skipped); err != nil {
 			return fmt.Errorf("creating workspace.md: %w", err)
 		}
 
@@ -121,16 +109,12 @@ templates/claude/ directory.`,
 	},
 }
 
-// copyTemplateIfNotExists copies src to dst if dst does not already exist.
+// writeIfNotExists writes data to dst if dst does not already exist.
 // Appends to created or skipped accordingly.
-func copyTemplateIfNotExists(src, dst string, created, skipped *[]string) error {
+func writeIfNotExists(data []byte, dst string, created, skipped *[]string) error {
 	if _, err := os.Stat(dst); err == nil {
 		*skipped = append(*skipped, dst)
 		return nil
-	}
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return fmt.Errorf("reading template %s: %w", src, err)
 	}
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
 		return fmt.Errorf("writing %s: %w", dst, err)

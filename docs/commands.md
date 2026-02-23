@@ -1186,6 +1186,9 @@ for saving session summaries and ingesting knowledge from them.
 |------------|-------------|
 | `save` | Save a session summary for a task |
 | `ingest` | Ingest knowledge from the latest session file |
+| `capture` | Capture a Claude Code session from a JSONL transcript |
+| `list` | List captured sessions with optional filters |
+| `show` | Show details and turns for a captured session |
 
 ---
 
@@ -1348,6 +1351,185 @@ adb session ingest TASK-00042
 
 # Ingest using ADB_TASK_ID from the environment
 adb session ingest
+```
+
+---
+
+### adb session capture
+
+Capture a Claude Code session from a JSONL transcript.
+
+**Synopsis**
+
+```
+adb session capture [flags]
+```
+
+**Description**
+
+Capture a Claude Code session by parsing its JSONL transcript into
+structured turn data. In `--from-hook` mode, reads session metadata
+from stdin (called automatically by the `SessionEnd` hook). In manual
+mode, specify `--transcript` and `--session-id` directly.
+
+The captured session is stored in the workspace-level `sessions/`
+directory. If `ADB_TASK_ID` is set, the session is also linked to
+the task's `sessions/` directory via symlink (or file copy on Windows
+when symlinks are unavailable).
+
+Sessions with fewer turns than the configured `min_turns_capture`
+threshold (default 3) are silently skipped.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--from-hook` | bool | `false` | Read session metadata from stdin (used by SessionEnd hook) |
+| `--transcript` | string | `""` | Path to the JSONL transcript file (manual mode) |
+| `--session-id` | string | `""` | Claude Code session ID (manual mode) |
+
+**Output**
+
+On success, prints the captured session ID and storage path:
+
+```
+Captured session S-00042 (5 turns) -> sessions/S-00042/
+```
+
+If the session is below the minimum turn threshold, prints nothing
+and exits 0.
+
+**Errors**
+
+- If neither `--from-hook` nor `--transcript` is provided, returns an error.
+- If the transcript file does not exist, returns a not-found error.
+
+**Examples**
+
+```bash
+# Automatic capture via SessionEnd hook (called by hook script)
+echo '{"session_id":"abc123",...}' | adb session capture --from-hook
+
+# Manual capture of a specific transcript
+adb session capture --transcript ~/.claude/projects/.../transcript.jsonl --session-id abc123
+```
+
+---
+
+### adb session list
+
+List captured sessions.
+
+**Synopsis**
+
+```
+adb session list [flags]
+```
+
+**Description**
+
+List captured sessions from the workspace-level session store. By
+default, lists all sessions sorted by most recent. Use filters to
+narrow results.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--task-id` | string | `""` | Filter by task ID |
+| `--since` | string | `""` | Show sessions since this duration (e.g. `7d`, `24h`) |
+| `--limit` | int | `20` | Maximum number of sessions to display |
+
+**Output**
+
+A table with columns: ID, Task, Turns, Duration, Started, Summary.
+
+```
+ID        TASK         TURNS  DURATION  STARTED              SUMMARY
+S-00042   TASK-00015   5      12m       2025-01-15T10:00Z    Help me fix login bug
+S-00041   TASK-00015   8      25m       2025-01-15T09:00Z    Refactor auth middleware
+S-00040   (none)       3      5m        2025-01-14T16:00Z    General project questions
+```
+
+If no sessions are found, prints "No captured sessions found."
+
+**Examples**
+
+```bash
+# List all captured sessions
+adb session list
+
+# List sessions for a specific task
+adb session list --task-id TASK-00015
+
+# List sessions from the last 7 days
+adb session list --since 7d
+
+# Combine filters
+adb session list --task-id TASK-00015 --since 24h --limit 5
+```
+
+---
+
+### adb session show
+
+Show details and turns for a captured session.
+
+**Synopsis**
+
+```
+adb session show <session-id>
+```
+
+**Description**
+
+Display the full details of a captured session, including metadata
+and all turns (user messages and assistant responses with tool usage).
+
+**Arguments**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `session-id` | Yes | The session identifier (e.g. `S-00042`) |
+
+**Flags**
+
+None.
+
+**Output**
+
+Displays the session metadata followed by each turn:
+
+```
+Session S-00042
+  Task:      TASK-00015
+  Project:   /home/user/code/myapp
+  Branch:    feat/add-auth
+  Started:   2025-01-15T10:00:00Z
+  Ended:     2025-01-15T10:12:00Z
+  Duration:  12m
+  Turns:     5
+  Summary:   Help me fix login bug — 5 turns, tools: Read(3), Edit(1)
+
+--- Turn 1 (user) ---
+Help me fix the login bug in auth.go
+
+--- Turn 2 (assistant) [Read, Read] ---
+I'll look at the auth module to understand the issue...
+
+--- Turn 3 (user) ---
+That fixed it, thanks!
+```
+
+**Errors**
+
+- If the session ID does not exist, returns "session not found".
+
+**Examples**
+
+```bash
+# Show a specific session
+adb session show S-00042
 ```
 
 ---
@@ -1780,20 +1962,114 @@ manual setup.
 With `--install`: prints the installation path and instructions.
 Without `--install`: prints the completion script to stdout.
 
+**Shell Setup**
+
+#### Bash (Linux / macOS / WSL)
+
+Automatic install (writes to `~/.local/share/bash-completion/completions/adb`):
+
+```bash
+adb completion bash --install
+```
+
+Manual setup:
+
+```bash
+# Load in current session only
+eval "$(adb completion bash)"
+
+# Permanent: append to your ~/.bashrc
+echo 'eval "$(adb completion bash)"' >> ~/.bashrc
+```
+
+Requires `bash-completion` >= 2.0. On macOS with Homebrew:
+`brew install bash-completion@2`.
+
+#### Zsh (Linux / macOS)
+
+Automatic install (writes to `~/.local/share/zsh/site-functions/_adb`):
+
+```bash
+adb completion zsh --install
+```
+
+After installing, ensure the directory is in your `fpath`. Add to `~/.zshrc`
+if needed:
+
+```zsh
+fpath=(~/.local/share/zsh/site-functions $fpath)
+autoload -Uz compinit && compinit
+```
+
+Manual setup:
+
+```zsh
+# Load in current session only
+eval "$(adb completion zsh)"
+
+# Permanent: append to your ~/.zshrc
+echo 'eval "$(adb completion zsh)"' >> ~/.zshrc
+```
+
+#### Fish (Linux / macOS)
+
+Automatic install (writes to `~/.config/fish/completions/adb.fish`):
+
+```bash
+adb completion fish --install
+```
+
+Completions are available in new fish sessions automatically.
+
+Manual setup:
+
+```fish
+# Load in current session only
+adb completion fish | source
+
+# Permanent: write to completions directory
+adb completion fish > ~/.config/fish/completions/adb.fish
+```
+
+#### PowerShell (Windows / cross-platform)
+
+Automatic install via `--install` is **not supported** for PowerShell.
+Set up completions manually:
+
+```powershell
+# Load in current session only
+adb completion powershell | Out-String | Invoke-Expression
+
+# Permanent: append to your PowerShell profile
+Add-Content -Path $PROFILE -Value 'adb completion powershell | Out-String | Invoke-Expression'
+```
+
+If your profile file does not exist yet, create it first:
+
+```powershell
+New-Item -Path $PROFILE -ItemType File -Force
+```
+
+The profile path is typically
+`~\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`. Check it
+with `echo $PROFILE`. Changes take effect in new PowerShell sessions,
+or reload with `. $PROFILE`.
+
 **Examples**
 
 ```bash
-# Install bash completions
+# Quick install (bash, zsh, fish)
 adb completion bash --install
-
-# Install zsh completions
 adb completion zsh --install
+adb completion fish --install
 
-# Print completion script to stdout (for manual setup)
+# Print completion script to stdout (any shell)
 adb completion bash
+adb completion powershell
 
 # Load completions in the current session
 eval "$(adb completion bash)"
+adb completion powershell | Out-String | Invoke-Expression
 ```
 
 ---
@@ -2024,8 +2300,7 @@ templates. Creates:
 - `.claude/rules/workspace.md` with project conventions
 
 Safe to run on existing projects -- files that already exist are skipped
-and not overwritten. Templates are sourced from the adb installation's
-`templates/claude/` directory.
+and not overwritten. Templates are embedded in the adb binary.
 
 **Arguments**
 
@@ -2062,21 +2337,22 @@ adb sync-claude-user [flags]
 **Description**
 
 Sync universal (language-agnostic) Claude Code configuration from adb's
-canonical templates to the user-level `~/.claude/` directory.
+embedded templates to the user-level `~/.claude/` directory.
 
 By default, syncs skills and agents. Use `--mcp` to also merge MCP server
 definitions into `~/.claude.json` so they are available in every project.
 
 This ensures git workflow skills (commit, pr, push, review, sync, changelog),
-the generic code-reviewer agent, and shared MCP servers are available on any
-machine after a single command.
+the generic code-reviewer agent, shared MCP servers, and the automatic session
+capture hook are available on any machine after a single command.
 
-Skills and agents are overwritten if they already exist (templates are the
-source of truth). MCP servers are merged -- existing servers are updated,
+Skills and agents are overwritten if they already exist (embedded templates are
+the source of truth). MCP servers are merged -- existing servers are updated,
 new servers are added, and servers not in the template are left untouched.
 
-Run this after installing adb on a new machine, or after upgrading adb
-to pick up template changes.
+Templates are compiled into the binary, so this command works from anywhere
+without requiring an adb workspace. Run this after installing adb on a new
+machine, or after upgrading adb to pick up template changes.
 
 **Synced items:**
 
@@ -2089,6 +2365,7 @@ to pick up template changes.
 | Skill | `sync` | Branch sync via fetch and rebase |
 | Skill | `changelog` | Changelog generation from commits |
 | Agent | `code-reviewer` | Generic code review agent |
+| Hook | `adb-session-capture.sh` | SessionEnd hook for automatic session capture (installed to `~/.claude/settings.json`) |
 
 With `--mcp`:
 

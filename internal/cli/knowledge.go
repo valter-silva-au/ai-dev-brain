@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
 )
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	app "github.com/drapaimern/ai-dev-brain/internal"
-	"github.com/drapaimern/ai-dev-brain/internal/cli"
+	app "github.com/valter-silva-au/ai-dev-brain/internal"
+	"github.com/valter-silva-au/ai-dev-brain/internal/cli"
 )
 
 // Set by goreleaser ldflags at build time.

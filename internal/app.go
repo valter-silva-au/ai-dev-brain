@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/internal/cli"
-	"github.com/drapaimern/ai-dev-brain/internal/core"
-	"github.com/drapaimern/ai-dev-brain/internal/integration"
-	"github.com/drapaimern/ai-dev-brain/internal/observability"
-	"github.com/drapaimern/ai-dev-brain/internal/storage"
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/internal/cli"
+	"github.com/valter-silva-au/ai-dev-brain/internal/core"
+	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
+	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
+	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 // App holds all service dependencies for the AI Dev Brain system.
@@ -42,6 +42,9 @@ type App struct {
 
 	// Storage layer (knowledge)
 	KnowledgeStore storage.KnowledgeStoreManager
+
+	// Storage layer (sessions)
+	SessionStore storage.SessionStoreManager
 
 	// Channel adapters
 	ChannelReg   core.ChannelRegistry
@@ -168,6 +171,12 @@ func NewApp(basePath string) (*App, error) {
 	ksAdapter := &knowledgeStoreAdapter{mgr: app.KnowledgeStore}
 	app.KnowledgeMgr = core.NewKnowledgeManager(ksAdapter)
 
+	// --- Session store ---
+	app.SessionStore = storage.NewSessionStoreManager(basePath)
+	_ = app.SessionStore.Load() // Non-fatal: empty store on first use.
+	scAdapter := &sessionCapturerAdapter{mgr: app.SessionStore}
+	cli.SessionCapture = scAdapter
+
 	// --- Feedback loop orchestrator ---
 	app.FeedbackLoop = core.NewFeedbackLoopOrchestrator(
 		app.ChannelReg,
@@ -177,8 +186,9 @@ func NewApp(basePath string) (*App, error) {
 		prefix,
 	)
 
-	// AIContextGenerator depends on KnowledgeManager for the knowledge summary section.
-	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr, app.KnowledgeMgr)
+	// AIContextGenerator depends on KnowledgeManager for the knowledge summary section
+	// and SessionCapturer for captured session display.
+	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr, app.KnowledgeMgr, scAdapter)
 
 	app.ConflictDt = core.NewConflictDetector(basePath)
 	app.ProjectInit = core.NewProjectInitializer()
@@ -471,5 +481,42 @@ func (a *knowledgeStoreAdapter) Load() error {
 }
 
 func (a *knowledgeStoreAdapter) Save() error {
+	return a.mgr.Save()
+}
+
+// sessionCapturerAdapter adapts storage.SessionStoreManager to core.SessionCapturer.
+type sessionCapturerAdapter struct {
+	mgr storage.SessionStoreManager
+}
+
+func (a *sessionCapturerAdapter) CaptureSession(session models.CapturedSession, turns []models.SessionTurn) (string, error) {
+	return a.mgr.AddSession(session, turns)
+}
+
+func (a *sessionCapturerAdapter) GetSession(sessionID string) (*models.CapturedSession, error) {
+	return a.mgr.GetSession(sessionID)
+}
+
+func (a *sessionCapturerAdapter) ListSessions(filter models.SessionFilter) ([]models.CapturedSession, error) {
+	return a.mgr.ListSessions(filter)
+}
+
+func (a *sessionCapturerAdapter) GetSessionTurns(sessionID string) ([]models.SessionTurn, error) {
+	return a.mgr.GetSessionTurns(sessionID)
+}
+
+func (a *sessionCapturerAdapter) GetLatestSessionForTask(taskID string) (*models.CapturedSession, error) {
+	return a.mgr.GetLatestSessionForTask(taskID)
+}
+
+func (a *sessionCapturerAdapter) GetRecentSessions(limit int) ([]models.CapturedSession, error) {
+	return a.mgr.GetRecentSessions(limit)
+}
+
+func (a *sessionCapturerAdapter) GenerateID() (string, error) {
+	return a.mgr.GenerateID()
+}
+
+func (a *sessionCapturerAdapter) Save() error {
 	return a.mgr.Save()
 }

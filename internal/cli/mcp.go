@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/signal"
 
-	adbmcp "github.com/drapaimern/ai-dev-brain/internal/mcp"
+	adbmcp "github.com/valter-silva-au/ai-dev-brain/internal/mcp"
 	"github.com/spf13/cobra"
 )
 

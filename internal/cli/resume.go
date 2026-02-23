@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
 	"github.com/spf13/cobra"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
 var resumeCmd = &cobra.Command{
@@ -14,13 +14,23 @@ var resumeCmd = &cobra.Command{
 	Long: `Resume working on a previously created task. This loads the task's context,
 restores the working environment, promotes the task to in_progress status
 if it was in backlog, and launches Claude Code in the worktree directory.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if TaskMgr == nil {
 			return fmt.Errorf("task manager not initialized")
 		}
 
-		taskID := args[0]
+		var taskID string
+		if len(args) > 0 {
+			taskID = args[0]
+		} else {
+			// No task ID provided: show interactive picker.
+			picked, err := pickResumableTask()
+			if err != nil {
+				return err
+			}
+			taskID = picked
+		}
 		task, err := TaskMgr.ResumeTask(taskID)
 		if err != nil {
 			return fmt.Errorf("resuming task: %w", err)
@@ -35,9 +45,11 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 		}
 		fmt.Printf("  Ticket:   %s\n", task.TicketPath)
 
-		// Refresh accumulated project knowledge in task context.
+		// Refresh accumulated project knowledge, status, and inline content in task context.
 		if task.WorktreePath != "" {
 			appendKnowledgeToTaskContext(task.WorktreePath)
+			refreshTaskContextMetadata(task.WorktreePath, string(task.Status))
+			enrichTaskContext(task.WorktreePath, task.TicketPath)
 		}
 
 		// Post-resume workflow: rename terminal tab and launch Claude Code with --resume.
@@ -50,7 +62,9 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 			if task.Repo != "" {
 				_ = os.Setenv("ADB_REPO_SHORT", repoShortName(task.Repo))
 			}
-			launchWorkflow(task.ID, task.Branch, task.WorktreePath, true)
+			launchWorkflow(task.ID, task.Branch, task.WorktreePath, task.TicketPath, true)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: task %s has no worktree. Use 'adb feat %s' to create a new task with a worktree.\n", task.ID, task.Branch)
 		}
 
 		return nil

@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"github.com/spf13/viper"
 )
 
@@ -44,7 +44,7 @@ func defaultGlobalConfig() *models.GlobalConfig {
 		TaskIDPrefix:     "TASK",
 		TaskIDCounter:    0,
 		TaskIDPadWidth:   5,
-		BranchPattern:    "{type}/{repo}/{description}",
+		BranchPattern:    "{type}/{description}",
 		DefaultPriority:  models.P2,
 		DefaultOwner:     "",
 		ScreenshotHotkey: "ctrl+shift+s",

@@ -9,7 +9,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/drapaimern/ai-dev-brain/pkg/models"
+	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -670,6 +670,7 @@ func (tm *taskManager) checkTaskIDUnique(taskID string) error {
 // loadTaskFromTicket reads a task from its status.yaml file, checking both
 // the active (tickets/{taskID}) and archived (tickets/_archived/{taskID}) locations.
 func (tm *taskManager) loadTaskFromTicket(taskID string) (*models.Task, error) {
+	taskID = NormalizeTaskID(taskID)
 	ticketDir := resolveTicketDir(tm.basePath, taskID)
 	statusPath := filepath.Join(ticketDir, "status.yaml")
 	data, err := os.ReadFile(statusPath)
@@ -699,6 +700,7 @@ func (tm *taskManager) saveTaskStatus(task *models.Task) error {
 
 // updateBacklogStatus updates the task's status in the backlog file.
 func (tm *taskManager) updateBacklogStatus(taskID string, status models.TaskStatus) error {
+	taskID = NormalizeTaskID(taskID)
 	if err := tm.backlog.Load(); err != nil {
 		return err
 	}
