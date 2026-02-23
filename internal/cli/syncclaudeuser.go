@@ -194,6 +194,29 @@ to pick up template changes.`,
 			synced++
 		}
 
+		// Sync statusline script (~/.claude/statusline.sh)
+		statuslineDst := filepath.Join(userClaudeDir, "statusline.sh")
+		if dryRun {
+			fmt.Printf("  [dry-run] statusline: statusline.sh\n")
+			synced++
+		} else {
+			statuslineData, err := claudetpl.FS.ReadFile("statusline.sh")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: skipping statusline.sh: %v\n", err)
+			} else {
+				if err := os.WriteFile(statuslineDst, statuslineData, 0o755); err != nil {
+					return fmt.Errorf("writing statusline.sh: %w", err)
+				}
+				fmt.Printf("  synced statusline: statusline.sh\n")
+				synced++
+			}
+		}
+
+		// Configure statusLine in ~/.claude/settings.json
+		if err := ensureStatusLineConfig(userClaudeDir, dryRun); err != nil {
+			fmt.Fprintf(os.Stderr, "  warning: statusline settings sync failed: %v\n", err)
+		}
+
 		// Sync session capture hook
 		hookCount, hookErr := syncSessionHook(userClaudeDir, dryRun)
 		if hookErr != nil {
@@ -459,6 +482,52 @@ func syncSessionHook(userClaudeDir string, dryRun bool) (int, error) {
 	synced++
 
 	return synced, nil
+}
+
+// ensureStatusLineConfig ensures ~/.claude/settings.json has a statusLine
+// entry pointing to ~/.claude/statusline.sh. If a statusLine entry already
+// exists it is left untouched; otherwise one is added.
+func ensureStatusLineConfig(userClaudeDir string, dryRun bool) error {
+	settingsPath := filepath.Join(userClaudeDir, "settings.json")
+	var settings map[string]interface{}
+
+	existing, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			settings = make(map[string]interface{})
+		} else {
+			return fmt.Errorf("reading settings.json: %w", err)
+		}
+	} else {
+		if err := json.Unmarshal(existing, &settings); err != nil {
+			return fmt.Errorf("parsing settings.json: %w", err)
+		}
+	}
+
+	// Only add statusLine if not already configured
+	if _, ok := settings["statusLine"]; ok {
+		return nil
+	}
+
+	if dryRun {
+		fmt.Printf("  [dry-run] settings.json: statusLine entry\n")
+		return nil
+	}
+
+	settings["statusLine"] = map[string]interface{}{
+		"type":    "command",
+		"command": "~/.claude/statusline.sh",
+	}
+
+	output, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling settings.json: %w", err)
+	}
+	if err := os.WriteFile(settingsPath, output, 0o644); err != nil {
+		return fmt.Errorf("writing settings.json: %w", err)
+	}
+	fmt.Printf("  synced settings.json: statusLine entry\n")
+	return nil
 }
 
 func init() {
