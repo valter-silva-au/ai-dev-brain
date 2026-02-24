@@ -44,7 +44,12 @@ graph LR
     subgraph "Claude Code"
         initclaude["adb init-claude"]
         syncuser["adb sync-claude-user"]
-        hook["adb hook"]
+        team["adb team"]
+        agents["adb agents"]
+    end
+
+    subgraph "Worktree Automation"
+        wtlifecycle["adb worktree-lifecycle"]
     end
 
     subgraph "Knowledge & Channels"
@@ -61,7 +66,8 @@ graph LR
     end
 
     subgraph "MCP Server"
-        mcp["adb mcp serve"]
+        mcpserve["adb mcp serve"]
+        mcpcheck["adb mcp check"]
     end
 ```
 
@@ -761,6 +767,57 @@ adb sync-context
 
 # Typically run after making wiki or ADR changes
 adb sync-context
+```
+
+---
+
+### adb sync-task-context
+
+Regenerate task context for the current worktree.
+
+**Synopsis**
+
+```
+adb sync-task-context [flags]
+```
+
+**Description**
+
+Regenerate the `.claude/rules/task-context.md` file in the current
+worktree from environment variables. This file provides AI assistants
+with immediate task awareness when working in a task worktree.
+
+The command reads `ADB_TASK_ID`, `ADB_BRANCH`, `ADB_WORKTREE_PATH`, and
+`ADB_TICKET_PATH` environment variables to populate the task context file.
+
+Use `--hook-mode` when calling from a ConfigChange hook. In hook mode,
+the command runs silently (no output on success) and logs a
+`config.task_context_synced` event to the observability system.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--hook-mode` | bool | `false` | Silent mode for use in ConfigChange hooks |
+
+**Output**
+
+Without `--hook-mode`: prints the path to the regenerated task context file.
+
+With `--hook-mode`: prints nothing on success (silent mode).
+
+**Examples**
+
+```bash
+# Regenerate task context manually
+adb sync-task-context
+
+# Called from ConfigChange hook (silent mode)
+adb sync-task-context --hook-mode
 ```
 
 ---
@@ -2236,6 +2293,7 @@ Parent command for MCP (Model Context Protocol) server operations.
 | Subcommand | Description |
 |------------|-------------|
 | `serve` | Start the adb MCP server on stdio |
+| `check` | Validate configured MCP servers |
 
 ---
 
@@ -2275,6 +2333,59 @@ None.
 ```bash
 # Start the MCP server (typically called by an AI assistant, not manually)
 adb mcp serve
+```
+
+---
+
+### adb mcp check
+
+Validate configured MCP servers.
+
+**Synopsis**
+
+```
+adb mcp check [flags]
+```
+
+**Description**
+
+Validate the health of configured MCP servers by performing connectivity
+checks. HTTP servers are checked via GET request (healthy if status < 500).
+Stdio servers are checked via command existence using `exec.LookPath`.
+
+Results are cached in `.adb_mcp_cache.json` with a 5-minute TTL to avoid
+excessive health checks. Use `--no-cache` to skip the cache and force fresh
+checks.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--no-cache` | bool | `false` | Skip cache and force fresh health checks |
+
+**Output**
+
+A table with columns: Name, Type, Status, Response Time.
+
+```
+NAME            TYPE    STATUS      RESPONSE TIME
+aws-knowledge   http    healthy     142ms
+context7        http    healthy     89ms
+aws-docs        stdio   healthy     -
+```
+
+**Examples**
+
+```bash
+# Check all configured MCP servers (uses cache if fresh)
+adb mcp check
+
+# Force fresh health checks without cache
+adb mcp check --no-cache
 ```
 
 ---
@@ -2413,113 +2524,84 @@ adb sync-claude-user --mcp --dry-run
 
 ---
 
-## Hook Commands
+### adb team
 
-### adb hook
-
-Parent command for Claude Code hook event processing.
+Launch a multi-agent team session with task context.
 
 **Synopsis**
 
 ```
-adb hook <subcommand>
+adb team <team-name> <prompt>
 ```
 
 **Description**
 
-Process Claude Code hook events and update adb artifacts. Each subcommand
-handles a specific hook type by reading JSON from stdin and performing the
-appropriate actions (validation, formatting, tracking, quality checks,
-knowledge extraction).
+Launch a multi-agent team session using Claude Code's experimental agent
+teams feature. The command checks that Claude Code version >= 2.1.32
+supports agent teams, sets the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+environment variable, and injects task context from `ADB_TASK_ID`,
+`ADB_BRANCH`, `ADB_WORKTREE_PATH`, and `ADB_TICKET_PATH` environment
+variables into the prompt.
 
-These commands are called by shell wrapper scripts installed in `.claude/hooks/`.
+The command logs `team.session_started` and `team.session_ended` events
+to the observability system for tracking multi-agent workflows.
 
-**Subcommands**
+**Arguments**
 
-| Subcommand | Description |
-|------------|-------------|
-| `install` | Install adb hook wrapper scripts |
-| `status` | Show hook configuration status |
-| `pre-tool-use` | Handle PreToolUse events (blocking) |
-| `post-tool-use` | Handle PostToolUse events (non-blocking) |
-| `stop` | Handle Stop events (advisory) |
-| `task-completed` | Handle TaskCompleted events (blocking) |
-| `session-end` | Handle SessionEnd events (non-blocking) |
-
----
-
-### adb hook install
-
-Install adb hook wrapper scripts for Claude Code.
-
-**Synopsis**
-
-```
-adb hook install [flags]
-```
-
-**Description**
-
-Generate shell wrapper scripts and update `.claude/settings.json` to use
-adb-native hooks instead of standalone shell scripts.
-
-This creates `.claude/hooks/` wrapper scripts that set `ADB_HOOK_ACTIVE=1`
-(to prevent recursive hook invocation), pipe stdin to `adb hook <type>`,
-and propagate exit codes for blocking hooks.
-
-Safe to run multiple times -- existing wrapper scripts are overwritten,
-and `settings.json` hooks section is replaced.
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `team-name` | Yes | The team configuration name (e.g., `design-review`, `security-audit`) |
+| `prompt` | Yes | The task prompt for the team |
 
 **Flags**
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--dir` | string | `"."` | Target directory (defaults to current directory) |
+None.
 
 **Output**
 
-Lists each wrapper script written and confirms installation:
+Launches Claude Code with the team configuration and prompt. Streams
+output from the team session.
 
-```
-  Wrote .claude/hooks/adb-hook-pre-tool-use.sh
-  Wrote .claude/hooks/adb-hook-post-tool-use.sh
-  Wrote .claude/hooks/adb-hook-stop.sh
-  Wrote .claude/hooks/adb-hook-task-completed.sh
-  Wrote .claude/hooks/adb-hook-session-end.sh
-  Wrote .claude/hooks/adb-hook-teammate-idle.sh
-  Updated .claude/settings.json
+**Errors**
 
-Hook wrappers installed in .claude/hooks/
-Claude Code will now use adb-native hooks.
-```
+- If Claude Code is not installed, returns an error with installation
+  instructions.
+- If Claude Code version is < 2.1.32, returns an error indicating agent
+  teams are not supported.
 
 **Examples**
 
 ```bash
-# Install hooks in the current directory
-adb hook install
+# Launch a design review team
+adb team design-review "Evaluate TASK-00042 architecture"
 
-# Install hooks in a specific project
-adb hook install --dir ~/Code/my-project
+# Launch a security audit team
+adb team security-audit "Review auth module changes"
+
+# Launch a team with task context injected from environment
+adb team refactoring-squad "Clean up database access layer"
 ```
 
 ---
 
-### adb hook status
+### adb agents
 
-Show hook configuration status.
+List available Claude Code agents.
 
 **Synopsis**
 
 ```
-adb hook status
+adb agents
 ```
 
 **Description**
 
-Display which adb hooks are enabled and their current configuration.
-Reads hook configuration from `.taskconfig` under the `hooks:` key,
-falling back to `DefaultHookConfig()` when no hooks section is present.
+List all available Claude Code agents by scanning both project-level
+(`.claude/agents/`) and user-level (`~/.claude/agents/`) directories.
+
+First tries the `claude agents` command if Claude Code is installed.
+If the command fails or Claude Code is not installed, falls back to
+scanning agent directories for `.md` files.
 
 **Arguments**
 
@@ -2531,202 +2613,236 @@ None.
 
 **Output**
 
+Lists agent names, one per line.
+
 ```
-Hook system: enabled
-
-PreToolUse:     enabled
-  block_vendor:       enabled
-  block_go_sum:       enabled
-  architecture_guard: disabled
-  adr_conflict_check: disabled
-
-PostToolUse:    enabled
-  go_format:            enabled
-  change_tracking:      enabled
-  dependency_detection: disabled
-  glossary_extraction:  disabled
-
-Stop:           enabled
-  uncommitted_check: enabled
-  build_check:       enabled
-  vet_check:         enabled
-  context_update:    enabled
-  status_timestamp:  enabled
-
-TaskCompleted:  enabled
-  check_uncommitted: enabled
-  run_tests:         enabled
-  run_lint:          enabled
-  test_command:      go test ./...
-  lint_command:      golangci-lint run
-  extract_knowledge: disabled
-  update_wiki:       disabled
-  generate_adrs:     disabled
-  update_context:    enabled
-
-SessionEnd:     enabled
-  capture_session:    enabled
-  min_turns_capture:  3
-  update_context:     enabled
-  extract_knowledge:  disabled
-  log_communications: disabled
+team-lead
+analyst
+product-owner
+design-reviewer
+scrum-master
+quick-flow-dev
+go-tester
+code-reviewer
+architecture-guide
+knowledge-curator
+doc-writer
+researcher
+debugger
+observability-reporter
+security-auditor
+release-manager
 ```
 
 **Examples**
 
 ```bash
-# Check which hooks are active
-adb hook status
+# List all available agents
+adb agents
+
+# Use in scripts to check if an agent exists
+if adb agents | grep -q "security-auditor"; then
+  echo "Security auditor agent is available"
+fi
 ```
 
 ---
 
-### adb hook pre-tool-use
+## Worktree Automation Commands
 
-Handle PreToolUse hook events (blocking).
+### adb worktree-lifecycle
+
+Run worktree lifecycle hooks.
 
 **Synopsis**
 
 ```
-adb hook pre-tool-use
+adb worktree-lifecycle <subcommand>
 ```
 
 **Description**
 
-Validate before a tool executes. Reads `tool_name` and `tool_input`
-from stdin JSON (piped by Claude Code). Returns exit code 2 to block
-the tool execution if validation fails.
+Parent command for worktree lifecycle automation. Provides subcommands
+for pre- and post-hooks around worktree creation and removal. These hooks
+ensure clean worktree operations by checking for blockers, validating state,
+and cleaning up after operations.
 
-**Blocking checks:**
+The lifecycle hooks use `ADB_TASK_ID`, `ADB_WORKTREE_PATH`, and
+`ADB_TICKET_PATH` environment variables to operate on the current task.
 
-- Blocks edits to `vendor/` files (message: use `go mod vendor` instead)
-- Blocks direct edits to `go.sum` (message: use `go mod tidy` instead)
-- Architecture guard (Phase 2): blocks `core/` files that import `storage/` or `integration/`
-- ADR conflict check (Phase 3): warns if edits conflict with existing ADRs
+**Subcommands**
 
-**Exit Codes**
+| Subcommand | Description |
+|------------|-------------|
+| `pre-create` | Check for blockers before creating a worktree |
+| `post-create` | Validate worktree state after creation |
+| `pre-remove` | Warn about uncommitted changes before removal |
+| `post-remove` | Clean up after worktree removal |
 
-| Code | Meaning |
-|------|---------|
-| `0` | Tool execution allowed |
-| `2` | Tool execution blocked (error message sent to Claude as feedback) |
+---
+
+### adb worktree-lifecycle pre-create
+
+Check for blockers before creating a worktree.
+
+**Synopsis**
+
+```
+adb worktree-lifecycle pre-create
+```
+
+**Description**
+
+Check for conditions that would block worktree creation:
+- Uncommitted changes in the current repository (via `git status --porcelain`)
+- Unresolved merge conflicts (via `git diff --name-only --diff-filter=U`)
+
+If any blockers are found, the command fails with a non-zero exit code
+and descriptive error message.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+On success (no blockers): prints nothing and exits 0.
+
+On failure: prints blocker details and exits 1.
 
 **Examples**
 
 ```bash
-# Called by shell wrapper (not typically run directly)
-echo '{"tool_name":"Edit","tool_input":{"file_path":"vendor/foo.go"}}' | adb hook pre-tool-use
-# Exit code 2: BLOCKED: editing vendor/ files is not allowed
+# Check before creating a worktree
+adb worktree-lifecycle pre-create
 ```
 
 ---
 
-### adb hook post-tool-use
+### adb worktree-lifecycle post-create
 
-Handle PostToolUse hook events (non-blocking).
+Validate worktree state after creation.
 
 **Synopsis**
 
 ```
-adb hook post-tool-use
+adb worktree-lifecycle post-create
 ```
 
 **Description**
 
-React after a tool executes. Reads `tool_name` and `tool_input` from
-stdin JSON. Always exits 0 (non-blocking).
+Validate that the worktree was created successfully and that the
+task context file exists at `.claude/rules/task-context.md`.
 
-**Actions:**
+Logs a `worktree.post_created` event to the observability system with
+task details.
 
-- Auto-formats Go files with `gofmt -s -w` after Edit/Write
-- Tracks changed file path to `.adb_session_changes` for batched context updates
-- Dependency change detection (Phase 2): notes go.mod modifications in context.md
+Reads `ADB_TASK_ID` and `ADB_WORKTREE_PATH` from environment variables.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+On success: prints validation message and exits 0.
+
+On failure: prints validation error and exits 1.
+
+**Examples**
+
+```bash
+# Validate after creating a worktree
+adb worktree-lifecycle post-create
+```
 
 ---
 
-### adb hook stop
+### adb worktree-lifecycle pre-remove
 
-Handle Stop hook events (non-blocking, advisory).
+Warn about uncommitted changes before removal.
 
 **Synopsis**
 
 ```
-adb hook stop
+adb worktree-lifecycle pre-remove
 ```
 
 **Description**
 
-Run advisory checks when a conversation is stopped. Always exits 0.
-Warnings are printed to stderr as advisory messages.
+Check for uncommitted changes and unpushed commits in the worktree before
+removal. Prints warnings if found but does not fail (non-fatal).
 
-**Actions:**
+This gives the user a chance to review and save work before the worktree
+is deleted.
 
-- Advisory: warns if uncommitted changes are detected
-- Advisory: warns if `go build ./...` fails
-- Advisory: warns if `go vet ./...` fails
-- Updates context.md with a session summary from tracked changes
-- Updates status.yaml timestamp
-- Cleans up the `.adb_session_changes` tracker file
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints warnings for uncommitted changes or unpushed commits. Always exits 0
+(warnings are non-fatal).
+
+**Examples**
+
+```bash
+# Check before removing a worktree
+adb worktree-lifecycle pre-remove
+```
 
 ---
 
-### adb hook task-completed
+### adb worktree-lifecycle post-remove
 
-Handle TaskCompleted hook events (blocking).
-
-**Synopsis**
-
-```
-adb hook task-completed
-```
-
-**Description**
-
-Validate task completion with a two-phase approach. Phase A is blocking
-(exit 2 on failure). Phase B is non-blocking (failures are logged but
-do not prevent task completion).
-
-**Phase A (blocking quality gates):**
-
-- Checks for uncommitted Go files
-- Runs test command (default: `go test ./...`)
-- Runs lint command (default: `golangci-lint run`)
-
-**Phase B (non-blocking knowledge):**
-
-- Extracts knowledge from task (Phase 2)
-- Updates wiki from extracted knowledge (Phase 2)
-- Generates ADR drafts from decisions (Phase 3)
-- Updates context.md with completion summary
-
-**Exit Codes**
-
-| Code | Meaning |
-|------|---------|
-| `0` | Task completion allowed |
-| `2` | Task completion blocked (quality gate failed) |
-
----
-
-### adb hook session-end
-
-Handle SessionEnd hook events (non-blocking).
+Clean up after worktree removal.
 
 **Synopsis**
 
 ```
-adb hook session-end
+adb worktree-lifecycle post-remove
 ```
 
 **Description**
 
-Handle session end by updating context.md with tracked changes. Session
-transcript capture is handled separately by the existing session capture
-pipeline. Always exits 0.
+Clean up temporary files from the task's ticket directory after worktree
+removal. Deletes all `*.tmp` files in the ticket path.
 
-**Actions:**
+Logs a `worktree.post_removed` event to the observability system.
 
-- Updates context.md with session summary from tracked file changes
+Reads `ADB_TASK_ID` and `ADB_TICKET_PATH` from environment variables.
+
+**Arguments**
+
+None.
+
+**Flags**
+
+None.
+
+**Output**
+
+Prints cleanup summary (number of temporary files deleted). Exits 0.
+
+**Examples**
+
+```bash
+# Clean up after removing a worktree
+adb worktree-lifecycle post-remove
+```
 
 ---
 

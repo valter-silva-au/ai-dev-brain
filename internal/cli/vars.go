@@ -22,10 +22,6 @@ var BranchPattern string
 // Set during app initialization in app.go.
 var SessionCapture core.SessionCapturer
 
-// HookEngine provides hook event processing.
-// Set during app initialization in app.go.
-var HookEngine core.HookEngine
-
 // VersionChecker provides Claude Code version detection and feature gating.
 // Set during app initialization in app.go.
 var VersionChecker integration.ClaudeCodeVersionChecker

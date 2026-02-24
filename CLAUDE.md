@@ -51,13 +51,12 @@ internal/
     metrics.go                # Display task and agent metrics
     session.go                # Manage session summaries (save, ingest)
     sessioncapture.go         # Session capture commands (capture --from-hook, list, show)
-    hook.go                   # Parent hook command, install, status subcommands
-    hook_pretooluse.go        # PreToolUse hook handler (blocking, exit 2 on block)
-    hook_posttooluse.go       # PostToolUse hook handler (non-blocking)
-    hook_stop.go              # Stop hook handler (non-blocking, advisory)
-    hook_taskcompleted.go     # TaskCompleted hook handler (blocking, exit 2 on failure)
-    hook_sessionend.go        # SessionEnd hook handler (non-blocking)
-    vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture, HookEngine)
+    team.go                   # Launch multi-agent team sessions (adb team)
+    agents.go                 # List Claude Code agents (adb agents)
+    synctaskcontext.go        # Sync task context on config change (adb sync-task-context)
+    worktreehook.go           # Worktree hook event handlers (adb worktree-hook create/remove/violation)
+    worktreelifecycle.go      # Worktree lifecycle automation (adb worktree-lifecycle pre-create/post-create/pre-remove/post-remove)
+    vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture)
   core/
     config.go                 # ConfigurationManager (Viper-based)
     bootstrap.go              # BootstrapSystem (task init, directory scaffold incl. sessions/ and knowledge/)
@@ -89,6 +88,8 @@ internal/
     transcript.go             # TranscriptParser and StructuralSummarizer (Claude Code JSONL transcript parsing)
     screenshot.go             # ScreenshotPipeline (capture, OCR, classify, file)
     offline.go                # OfflineManager (connectivity detection, op queuing)
+    version.go                # Claude Code version detection with semver parsing and feature gates
+    mcpclient.go              # MCP server health checking with HTTP/stdio support and TTL cache
   observability/
     doc.go                    # Package documentation
     eventlog.go               # EventLog interface and JSONL implementation
@@ -102,17 +103,19 @@ internal/
   integration_test.go         # Cross-package integration tests
   qa_edge_cases_test.go       # QA edge case tests
 pkg/models/
-  task.go                     # Task (incl. Teams field), TaskType, TaskStatus, Priority
-  config.go                   # GlobalConfig (incl. NotificationConfig, HookConfig), RepoConfig, MergedConfig, CLIAliasConfig
-  hooks.go                    # HookConfig, sub-configs (PreToolUse, PostToolUse, Stop, TaskCompleted, SessionEnd), SessionChangeEntry, DefaultHookConfig()
+  task.go                     # Task (incl. Teams field, TeamMetadata), TaskType, TaskStatus, Priority
+  config.go                   # GlobalConfig (incl. NotificationConfig, TeamRoutingConfig, HookConfig), RepoConfig, MergedConfig, CLIAliasConfig
   communication.go            # Communication, CommunicationTag
   session.go                  # CapturedSession, SessionTurn, SessionFilter, SessionCaptureConfig, SessionIndex
   knowledge.go                # ExtractedKnowledge, Decision, HandoffDocument, WikiUpdate, RunbookUpdate
 templates/claude/
   embed.go                    # Embedded template files (//go:embed directive, exports FS as embed.FS)
-  skills/                     # Reusable Claude Code skills (17 skills, embedded)
-  agents/                     # Specialized agent definitions (11 agents, embedded)
-  hooks/                      # Shell wrapper scripts for adb-native hooks (6 scripts) + legacy hooks (embedded)
+  skills/                     # Reusable Claude Code skills (embedded)
+  agents/                     # Specialized agent definitions (embedded)
+  hooks/                      # Hook scripts (adb-session-capture.sh, adb-worktree-create.sh, adb-worktree-remove.sh, adb-worktree-boundary.sh, embedded)
+  statusline.sh               # Universal status line script for Claude Code
+  artifacts/                  # BMAD artifact templates (PRD, product-brief, tech-spec, architecture-doc, epics)
+  checklists/                 # BMAD quality gate checklists (architecture, code-review, prd, readiness, story)
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md, embedded)
 .claude/
   settings.json               # Permissions and hooks configuration
@@ -227,6 +230,8 @@ templates/claude/hooks/
 | `ScreenshotPipeline` | Capture screenshots, OCR, classify, and file content |
 | `TranscriptParser` | Parse Claude Code JSONL session transcripts into structured turn data (TranscriptResult) |
 | `OfflineManager` | Detect connectivity, queue operations for later sync |
+| `VersionChecker` | Detect Claude Code version, check feature gates, cache results |
+| `MCPClient` | Validate MCP server health (HTTP/stdio), cache discovery results with TTL |
 
 ### Observability Package (`internal/observability/`)
 
@@ -255,8 +260,7 @@ templates/claude/hooks/
 
 ## Configuration Files
 
-- `.taskconfig` -- Global config (YAML, read via Viper). Contains `defaults.ai`, `task_id.prefix`, `task_id.counter`, `defaults.priority`, `defaults.owner`, `screenshot.hotkey`, `offline_mode`, `cli_aliases`, `notifications`, `hooks`.
-- `.adb_session_changes` -- Append-only change tracker file (per session). Format: `timestamp|tool|filepath` per line. Written by PostToolUse, consumed by Stop/SessionEnd, cleaned up after consumption.
+- `.taskconfig` -- Global config (YAML, read via Viper). Contains `defaults.ai`, `task_id.prefix`, `task_id.counter`, `defaults.priority`, `defaults.owner`, `screenshot.hotkey`, `offline_mode`, `cli_aliases`, `notifications`, `team_routing`, `hooks`.
 - `.taskrc` -- Per-repo config (YAML, read via Viper). Contains `build_command`, `test_command`, `default_reviewers`, `conventions`, `templates`.
 - Precedence: `.taskrc` > `.taskconfig` > defaults
 - `.task_counter` -- File-based sequential counter for task ID generation
@@ -266,6 +270,7 @@ templates/claude/hooks/
 - `.context_changelog.md` -- Accumulated context change log (pruned to 50 entries) used for "What's Changed" section
 - `sessions/` -- Workspace-level directory for captured Claude Code sessions (YAML index + per-session subdirectories)
 - `.mcp.json` -- MCP server configuration for external knowledge services (aws-knowledge, context7)
+- `.adb_mcp_cache.json` -- Cached MCP server health check results with TTL (used by `adb mcp check`)
 - `.claude/settings.json` -- Claude Code permissions and hooks configuration
 
 ### Notification and Alert Configuration
@@ -286,53 +291,37 @@ notifications:
 
 Default thresholds (used when not configured): blocked 24h, stale 3d, review 5d, max backlog 10.
 
-### Hook Configuration
+### Team Routing Configuration
 
-The `hooks` key in `.taskconfig` controls adb-native hook behavior:
+The `team_routing` key in `.taskconfig` enables tag-based task-to-team routing:
+
+```yaml
+team_routing:
+  enabled: true
+  rules:
+    - tags: [security, audit]
+      team_name: security-review
+      members: [security-auditor, code-reviewer]
+    - tags: [design, architecture]
+      team_name: design-review
+      members: [design-reviewer, architecture-guide]
+```
+
+### Hook Error Handling Configuration
+
+The `hooks` key in `.taskconfig` configures per-hook error handling:
 
 ```yaml
 hooks:
-  enabled: true
-  pre_tool_use:
-    enabled: true
-    block_vendor: true
-    block_go_sum: true
-    architecture_guard: false    # Phase 2: blocks core/ importing storage/
-    adr_conflict_check: false    # Phase 3: warns on ADR conflicts
-  post_tool_use:
-    enabled: true
-    go_format: true
-    change_tracking: true
-    dependency_detection: false   # Phase 2: monitors go.mod changes
-    glossary_extraction: false    # Phase 2: extracts terms
-  stop:
-    enabled: true
-    uncommitted_check: true
-    build_check: true
-    vet_check: true
-    context_update: true
-    status_timestamp: true
-  task_completed:
-    enabled: true
-    check_uncommitted: true
-    run_tests: true
-    run_lint: true
-    test_command: "go test ./..."
-    lint_command: "golangci-lint run"
-    extract_knowledge: false      # Phase 2
-    update_wiki: false            # Phase 2
-    generate_adrs: false          # Phase 3
-    update_context: true
-  session_end:
-    enabled: true
-    capture_session: true
-    min_turns_capture: 3
-    update_context: true
-    extract_knowledge: false      # Phase 2
-    log_communications: false     # Phase 3
+  - name: pre-edit-validate
+    timeout_sec: 10
+    retries: 0
+    on_failure: block
+  - name: post-edit-go-fmt
+    timeout_sec: 30
+    retries: 2
+    on_failure: warn
 ```
-
-When no `hooks` section is present, `DefaultHookConfig()` provides sensible defaults with Phase 1 features enabled.
 
 ## CLI Commands
 
@@ -358,13 +347,12 @@ When no `hooks` section is present, `DefaultHookConfig()` provides sensible defa
 - `adb session capture --from-hook` -- Capture a Claude Code session from a JSONL transcript (called by SessionEnd hook)
 - `adb session list [--task-id ID] [--since 7d]` -- List captured sessions with optional filters
 - `adb session show <session-id>` -- Show details and turns for a captured session
-- `adb hook install [--dir DIR]` -- Install adb hook wrapper scripts and update .claude/settings.json
-- `adb hook status` -- Show hook configuration (enabled/disabled flags for all hook types)
-- `adb hook pre-tool-use` -- Handle PreToolUse events from stdin (blocking, exit 2 on block)
-- `adb hook post-tool-use` -- Handle PostToolUse events from stdin (non-blocking)
-- `adb hook stop` -- Handle Stop events from stdin (non-blocking, advisory)
-- `adb hook task-completed` -- Handle TaskCompleted events from stdin (blocking, exit 2 on failure)
-- `adb hook session-end` -- Handle SessionEnd events from stdin (non-blocking)
+- `adb team <team-name> <prompt>` -- Launch a multi-agent team session with task context
+- `adb agents` -- List available Claude Code agents
+- `adb mcp check [--no-cache]` -- Validate configured MCP servers and cache results
+- `adb worktree-lifecycle {pre-create,post-create,pre-remove,post-remove}` -- Worktree lifecycle automation hooks
+- `adb worktree-hook {create,remove,violation}` -- Worktree event handlers for hook scripts
+- `adb sync-task-context [--hook-mode]` -- Regenerate .claude/rules/task-context.md
 - `adb version` -- Print version information
 
 ## Observability
@@ -380,6 +368,12 @@ Events are structured with `time`, `level` (INFO/WARN/ERROR), `type`, `msg`, and
 | `task.status_changed` | Task status changed (data includes task_id, new_status) |
 | `agent.session_started` | AI agent session began |
 | `knowledge.extracted` | Knowledge was extracted from a task |
+| `team.session_started` | Multi-agent team session began (data includes team_name, task_id) |
+| `team.session_ended` | Multi-agent team session completed |
+| `worktree.created` | Worktree was created (from WorktreeCreate hook) |
+| `worktree.removed` | Worktree was removed (from WorktreeRemove hook) |
+| `worktree.isolation_violation` | Tool use attempted outside worktree boundary (severity HIGH) |
+| `config.task_context_synced` | Task context file was regenerated |
 
 ### Alert Conditions
 
@@ -498,6 +492,9 @@ When a worktree is created, the bootstrap also generates `.claude/rules/task-con
 | `post-edit-go-fmt.sh` | `PostToolUse` (Edit\|Write) | Auto-formats Go files with `gofmt -s -w` after Edit/Write tool use |
 | `pre-edit-validate.sh` | `PreToolUse` (Edit\|Write) | Blocks editing vendor/ files and go.sum directly |
 | `adb-session-capture.sh` | `SessionEnd` (user-level) | Calls `adb session capture --from-hook` to automatically capture Claude Code sessions workspace-wide. Installed by `adb sync-claude-user`. |
+| `adb-worktree-create.sh` | `WorktreeCreate` | Validates task context exists, logs worktree creation event |
+| `adb-worktree-remove.sh` | `WorktreeRemove` | Archives orphaned sessions, logs worktree removal event |
+| `adb-worktree-boundary.sh` | `PreToolUse` (Edit\|Write\|Read) | Validates tool paths are within worktree boundary, blocks violations |
 
 ### MCP Servers (`.mcp.json`)
 
