@@ -18,12 +18,12 @@ type errorBacklogStore struct {
 	filterErr error
 }
 
-func (e *errorBacklogStore) Load() error                                                  { return e.loadErr }
-func (e *errorBacklogStore) Save() error                                                  { return nil }
-func (e *errorBacklogStore) AddTask(entry BacklogStoreEntry) error                        { return nil }
-func (e *errorBacklogStore) UpdateTask(taskID string, updates BacklogStoreEntry) error     { return nil }
-func (e *errorBacklogStore) GetTask(taskID string) (*BacklogStoreEntry, error)            { return nil, nil }
-func (e *errorBacklogStore) GetAllTasks() ([]BacklogStoreEntry, error)                    { return nil, nil }
+func (e *errorBacklogStore) Load() error                                               { return e.loadErr }
+func (e *errorBacklogStore) Save() error                                               { return nil }
+func (e *errorBacklogStore) AddTask(entry BacklogStoreEntry) error                     { return nil }
+func (e *errorBacklogStore) UpdateTask(taskID string, updates BacklogStoreEntry) error { return nil }
+func (e *errorBacklogStore) GetTask(taskID string) (*BacklogStoreEntry, error)         { return nil, nil }
+func (e *errorBacklogStore) GetAllTasks() ([]BacklogStoreEntry, error)                 { return nil, nil }
 func (e *errorBacklogStore) FilterTasks(filter BacklogStoreFilter) ([]BacklogStoreEntry, error) {
 	if e.filterErr != nil {
 		return nil, e.filterErr

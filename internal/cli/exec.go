@@ -79,7 +79,7 @@ With no arguments, lists all configured CLI aliases.`,
 		}
 
 		if result.ExitCode != 0 {
-			os.Exit(result.ExitCode)
+			osExit(result.ExitCode)
 		}
 
 		return nil

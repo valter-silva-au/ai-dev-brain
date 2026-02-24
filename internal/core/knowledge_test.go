@@ -47,7 +47,7 @@ func (a *storageAIContextAdapter) GetContextForAI(taskID string) (*AIContext, er
 		Summary:        sc.Summary,
 		RecentActivity: sc.RecentActivity,
 		Blockers:       sc.Blockers,
-		OpenQuestions:   sc.OpenQuestions,
+		OpenQuestions:  sc.OpenQuestions,
 	}, nil
 }
 

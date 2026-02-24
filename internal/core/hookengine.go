@@ -218,11 +218,11 @@ func (e *hookEngine) HandleTaskCompleted(input hooks.TaskCompletedInput) error {
 		if testCmd == "" {
 			testCmd = "go test ./..."
 		}
-		parts := strings.Fields(testCmd)
-		if len(parts) == 0 {
+		testParts := strings.Fields(testCmd)
+		if len(testParts) == 0 {
 			return fmt.Errorf("BLOCKED: test command is empty")
 		}
-		if output, err := e.cmdRunner(parts[0], parts[1:]...); err != nil {
+		if output, err := e.cmdRunner(testParts[0], testParts[1:]...); err != nil {
 			return fmt.Errorf("BLOCKED: tests failed:\n%s", output)
 		}
 	}
@@ -232,11 +232,11 @@ func (e *hookEngine) HandleTaskCompleted(input hooks.TaskCompletedInput) error {
 		if lintCmd == "" {
 			lintCmd = "golangci-lint run"
 		}
-		parts := strings.Fields(lintCmd)
-		if len(parts) == 0 {
+		lintParts := strings.Fields(lintCmd)
+		if len(lintParts) == 0 {
 			return fmt.Errorf("BLOCKED: lint command is empty")
 		}
-		if output, err := e.cmdRunner(parts[0], parts[1:]...); err != nil {
+		if output, err := e.cmdRunner(lintParts[0], lintParts[1:]...); err != nil {
 			return fmt.Errorf("BLOCKED: lint failed:\n%s", output)
 		}
 	}

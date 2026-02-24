@@ -724,7 +724,7 @@ func TestEnsureDir_MkdirAllError(t *testing.T) {
 
 func TestWriteFileIfNotExists_ExistingFile(t *testing.T) {
 	base := t.TempDir()
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 	result := &InitResult{}
 
 	// Create existing file.
@@ -755,7 +755,7 @@ func TestWriteFileIfNotExists_ExistingFile(t *testing.T) {
 
 func TestWriteFileIfNotExists_ContentFnError(t *testing.T) {
 	base := t.TempDir()
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 	result := &InitResult{}
 
 	filePath := filepath.Join(base, "test.txt")
@@ -772,7 +772,7 @@ func TestWriteFileIfNotExists_ContentFnError(t *testing.T) {
 
 func TestWriteFileIfNotExists_WriteError(t *testing.T) {
 	base := t.TempDir()
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 	result := &InitResult{}
 
 	// Use a path where the parent directory doesn't exist and can't be created.
@@ -795,7 +795,7 @@ func TestWriteFileIfNotExists_WriteError(t *testing.T) {
 
 func TestWriteStaticTemplate_Error(t *testing.T) {
 	base := t.TempDir()
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 	result := &InitResult{}
 
 	// Use a nonexistent template name to cause GetTemplate to fail.
@@ -809,7 +809,7 @@ func TestWriteStaticTemplate_Error(t *testing.T) {
 }
 
 func TestRenderTemplate_LoadError(t *testing.T) {
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 
 	_, err := pi.renderTemplate("nonexistent-template.xyz", nil)
 	if err == nil {
@@ -823,7 +823,7 @@ func TestRenderTemplate_LoadError(t *testing.T) {
 func TestRenderTemplate_ParseError(t *testing.T) {
 	// We can't easily inject a parse error because all templates are embedded and valid.
 	// But we can test that renderTemplate works correctly with valid input.
-	pi := &projectInitializer{docTemplates: NewDocTemplates()}
+	pi := &projectInitializer{docTemplates: newDocTemplates()}
 
 	data, err := pi.renderTemplate("taskconfig.yaml", InitConfig{
 		BasePath: "/tmp/test",

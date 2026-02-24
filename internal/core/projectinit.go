@@ -30,13 +30,13 @@ type ProjectInitializer interface {
 }
 
 type projectInitializer struct {
-	docTemplates *DocTemplates
+	docTemplates *docTemplates
 }
 
 // NewProjectInitializer creates a new ProjectInitializer.
 func NewProjectInitializer() ProjectInitializer {
 	return &projectInitializer{
-		docTemplates: NewDocTemplates(),
+		docTemplates: newDocTemplates(),
 	}
 }
 

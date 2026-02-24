@@ -8,7 +8,7 @@ import (
 )
 
 func TestDocTemplates_StakeholdersTemplate(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	content, err := dt.StakeholdersTemplate()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,7 +22,7 @@ func TestDocTemplates_StakeholdersTemplate(t *testing.T) {
 }
 
 func TestDocTemplates_ContactsTemplate(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	content, err := dt.ContactsTemplate()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -36,7 +36,7 @@ func TestDocTemplates_ContactsTemplate(t *testing.T) {
 }
 
 func TestDocTemplates_GlossaryTemplate(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	content, err := dt.GlossaryTemplate()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -50,7 +50,7 @@ func TestDocTemplates_GlossaryTemplate(t *testing.T) {
 }
 
 func TestDocTemplates_ADRTemplate(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	content, err := dt.ADRTemplate()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,7 +74,7 @@ func TestDocTemplates_ADRTemplate(t *testing.T) {
 
 func TestScaffoldDocs_CreatesDirectoryStructure(t *testing.T) {
 	base := t.TempDir()
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 
 	if err := dt.ScaffoldDocs(base); err != nil {
 		t.Fatalf("ScaffoldDocs failed: %v", err)
@@ -113,7 +113,7 @@ func TestScaffoldDocs_CreatesDirectoryStructure(t *testing.T) {
 
 func TestScaffoldDocs_SkipsExistingFiles(t *testing.T) {
 	base := t.TempDir()
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 
 	// First scaffold.
 	if err := dt.ScaffoldDocs(base); err != nil {
@@ -144,7 +144,7 @@ func TestScaffoldDocs_SkipsExistingFiles(t *testing.T) {
 
 func TestScaffoldDocs_Idempotent(t *testing.T) {
 	base := t.TempDir()
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 
 	// Run scaffold twice.
 	if err := dt.ScaffoldDocs(base); err != nil {
@@ -165,7 +165,7 @@ func TestScaffoldDocs_Idempotent(t *testing.T) {
 }
 
 func TestDocTemplates_TaskconfigTemplate(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	content, err := dt.TaskconfigTemplate()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -180,7 +180,7 @@ func TestDocTemplates_TaskconfigTemplate(t *testing.T) {
 }
 
 func TestDocTemplates_GetTemplate_ValidName(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	// "stakeholders.md" is a known template file.
 	content, err := dt.GetTemplate("stakeholders.md")
 	if err != nil {
@@ -192,7 +192,7 @@ func TestDocTemplates_GetTemplate_ValidName(t *testing.T) {
 }
 
 func TestDocTemplates_GetTemplate_InvalidName(t *testing.T) {
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	_, err := dt.GetTemplate("nonexistent-template.md")
 	if err == nil {
 		t.Fatal("expected error for nonexistent template")
@@ -210,7 +210,7 @@ func TestScaffoldDocs_MkdirAllError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 	err := dt.ScaffoldDocs(base)
 	if err == nil {
 		t.Fatal("expected error when docs/ is a file")
@@ -222,7 +222,7 @@ func TestScaffoldDocs_MkdirAllError(t *testing.T) {
 
 func TestScaffoldDocs_WriteFileError(t *testing.T) {
 	base := t.TempDir()
-	dt := NewDocTemplates()
+	dt := newDocTemplates()
 
 	// Create docs/ directory structure properly.
 	docsDir := filepath.Join(base, "docs")

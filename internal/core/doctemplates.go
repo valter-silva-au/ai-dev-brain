@@ -10,16 +10,16 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
-// DocTemplates provides access to embedded documentation templates.
-type DocTemplates struct{}
+// docTemplates provides access to embedded documentation templates.
+type docTemplates struct{}
 
-// NewDocTemplates creates a new DocTemplates instance.
-func NewDocTemplates() *DocTemplates {
-	return &DocTemplates{}
+// newDocTemplates creates a new docTemplates instance.
+func newDocTemplates() *docTemplates {
+	return &docTemplates{}
 }
 
 // StakeholdersTemplate returns the embedded stakeholders.md template content.
-func (dt *DocTemplates) StakeholdersTemplate() (string, error) {
+func (dt *docTemplates) StakeholdersTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/stakeholders.md")
 	if err != nil {
 		return "", fmt.Errorf("reading stakeholders template: %w", err)
@@ -28,7 +28,7 @@ func (dt *DocTemplates) StakeholdersTemplate() (string, error) {
 }
 
 // ContactsTemplate returns the embedded contacts.md template content.
-func (dt *DocTemplates) ContactsTemplate() (string, error) {
+func (dt *docTemplates) ContactsTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/contacts.md")
 	if err != nil {
 		return "", fmt.Errorf("reading contacts template: %w", err)
@@ -37,7 +37,7 @@ func (dt *DocTemplates) ContactsTemplate() (string, error) {
 }
 
 // GlossaryTemplate returns the embedded glossary.md template content.
-func (dt *DocTemplates) GlossaryTemplate() (string, error) {
+func (dt *docTemplates) GlossaryTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/glossary.md")
 	if err != nil {
 		return "", fmt.Errorf("reading glossary template: %w", err)
@@ -46,7 +46,7 @@ func (dt *DocTemplates) GlossaryTemplate() (string, error) {
 }
 
 // ADRTemplate returns the embedded ADR template content.
-func (dt *DocTemplates) ADRTemplate() (string, error) {
+func (dt *docTemplates) ADRTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/adr.md")
 	if err != nil {
 		return "", fmt.Errorf("reading ADR template: %w", err)
@@ -55,7 +55,7 @@ func (dt *DocTemplates) ADRTemplate() (string, error) {
 }
 
 // TaskconfigTemplate returns the embedded .taskconfig template content.
-func (dt *DocTemplates) TaskconfigTemplate() (string, error) {
+func (dt *docTemplates) TaskconfigTemplate() (string, error) {
 	data, err := templateFS.ReadFile("templates/taskconfig.yaml")
 	if err != nil {
 		return "", fmt.Errorf("reading taskconfig template: %w", err)
@@ -66,7 +66,7 @@ func (dt *DocTemplates) TaskconfigTemplate() (string, error) {
 // GetTemplate returns the content of an embedded template by filename.
 // The name should be the filename within the templates/ directory
 // (e.g., "claude-md.md", "readme-tickets.md").
-func (dt *DocTemplates) GetTemplate(name string) (string, error) {
+func (dt *docTemplates) GetTemplate(name string) (string, error) {
 	data, err := templateFS.ReadFile("templates/" + name)
 	if err != nil {
 		return "", fmt.Errorf("reading template %s: %w", name, err)
@@ -77,7 +77,7 @@ func (dt *DocTemplates) GetTemplate(name string) (string, error) {
 // ScaffoldDocs creates the docs/ directory structure under basePath on first run.
 // It writes stakeholders.md, contacts.md, glossary.md, and a decisions/ directory
 // with a placeholder ADR template. It skips any file that already exists.
-func (dt *DocTemplates) ScaffoldDocs(basePath string) error {
+func (dt *docTemplates) ScaffoldDocs(basePath string) error {
 	docsDir := filepath.Join(basePath, "docs")
 	dirs := []string{
 		docsDir,

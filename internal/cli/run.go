@@ -88,7 +88,7 @@ Use --list to display all available Taskfile tasks.`,
 		}
 
 		if result.ExitCode != 0 {
-			os.Exit(result.ExitCode)
+			osExit(result.ExitCode)
 		}
 
 		return nil
