@@ -3,6 +3,7 @@ package hooks
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -61,13 +62,16 @@ func UpdateStatusTimestamp(ticketPath string) error {
 }
 
 // GroupChangesByDirectory groups change entries by their parent directory.
+// Uses forward slashes for consistent cross-platform grouping.
 func GroupChangesByDirectory(entries []models.SessionChangeEntry) map[string][]string {
 	grouped := make(map[string][]string)
 	seen := make(map[string]bool)
 
 	for _, e := range entries {
-		dir := filepath.Dir(e.FilePath)
-		base := filepath.Base(e.FilePath)
+		// Normalize to forward slashes for consistent cross-platform keys.
+		normalized := filepath.ToSlash(e.FilePath)
+		dir := path.Dir(normalized)
+		base := path.Base(normalized)
 		key := dir + "/" + base
 		if seen[key] {
 			continue

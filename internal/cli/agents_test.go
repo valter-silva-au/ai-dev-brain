@@ -35,7 +35,8 @@ func TestListAgentFiles(t *testing.T) {
 	})
 
 	t.Run("returns empty for nonexistent directory", func(t *testing.T) {
-		_, err := listAgentFiles("/nonexistent/path")
+		nonexistent := filepath.Join(t.TempDir(), "nonexistent")
+		_, err := listAgentFiles(nonexistent)
 		if err == nil {
 			t.Fatal("expected error for nonexistent directory")
 		}

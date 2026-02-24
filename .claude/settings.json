@@ -27,32 +27,13 @@
     ]
   },
   "hooks": {
-    "TeammateIdle": [
+    "PreToolUse": [
       {
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/teammate-idle-check.sh"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/task-completed-check.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/stop-quality-check.sh"
+            "command": ".claude/hooks/adb-hook-pre-tool-use.sh"
           }
         ]
       }
@@ -63,18 +44,47 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-edit-go-fmt.sh"
+            "command": ".claude/hooks/adb-hook-post-tool-use.sh"
           }
         ]
       }
     ],
-    "PreToolUse": [
+    "Stop": [
       {
-        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-edit-validate.sh"
+            "command": ".claude/hooks/adb-hook-stop.sh"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-hook-task-completed.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-hook-session-end.sh"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/adb-hook-teammate-idle.sh"
           }
         ]
       }

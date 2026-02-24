@@ -327,7 +327,9 @@ func (e *hookEngine) appendCompletionSummary() {
 // Phase 2: Architecture guard - blocks core/ from importing storage/ or integration/.
 func (e *hookEngine) checkArchitectureGuard(fp string) error {
 	// Only check Go files in internal/core/.
-	if !strings.Contains(fp, "internal/core/") || !strings.HasSuffix(fp, ".go") {
+	// Normalize to forward slashes for consistent cross-platform matching.
+	normalized := filepath.ToSlash(fp)
+	if !strings.Contains(normalized, "internal/core/") || !strings.HasSuffix(normalized, ".go") {
 		return nil
 	}
 	data, err := os.ReadFile(fp) //nolint:gosec // G304: path from trusted hook input
