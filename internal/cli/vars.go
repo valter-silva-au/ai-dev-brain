@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"os"
+
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
 	"github.com/valter-silva-au/ai-dev-brain/internal/integration"
 	"github.com/valter-silva-au/ai-dev-brain/internal/observability"
 )
+
+// osExit is the exit function, overridable in tests.
+var osExit = os.Exit
 
 // Observability service instances, set during app initialization in app.go.
 var (

@@ -36,6 +36,7 @@ type hookEngine struct {
 	tracker    *hooks.ChangeTracker
 	knowledgeX KnowledgeExtractor // optional, for Phase 2
 	conflictDt ConflictDetector   // optional, for Phase 3
+	cmdRunner  func(name string, args ...string) (string, error)
 }
 
 // NewHookEngine creates a HookEngine with the given configuration.
@@ -52,6 +53,25 @@ func NewHookEngine(
 		tracker:    hooks.NewChangeTracker(basePath),
 		knowledgeX: knowledgeX,
 		conflictDt: conflictDt,
+		cmdRunner:  execCommand,
+	}
+}
+
+// newHookEngineWithRunner creates a HookEngine with an injectable command runner for testing.
+func newHookEngineWithRunner(
+	basePath string,
+	config models.HookConfig,
+	knowledgeX KnowledgeExtractor,
+	conflictDt ConflictDetector,
+	runner func(name string, args ...string) (string, error),
+) HookEngine {
+	return &hookEngine{
+		basePath:   basePath,
+		config:     config,
+		tracker:    hooks.NewChangeTracker(basePath),
+		knowledgeX: knowledgeX,
+		conflictDt: conflictDt,
+		cmdRunner:  runner,
 	}
 }
 
@@ -141,7 +161,7 @@ func (e *hookEngine) HandleStop(input hooks.StopInput) error {
 
 	// Advisory: check for uncommitted changes.
 	if e.config.Stop.UncommittedCheck {
-		output, err := runCommand("git", "status", "--porcelain")
+		output, err := e.cmdRunner("git", "status", "--porcelain")
 		if err == nil && strings.TrimSpace(output) != "" {
 			fmt.Fprintln(os.Stderr, "Warning: uncommitted changes detected")
 		}
@@ -149,14 +169,14 @@ func (e *hookEngine) HandleStop(input hooks.StopInput) error {
 
 	// Advisory: build check.
 	if e.config.Stop.BuildCheck {
-		if _, err := runCommand("go", "build", "./..."); err != nil {
+		if _, err := e.cmdRunner("go", "build", "./..."); err != nil {
 			fmt.Fprintln(os.Stderr, "Warning: build failed")
 		}
 	}
 
 	// Advisory: vet check.
 	if e.config.Stop.VetCheck {
-		if _, err := runCommand("go", "vet", "./..."); err != nil {
+		if _, err := e.cmdRunner("go", "vet", "./..."); err != nil {
 			fmt.Fprintln(os.Stderr, "Warning: vet check failed")
 		}
 	}
@@ -199,7 +219,10 @@ func (e *hookEngine) HandleTaskCompleted(input hooks.TaskCompletedInput) error {
 			testCmd = "go test ./..."
 		}
 		parts := strings.Fields(testCmd)
-		if output, err := runCommand(parts[0], parts[1:]...); err != nil {
+		if len(parts) == 0 {
+			return fmt.Errorf("BLOCKED: test command is empty")
+		}
+		if output, err := e.cmdRunner(parts[0], parts[1:]...); err != nil {
 			return fmt.Errorf("BLOCKED: tests failed:\n%s", output)
 		}
 	}
@@ -210,26 +233,21 @@ func (e *hookEngine) HandleTaskCompleted(input hooks.TaskCompletedInput) error {
 			lintCmd = "golangci-lint run"
 		}
 		parts := strings.Fields(lintCmd)
-		if output, err := runCommand(parts[0], parts[1:]...); err != nil {
+		if len(parts) == 0 {
+			return fmt.Errorf("BLOCKED: lint command is empty")
+		}
+		if output, err := e.cmdRunner(parts[0], parts[1:]...); err != nil {
 			return fmt.Errorf("BLOCKED: lint failed:\n%s", output)
 		}
 	}
 
 	// --- Phase B: Non-blocking knowledge and context ---
 
-	// Phase 2: Knowledge extraction.
-	if e.config.TaskCompleted.ExtractKnowledge && e.knowledgeX != nil {
-		e.extractAndApplyKnowledge()
-	}
-
-	// Phase 2: Wiki updates.
-	if e.config.TaskCompleted.UpdateWiki && e.knowledgeX != nil {
-		e.updateWikiFromKnowledge()
-	}
-
-	// Phase 2: ADR generation.
-	if e.config.TaskCompleted.GenerateADRs && e.knowledgeX != nil {
-		e.generateADRsFromKnowledge()
+	needsKnowledge := e.config.TaskCompleted.ExtractKnowledge ||
+		e.config.TaskCompleted.UpdateWiki ||
+		e.config.TaskCompleted.GenerateADRs
+	if needsKnowledge && e.knowledgeX != nil {
+		e.runPhaseBKnowledge()
 	}
 
 	// Phase 1: Context update.
@@ -301,8 +319,8 @@ func (e *hookEngine) updateStatusTimestamp() {
 
 func (e *hookEngine) checkUncommittedGoFiles() error {
 	// Check both unstaged and staged Go files.
-	unstaged, _ := runCommand("git", "diff", "--name-only", "--", "*.go")
-	staged, _ := runCommand("git", "diff", "--cached", "--name-only", "--", "*.go")
+	unstaged, _ := e.cmdRunner("git", "diff", "--name-only", "--", "*.go")
+	staged, _ := e.cmdRunner("git", "diff", "--cached", "--name-only", "--", "*.go")
 
 	var goFiles []string
 	goFiles = append(goFiles, filterGoFiles(unstaged)...)
@@ -324,7 +342,71 @@ func (e *hookEngine) appendCompletionSummary() {
 	_ = hooks.AppendToContext(ticketPath, summary)
 }
 
-// Phase 2: Architecture guard - blocks core/ from importing storage/ or integration/.
+// runPhaseBKnowledge performs a single knowledge extraction and applies
+// the results to wiki, ADRs, and context as configured. Failures are
+// logged to stderr but never block task completion.
+func (e *hookEngine) runPhaseBKnowledge() {
+	taskID := os.Getenv("ADB_TASK_ID")
+	if taskID == "" || e.knowledgeX == nil {
+		return
+	}
+
+	knowledge, err := e.knowledgeX.ExtractFromTask(taskID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Knowledge extraction failed (non-blocking): %s\n", err)
+		return
+	}
+	if knowledge == nil {
+		return
+	}
+
+	// Log extraction results to context.
+	if e.config.TaskCompleted.ExtractKnowledge {
+		e.logKnowledgeToContext(knowledge)
+	}
+
+	// Update wiki.
+	if e.config.TaskCompleted.UpdateWiki {
+		if wikiErr := e.knowledgeX.UpdateWiki(knowledge); wikiErr != nil {
+			fmt.Fprintf(os.Stderr, "Wiki update failed (non-blocking): %s\n", wikiErr)
+		}
+	}
+
+	// Generate ADRs.
+	if e.config.TaskCompleted.GenerateADRs {
+		for _, d := range knowledge.Decisions {
+			if _, adrErr := e.knowledgeX.CreateADR(d, taskID); adrErr != nil {
+				fmt.Fprintf(os.Stderr, "ADR generation failed for '%s' (non-blocking): %s\n", d.Decision, adrErr)
+			}
+		}
+	}
+}
+
+// logKnowledgeToContext appends a summary of extracted knowledge to the
+// task's context.md file.
+func (e *hookEngine) logKnowledgeToContext(knowledge *models.ExtractedKnowledge) {
+	ticketPath := e.resolveTicketPath()
+	if ticketPath == "" {
+		return
+	}
+	var sb strings.Builder
+	now := time.Now().UTC().Format(time.RFC3339)
+	sb.WriteString(fmt.Sprintf("### Knowledge Extracted %s\n", now))
+	if len(knowledge.Learnings) > 0 {
+		sb.WriteString(fmt.Sprintf("- %d learning(s) extracted\n", len(knowledge.Learnings)))
+	}
+	if len(knowledge.Decisions) > 0 {
+		sb.WriteString(fmt.Sprintf("- %d decision(s) extracted\n", len(knowledge.Decisions)))
+	}
+	if len(knowledge.Gotchas) > 0 {
+		sb.WriteString(fmt.Sprintf("- %d gotcha(s) extracted\n", len(knowledge.Gotchas)))
+	}
+	if sb.Len() > 0 {
+		_ = hooks.AppendToContext(ticketPath, sb.String())
+	}
+}
+
+// checkArchitectureGuard blocks core/ from importing storage/ or integration/.
 func (e *hookEngine) checkArchitectureGuard(fp string) error {
 	// Only check Go files in internal/core/.
 	// Normalize to forward slashes for consistent cross-platform matching.
@@ -358,7 +440,7 @@ func (e *hookEngine) checkArchitectureGuard(fp string) error {
 	return nil
 }
 
-// Phase 3: ADR conflict check - warns (does not block) if edit conflicts with ADRs.
+// checkADRConflicts warns (does not block) if an edit conflicts with ADRs.
 func (e *hookEngine) checkADRConflicts(fp string) {
 	if e.conflictDt == nil {
 		return
@@ -374,7 +456,7 @@ func (e *hookEngine) checkADRConflicts(fp string) {
 	}
 }
 
-// Phase 2: Detect dependency changes in go.mod.
+// detectDependencyChanges logs a dependency change notice to context.md.
 func (e *hookEngine) detectDependencyChanges(fp string) {
 	ticketPath := e.resolveTicketPath()
 	if ticketPath == "" {
@@ -385,87 +467,26 @@ func (e *hookEngine) detectDependencyChanges(fp string) {
 	_ = hooks.AppendToContext(ticketPath, section)
 }
 
-// Phase 2: Extract knowledge from the current task.
-func (e *hookEngine) extractAndApplyKnowledge() {
-	taskID := os.Getenv("ADB_TASK_ID")
-	if taskID == "" || e.knowledgeX == nil {
-		return
-	}
-	knowledge, err := e.knowledgeX.ExtractFromTask(taskID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Knowledge extraction failed (non-blocking): %s\n", err)
-		return
-	}
-	ticketPath := e.resolveTicketPath()
-	if ticketPath == "" || knowledge == nil {
-		return
-	}
-	// Log extraction results to context.
-	var sb strings.Builder
-	now := time.Now().UTC().Format(time.RFC3339)
-	sb.WriteString(fmt.Sprintf("### Knowledge Extracted %s\n", now))
-	if len(knowledge.Learnings) > 0 {
-		sb.WriteString(fmt.Sprintf("- %d learning(s) extracted\n", len(knowledge.Learnings)))
-	}
-	if len(knowledge.Decisions) > 0 {
-		sb.WriteString(fmt.Sprintf("- %d decision(s) extracted\n", len(knowledge.Decisions)))
-	}
-	if len(knowledge.Gotchas) > 0 {
-		sb.WriteString(fmt.Sprintf("- %d gotcha(s) extracted\n", len(knowledge.Gotchas)))
-	}
-	if sb.Len() > 0 {
-		_ = hooks.AppendToContext(ticketPath, sb.String())
-	}
-}
-
-// Phase 2: Update wiki from extracted knowledge.
-func (e *hookEngine) updateWikiFromKnowledge() {
-	taskID := os.Getenv("ADB_TASK_ID")
-	if taskID == "" || e.knowledgeX == nil {
-		return
-	}
-	knowledge, err := e.knowledgeX.ExtractFromTask(taskID)
-	if err != nil || knowledge == nil {
-		return
-	}
-	if err := e.knowledgeX.UpdateWiki(knowledge); err != nil {
-		fmt.Fprintf(os.Stderr, "Wiki update failed (non-blocking): %s\n", err)
-	}
-}
-
-// Phase 2: Generate ADR drafts from extracted decisions.
-func (e *hookEngine) generateADRsFromKnowledge() {
-	taskID := os.Getenv("ADB_TASK_ID")
-	if taskID == "" || e.knowledgeX == nil {
-		return
-	}
-	knowledge, err := e.knowledgeX.ExtractFromTask(taskID)
-	if err != nil || knowledge == nil {
-		return
-	}
-	for _, d := range knowledge.Decisions {
-		if _, err := e.knowledgeX.CreateADR(d, taskID); err != nil {
-			fmt.Fprintf(os.Stderr, "ADR generation failed for '%s' (non-blocking): %s\n", d.Decision, err)
-		}
-	}
-}
-
 // --- Package-level helpers ---
 
+// isVendorPath reports whether fp is inside a vendor/ directory.
 func isVendorPath(fp string) bool {
 	return strings.HasPrefix(fp, "vendor/") || strings.Contains(fp, "/vendor/")
 }
 
+// isGoSumPath reports whether fp is a go.sum file at any depth.
 func isGoSumPath(fp string) bool {
 	return filepath.Base(fp) == "go.sum"
 }
 
-func runCommand(name string, args ...string) (string, error) {
+// execCommand runs an external command and returns its combined output.
+func execCommand(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
+// filterGoFiles extracts lines ending in .go from command output.
 func filterGoFiles(output string) []string {
 	var goFiles []string
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {

@@ -31,7 +31,7 @@ Blocks the tool execution (exit 2) if the edit targets:
 
 		if err := HookEngine.HandlePreToolUse(*input); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(2)
+			osExit(2)
 		}
 
 		return nil

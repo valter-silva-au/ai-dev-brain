@@ -12,16 +12,9 @@ type PreToolUseInput struct {
 	ToolInput map[string]interface{} `json:"tool_input"`
 }
 
-// FilePath extracts the file_path from tool_input.
+// FilePath returns the file_path from tool_input, or empty string if absent or non-string.
 func (p PreToolUseInput) FilePath() string {
-	if p.ToolInput == nil {
-		return ""
-	}
-	fp, ok := p.ToolInput["file_path"].(string)
-	if !ok {
-		return ""
-	}
-	return fp
+	return toolInputFilePath(p.ToolInput)
 }
 
 // PostToolUseInput is the stdin JSON for PostToolUse hooks.
@@ -30,16 +23,9 @@ type PostToolUseInput struct {
 	ToolInput map[string]interface{} `json:"tool_input"`
 }
 
-// FilePath extracts the file_path from tool_input.
+// FilePath returns the file_path from tool_input, or empty string if absent or non-string.
 func (p PostToolUseInput) FilePath() string {
-	if p.ToolInput == nil {
-		return ""
-	}
-	fp, ok := p.ToolInput["file_path"].(string)
-	if !ok {
-		return ""
-	}
-	return fp
+	return toolInputFilePath(p.ToolInput)
 }
 
 // StopInput is the stdin JSON for Stop hooks.
@@ -78,4 +64,17 @@ func ParseStdin[T any](r io.Reader) (*T, error) {
 		return nil, fmt.Errorf("parsing stdin JSON: %w", err)
 	}
 	return &result, nil
+}
+
+// toolInputFilePath extracts the file_path string from a tool_input map.
+// Returns empty string if the map is nil or file_path is not a string.
+func toolInputFilePath(toolInput map[string]interface{}) string {
+	if toolInput == nil {
+		return ""
+	}
+	fp, ok := toolInput["file_path"].(string)
+	if !ok {
+		return ""
+	}
+	return fp
 }

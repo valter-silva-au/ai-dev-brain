@@ -37,7 +37,7 @@ Phase B (non-blocking - failures logged but don't block):
 
 		if err := HookEngine.HandleTaskCompleted(*input); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(2)
+			osExit(2)
 		}
 
 		return nil

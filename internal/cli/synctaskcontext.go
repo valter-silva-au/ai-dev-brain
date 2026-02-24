@@ -25,9 +25,14 @@ file in the current worktree.`,
 		hookMode, _ := cmd.Flags().GetBool("hook-mode")
 
 		taskID := os.Getenv("ADB_TASK_ID")
+		taskType := os.Getenv("ADB_TASK_TYPE")
 		worktreePath := os.Getenv("ADB_WORKTREE_PATH")
 		ticketPath := os.Getenv("ADB_TICKET_PATH")
 		branch := os.Getenv("ADB_BRANCH")
+
+		if taskType == "" {
+			taskType = "unknown"
+		}
 
 		if taskID == "" {
 			if hookMode {
@@ -46,7 +51,7 @@ file in the current worktree.`,
 
 This worktree is for task %s (%s).
 
-- **Type**: feat
+- **Type**: %s
 - **Branch**: %s
 - **Ticket**: %s
 
@@ -63,7 +68,7 @@ This worktree is for task %s (%s).
 - Record key decisions in knowledge/decisions.yaml
 `,
 			taskID, taskID, branch,
-			branch, ticketPath,
+			taskType, branch, ticketPath,
 			ticketPath, ticketPath, ticketPath, ticketPath, ticketPath,
 		)
 

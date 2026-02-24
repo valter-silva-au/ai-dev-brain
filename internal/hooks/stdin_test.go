@@ -150,3 +150,29 @@ func TestPostToolUseInput_FilePath_NilToolInput(t *testing.T) {
 		t.Errorf("FilePath() with nil tool_input = %q, want empty", got)
 	}
 }
+
+func TestToolInputFilePath(t *testing.T) {
+	tests := []struct {
+		name      string
+		toolInput map[string]interface{}
+		want      string
+	}{
+		{"nil map", nil, ""},
+		{"empty map", map[string]interface{}{}, ""},
+		{"no file_path key", map[string]interface{}{"old_string": "a"}, ""},
+		{"file_path as int", map[string]interface{}{"file_path": 123}, ""},
+		{"file_path as bool", map[string]interface{}{"file_path": true}, ""},
+		{"file_path as nil", map[string]interface{}{"file_path": nil}, ""},
+		{"valid file_path", map[string]interface{}{"file_path": "/path/to/file.go"}, "/path/to/file.go"},
+		{"empty string file_path", map[string]interface{}{"file_path": ""}, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toolInputFilePath(tt.toolInput)
+			if got != tt.want {
+				t.Errorf("toolInputFilePath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
