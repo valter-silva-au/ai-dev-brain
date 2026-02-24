@@ -496,8 +496,8 @@ func TestSave_WriteError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when backlog.yaml is a directory")
 	}
-	if !strings.Contains(err.Error(), "writing file") {
-		t.Fatalf("expected 'writing file' in error, got %q", err.Error())
+	if !strings.Contains(err.Error(), "saving backlog") {
+		t.Fatalf("expected 'saving backlog' in error, got %q", err.Error())
 	}
 }
 

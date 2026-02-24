@@ -55,9 +55,11 @@ func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 	}
 	if err == nil {
 		trimmed := strings.TrimSpace(string(data))
-		counter, err = strconv.Atoi(trimmed)
-		if err != nil {
-			return "", fmt.Errorf("parsing task counter %q: %w", trimmed, err)
+		if trimmed != "" {
+			counter, err = strconv.Atoi(trimmed)
+			if err != nil {
+				return "", fmt.Errorf("parsing task counter %q: %w", trimmed, err)
+			}
 		}
 	}
 

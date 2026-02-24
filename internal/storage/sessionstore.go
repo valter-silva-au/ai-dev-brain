@@ -80,9 +80,12 @@ func (s *fileSessionStore) GenerateID() (string, error) {
 	counter := 0
 	data, err := os.ReadFile(counterFile)
 	if err == nil {
-		counter, err = strconv.Atoi(strings.TrimSpace(string(data)))
-		if err != nil {
-			return "", fmt.Errorf("generating session ID: parsing counter: %w", err)
+		trimmed := strings.TrimSpace(string(data))
+		if trimmed != "" {
+			counter, err = strconv.Atoi(trimmed)
+			if err != nil {
+				return "", fmt.Errorf("generating session ID: parsing counter: %w", err)
+			}
 		}
 	} else if !os.IsNotExist(err) {
 		return "", fmt.Errorf("generating session ID: reading counter: %w", err)

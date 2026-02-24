@@ -9,20 +9,38 @@ import (
 	"testing"
 	"time"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
-func setupAIContextTest(t *testing.T) (AIContextGenerator, string) {
+// errorBacklogStore is a BacklogStore that returns configurable errors.
+type errorBacklogStore struct {
+	loadErr   error
+	filterErr error
+}
+
+func (e *errorBacklogStore) Load() error                                                  { return e.loadErr }
+func (e *errorBacklogStore) Save() error                                                  { return nil }
+func (e *errorBacklogStore) AddTask(entry BacklogStoreEntry) error                        { return nil }
+func (e *errorBacklogStore) UpdateTask(taskID string, updates BacklogStoreEntry) error     { return nil }
+func (e *errorBacklogStore) GetTask(taskID string) (*BacklogStoreEntry, error)            { return nil, nil }
+func (e *errorBacklogStore) GetAllTasks() ([]BacklogStoreEntry, error)                    { return nil, nil }
+func (e *errorBacklogStore) FilterTasks(filter BacklogStoreFilter) ([]BacklogStoreEntry, error) {
+	if e.filterErr != nil {
+		return nil, e.filterErr
+	}
+	return nil, nil
+}
+
+func setupAIContextTest(t *testing.T) (AIContextGenerator, *fakeBacklogStore, string) {
 	t.Helper()
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
-	return gen, dir
+	return gen, backlogMgr, dir
 }
 
 func TestGenerateContextFile_Claude(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, _, dir := setupAIContextTest(t)
 
 	path, err := gen.GenerateContextFile(AITypeClaude)
 	if err != nil {
@@ -58,7 +76,7 @@ func TestGenerateContextFile_Claude(t *testing.T) {
 }
 
 func TestGenerateContextFile_Kiro(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 
 	path, err := gen.GenerateContextFile(AITypeKiro)
 	if err != nil {
@@ -71,7 +89,7 @@ func TestGenerateContextFile_Kiro(t *testing.T) {
 }
 
 func TestSyncContext(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, _, dir := setupAIContextTest(t)
 
 	if err := gen.SyncContext(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -86,7 +104,7 @@ func TestSyncContext(t *testing.T) {
 }
 
 func TestAssembleProjectOverview(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	overview, err := gen.AssembleProjectOverview()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -97,7 +115,7 @@ func TestAssembleProjectOverview(t *testing.T) {
 }
 
 func TestAssembleDirectoryStructure(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	structure, err := gen.AssembleDirectoryStructure()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -111,7 +129,7 @@ func TestAssembleDirectoryStructure(t *testing.T) {
 }
 
 func TestAssembleConventions_Default(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	conventions, err := gen.AssembleConventions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -122,7 +140,7 @@ func TestAssembleConventions_Default(t *testing.T) {
 }
 
 func TestAssembleGlossary_Default(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	glossary, err := gen.AssembleGlossary()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -133,7 +151,7 @@ func TestAssembleGlossary_Default(t *testing.T) {
 }
 
 func TestAssembleGlossary_FromFile(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, _, dir := setupAIContextTest(t)
 
 	docsDir := filepath.Join(dir, "docs")
 	_ = os.MkdirAll(docsDir, 0o755)
@@ -149,24 +167,22 @@ func TestAssembleGlossary_FromFile(t *testing.T) {
 }
 
 func TestAssembleActiveTaskSummaries(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, backlog, _ := setupAIContextTest(t)
 
 	// Add tasks to backlog.
-	backlogMgr := storage.NewBacklogManager(dir)
-	_ = backlogMgr.AddTask(storage.BacklogEntry{
+	_ = backlog.AddTask(BacklogStoreEntry{
 		ID:       "TASK-00001",
 		Title:    "Implement OAuth",
 		Status:   models.StatusInProgress,
 		Priority: models.P1,
 		Branch:   "feat/oauth",
 	})
-	_ = backlogMgr.AddTask(storage.BacklogEntry{
+	_ = backlog.AddTask(BacklogStoreEntry{
 		ID:       "TASK-00002",
 		Title:    "Archived task",
 		Status:   models.StatusArchived,
 		Priority: models.P2,
 	})
-	_ = backlogMgr.Save()
 
 	summary, err := gen.AssembleActiveTaskSummaries()
 	if err != nil {
@@ -181,7 +197,7 @@ func TestAssembleActiveTaskSummaries(t *testing.T) {
 }
 
 func TestAssembleActiveTaskSummaries_Empty(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	summary, err := gen.AssembleActiveTaskSummaries()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -192,7 +208,7 @@ func TestAssembleActiveTaskSummaries_Empty(t *testing.T) {
 }
 
 func TestAssembleDecisionsSummary(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, _, dir := setupAIContextTest(t)
 
 	decisionsDir := filepath.Join(dir, "docs", "decisions")
 	_ = os.MkdirAll(decisionsDir, 0o755)
@@ -220,7 +236,7 @@ Need OAuth
 }
 
 func TestAssembleDecisionsSummary_NoDecisions(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	summary, err := gen.AssembleDecisionsSummary()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -231,7 +247,7 @@ func TestAssembleDecisionsSummary_NoDecisions(t *testing.T) {
 }
 
 func TestRegenerateSection(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 
 	sections := []ContextSection{
 		SectionOverview, SectionStructure, SectionConventions,
@@ -246,7 +262,7 @@ func TestRegenerateSection(t *testing.T) {
 }
 
 func TestRegenerateSection_Unknown(t *testing.T) {
-	gen, _ := setupAIContextTest(t)
+	gen, _, _ := setupAIContextTest(t)
 	err := gen.RegenerateSection("nonexistent")
 	if err == nil {
 		t.Fatal("expected error for unknown section")
@@ -254,20 +270,18 @@ func TestRegenerateSection_Unknown(t *testing.T) {
 }
 
 func TestSyncContext_ReflectsChanges(t *testing.T) {
-	gen, dir := setupAIContextTest(t)
+	gen, backlog, dir := setupAIContextTest(t)
 
 	// Initial sync.
 	_ = gen.SyncContext()
 
-	// Add a task and re-sync.
-	backlogMgr := storage.NewBacklogManager(dir)
-	_ = backlogMgr.AddTask(storage.BacklogEntry{
+	// Add a task to the same backlog and re-sync.
+	_ = backlog.AddTask(BacklogStoreEntry{
 		ID:     "TASK-00099",
 		Title:  "New task added",
 		Status: models.StatusInProgress,
 		Branch: "feat/new",
 	})
-	_ = backlogMgr.Save()
 
 	_ = gen.SyncContext()
 
@@ -281,7 +295,8 @@ func TestSyncContext_ReflectsChanges(t *testing.T) {
 // --- Additional tests for full coverage ---
 
 func TestFilenameForAI_Default(t *testing.T) {
-	gen := NewAIContextGenerator(t.TempDir(), storage.NewBacklogManager(t.TempDir()), nil, nil).(*aiContextGenerator)
+	backlogMgr := newFakeBacklogStore()
+	gen := NewAIContextGenerator(t.TempDir(), backlogMgr, nil, nil).(*aiContextGenerator)
 
 	// Test the default case (unknown AI type).
 	result := gen.filenameForAI(AIType("unknown"))
@@ -303,7 +318,7 @@ func TestGenerateContextFile_WriteError(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
@@ -320,7 +335,7 @@ func TestSyncContext_WriteError(t *testing.T) {
 	// Create a directory where CLAUDE.md should be.
 	_ = os.MkdirAll(filepath.Join(dir, "CLAUDE.md"), 0o755)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	err := gen.SyncContext()
@@ -338,7 +353,7 @@ func TestAssembleConventions_FromWikiFiles(t *testing.T) {
 	_ = os.MkdirAll(wikiDir, 0o755)
 	_ = os.WriteFile(filepath.Join(wikiDir, "coding-conventions.md"), []byte("Custom conventions"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
@@ -361,7 +376,7 @@ func TestAssembleConventions_NonMatchingWikiFiles(t *testing.T) {
 	// File without "convention" in name should be ignored.
 	_ = os.WriteFile(filepath.Join(wikiDir, "other-topic.md"), []byte("Other content"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
@@ -380,7 +395,7 @@ func TestAssembleGlossary_ReadError(t *testing.T) {
 	docsDir := filepath.Join(dir, "docs")
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.AssembleGlossary()
@@ -402,7 +417,7 @@ func TestAssembleDecisionsSummary_ReadDirError(t *testing.T) {
 	_ = os.MkdirAll(docsDir, 0o755)
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.AssembleDecisionsSummary()
@@ -423,7 +438,7 @@ func TestAssembleDecisionsSummary_NonAcceptedADR(t *testing.T) {
 	draftADR := "# ADR-0001: Draft Decision\n\n**Status:** Draft\n\n## Decision\nSomething"
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-draft.md"), []byte(draftADR), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
@@ -444,7 +459,7 @@ func TestAssembleDecisionsSummary_AcceptedWithoutSource(t *testing.T) {
 	adr := "# ADR-0001: No Source\n\n**Status:** Accepted\n\n## Decision\nSomething"
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-no-source.md"), []byte(adr), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
@@ -470,7 +485,7 @@ func TestAssembleDecisionsSummary_WithSubdirsAndNonMd(t *testing.T) {
 	// Create a non-md file (should be skipped).
 	_ = os.WriteFile(filepath.Join(decisionsDir, "README.txt"), []byte("text"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
@@ -487,7 +502,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "docs", "stakeholders.md"), []byte("# Stakeholders"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
@@ -498,7 +513,7 @@ func TestAssembleStakeholders_WithFile(t *testing.T) {
 
 func TestAssembleStakeholders_NoFile(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleStakeholders()
@@ -512,7 +527,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "docs", "contacts.md"), []byte("# Contacts"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
@@ -523,7 +538,7 @@ func TestAssembleContacts_WithFile(t *testing.T) {
 
 func TestAssembleContacts_NoFile(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	result := gen.assembleContacts()
@@ -533,12 +548,11 @@ func TestAssembleContacts_NoFile(t *testing.T) {
 }
 
 func TestAssembleActiveTaskSummaries_LoadError(t *testing.T) {
-	// Make backlog.yaml a directory so Load fails with a read error.
 	dir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
-
-	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
+	ebm := &errorBacklogStore{
+		loadErr: fmt.Errorf("load failure"),
+	}
+	gen := NewAIContextGenerator(dir, ebm, nil, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -549,36 +563,12 @@ func TestAssembleActiveTaskSummaries_LoadError(t *testing.T) {
 	}
 }
 
-// failingBacklogManager is a backlog manager that returns errors on FilterTasks.
-type failingBacklogManager struct {
-	filterErr error
-}
-
-func (f *failingBacklogManager) Load() error                              { return nil }
-func (f *failingBacklogManager) Save() error                              { return nil }
-func (f *failingBacklogManager) AddTask(entry storage.BacklogEntry) error { return nil }
-func (f *failingBacklogManager) UpdateTask(taskID string, updates storage.BacklogEntry) error {
-	return nil
-}
-func (f *failingBacklogManager) GetTask(taskID string) (*storage.BacklogEntry, error) {
-	return nil, nil
-}
-func (f *failingBacklogManager) GetAllTasks() ([]storage.BacklogEntry, error) { return nil, nil }
-func (f *failingBacklogManager) DeleteTask(taskID string) error               { return nil }
-func (f *failingBacklogManager) RemoveTask(taskID string) error               { return nil }
-func (f *failingBacklogManager) FilterTasks(filter storage.BacklogFilter) ([]storage.BacklogEntry, error) {
-	if f.filterErr != nil {
-		return nil, f.filterErr
-	}
-	return nil, nil
-}
-
 func TestAssembleActiveTaskSummaries_FilterTasksError(t *testing.T) {
 	dir := t.TempDir()
-	fbm := &failingBacklogManager{
+	ebm := &errorBacklogStore{
 		filterErr: fmt.Errorf("filter failure"),
 	}
-	gen := NewAIContextGenerator(dir, fbm, nil, nil)
+	gen := NewAIContextGenerator(dir, ebm, nil, nil)
 
 	_, err := gen.AssembleActiveTaskSummaries()
 	if err == nil {
@@ -596,7 +586,7 @@ func TestAssembleConventions_ReadDirError(t *testing.T) {
 	_ = os.MkdirAll(docsDir, 0o755)
 	_ = os.WriteFile(filepath.Join(docsDir, "wiki"), []byte("not a dir"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	conventions, err := gen.AssembleConventions()
@@ -610,12 +600,12 @@ func TestAssembleConventions_ReadDirError(t *testing.T) {
 }
 
 func TestGenerateContextFile_AssembleAllError(t *testing.T) {
-	// Trigger assembleAll error via broken backlog (ActiveTaskSummaries load fails).
+	// Trigger assembleAll error via a broken backlog.
 	dir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
-
-	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
+	ebm := &errorBacklogStore{
+		loadErr: fmt.Errorf("load failure"),
+	}
+	gen := NewAIContextGenerator(dir, ebm, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
 	if err == nil {
@@ -627,12 +617,12 @@ func TestGenerateContextFile_AssembleAllError(t *testing.T) {
 }
 
 func TestSyncContext_AssembleAllError(t *testing.T) {
-	// Trigger assembleAll error via broken backlog.
+	// Trigger assembleAll error via a broken backlog.
 	dir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "backlog.yaml"), 0o755)
-
-	backlogMgr := storage.NewBacklogManager(dir)
-	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
+	ebm := &errorBacklogStore{
+		loadErr: fmt.Errorf("load failure"),
+	}
+	gen := NewAIContextGenerator(dir, ebm, nil, nil)
 
 	err := gen.SyncContext()
 	if err == nil {
@@ -650,7 +640,7 @@ func TestAssembleAll_GlossaryError(t *testing.T) {
 	_ = os.MkdirAll(docsDir, 0o755)
 	_ = os.MkdirAll(filepath.Join(docsDir, "glossary.md"), 0o755)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
@@ -669,7 +659,7 @@ func TestAssembleAll_DecisionsError(t *testing.T) {
 	_ = os.MkdirAll(docsDir, 0o755)
 	_ = os.WriteFile(filepath.Join(docsDir, "decisions"), []byte("not a dir"), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	_, err := gen.GenerateContextFile(AITypeClaude)
@@ -689,7 +679,7 @@ func TestAssembleDecisionsSummary_UnreadableADR(t *testing.T) {
 	adr := "# ADR-0001: Test\n\n**Status:** Accepted\n**Source:** TASK-00001\n"
 	_ = os.WriteFile(filepath.Join(decisionsDir, "ADR-0001-test.md"), []byte(adr), 0o644)
 
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 	summary, err := gen.AssembleDecisionsSummary()
@@ -704,7 +694,7 @@ func TestAssembleDecisionsSummary_UnreadableADR(t *testing.T) {
 
 func TestRenderContextFile_IncludesKnowledgeSummary(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 
 	// Create a knowledge manager with test data.
 	store := newInMemoryKnowledgeStore()
@@ -742,7 +732,7 @@ func TestRenderContextFile_IncludesKnowledgeSummary(t *testing.T) {
 
 func TestRenderContextFile_NilKnowledgeManager(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
@@ -765,7 +755,7 @@ func TestRenderContextFile_NilKnowledgeManager(t *testing.T) {
 
 func TestRenderContextFile_EmptyKnowledgeStore(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 
 	// Empty knowledge store.
 	store := newInMemoryKnowledgeStore()
@@ -794,7 +784,7 @@ func TestRenderContextFile_EmptyKnowledgeStore(t *testing.T) {
 
 func TestContextState_DiffIdenticalStates(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	state := &ContextState{
@@ -817,7 +807,7 @@ func TestContextState_DiffIdenticalStates(t *testing.T) {
 
 func TestContextState_DiffFirstSync(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	curr := &ContextState{
@@ -833,7 +823,7 @@ func TestContextState_DiffFirstSync(t *testing.T) {
 
 func TestContextState_DiffTaskChanges(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{
@@ -866,7 +856,7 @@ func TestContextState_DiffTaskChanges(t *testing.T) {
 
 func TestContextState_DiffKnowledgeChanges(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{
@@ -905,7 +895,7 @@ func TestContextState_DiffKnowledgeChanges(t *testing.T) {
 
 func TestContextState_RenderWhatsChanged(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	t.Run("first sync", func(t *testing.T) {
@@ -947,7 +937,7 @@ func TestContextState_RenderWhatsChanged(t *testing.T) {
 
 func TestContextState_HashSection(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	t.Run("deterministic", func(t *testing.T) {
@@ -976,7 +966,7 @@ func TestContextState_HashSection(t *testing.T) {
 
 func TestContextState_AppendChangelog(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	t.Run("creates new changelog", func(t *testing.T) {
@@ -1032,7 +1022,7 @@ func TestContextState_AppendChangelog(t *testing.T) {
 	t.Run("prunes at 50 entries", func(t *testing.T) {
 		// Use a fresh dir+gen to avoid interference from earlier subtests.
 		pruneDir := t.TempDir()
-		pruneMgr := storage.NewBacklogManager(pruneDir)
+		pruneMgr := newFakeBacklogStore()
 		pruneGen := NewAIContextGenerator(pruneDir, pruneMgr, nil, nil).(*aiContextGenerator)
 
 		// Write 55 entries to exceed the 50-entry limit.
@@ -1057,7 +1047,7 @@ func TestContextState_AppendChangelog(t *testing.T) {
 
 func TestContextState_LoadSaveRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	original := &ContextState{
@@ -1118,7 +1108,7 @@ func TestContextState_LoadSaveRoundTrip(t *testing.T) {
 
 func TestContextState_LoadNonExistent(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	state, err := gen.loadState()
@@ -1132,7 +1122,7 @@ func TestContextState_LoadNonExistent(t *testing.T) {
 
 func TestContextState_ComputeCurrentState(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	// Set up sections manually for testing.
@@ -1175,7 +1165,7 @@ func TestContextState_ComputeCurrentState(t *testing.T) {
 
 func TestContextState_DiffDecisionChanges(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{
@@ -1201,7 +1191,7 @@ func TestContextState_DiffDecisionChanges(t *testing.T) {
 
 func TestContextState_DiffSessionChanges(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{
@@ -1227,7 +1217,7 @@ func TestContextState_DiffSessionChanges(t *testing.T) {
 
 func TestContextState_DiffADRAdditions(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{
@@ -1253,7 +1243,7 @@ func TestContextState_DiffADRAdditions(t *testing.T) {
 
 func TestContextState_DiffSectionHashChanges(t *testing.T) {
 	dir := t.TempDir()
-	backlogMgr := storage.NewBacklogManager(dir)
+	backlogMgr := newFakeBacklogStore()
 	gen := NewAIContextGenerator(dir, backlogMgr, nil, nil).(*aiContextGenerator)
 
 	prev := &ContextState{

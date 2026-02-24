@@ -39,7 +39,7 @@ func TestKnowledgeProvenanceTracking(t *testing.T) {
 
 		ctxMgr := storage.NewContextManager(dir)
 		commMgr := storage.NewCommunicationManager(dir)
-		ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+		ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 		// Generate wiki update content.
 		topic := genAlpha(t, "topic", 3, 20)
@@ -96,7 +96,7 @@ func TestADRCreationFormat(t *testing.T) {
 
 		ctxMgr := storage.NewContextManager(dir)
 		commMgr := storage.NewCommunicationManager(dir)
-		ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+		ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 		nConsequences := rapid.IntRange(0, 3).Draw(t, "nConsequences")
 		consequences := make([]string, nConsequences)

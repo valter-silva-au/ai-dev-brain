@@ -322,7 +322,7 @@ func TestDesignDocAsKnowledgeSourceProperty(t *testing.T) {
 		commMgr := storage.NewCommunicationManager(dir)
 		ctxMgr := storage.NewContextManager(dir)
 		gen := NewTaskDesignDocGenerator(dir, commMgr).(*taskDesignDocGenerator)
-		ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+		ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 		taskID := genDesignTaskID(t)
 

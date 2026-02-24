@@ -12,12 +12,51 @@ import (
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
+// storageContextAdapter wraps storage.ContextManager to implement core.TaskContextLoader.
+// Needed because storage.LoadContext returns *storage.TaskContext while core expects *core.TaskContext.
+type storageContextAdapter struct {
+	mgr storage.ContextManager
+}
+
+func (a *storageContextAdapter) LoadContext(taskID string) (*TaskContext, error) {
+	sc, err := a.mgr.LoadContext(taskID)
+	if err != nil {
+		return nil, err
+	}
+	return &TaskContext{
+		TaskID:         sc.TaskID,
+		Notes:          sc.Notes,
+		Context:        sc.Context,
+		Communications: sc.Communications,
+		LastUpdated:    sc.LastUpdated,
+	}, nil
+}
+
+// storageAIContextAdapter wraps storage.ContextManager to implement core.AIContextProvider.
+// Needed because storage.GetContextForAI returns *storage.AIContext while core expects *core.AIContext.
+type storageAIContextAdapter struct {
+	mgr storage.ContextManager
+}
+
+func (a *storageAIContextAdapter) GetContextForAI(taskID string) (*AIContext, error) {
+	sc, err := a.mgr.GetContextForAI(taskID)
+	if err != nil {
+		return nil, err
+	}
+	return &AIContext{
+		Summary:        sc.Summary,
+		RecentActivity: sc.RecentActivity,
+		Blockers:       sc.Blockers,
+		OpenQuestions:   sc.OpenQuestions,
+	}, nil
+}
+
 func setupKnowledgeTest(t *testing.T) (KnowledgeExtractor, string) {
 	t.Helper()
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 	return ke, dir
 }
 
@@ -376,7 +415,7 @@ func TestExtractFromTask_ContextLoadError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// No context initialized for this task, LoadContext should fail.
 	_, err := ke.ExtractFromTask("TASK-99999")
@@ -561,7 +600,7 @@ func TestGenerateHandoff_ContextLoadError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	_, err := ke.GenerateHandoff("TASK-99999")
 	if err == nil {
@@ -601,7 +640,7 @@ func TestUpdateWiki_MkdirAllError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Create a file where the wiki directory should be.
 	_ = os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
@@ -677,7 +716,7 @@ func TestCreateADR_MkdirAllError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Create a file where decisions directory should be.
 	_ = os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
@@ -914,7 +953,7 @@ func TestExtractFromTask_CommunicationLoadError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Initialize context but make communications dir unreadable.
 	contextContent := `# Task Context: TASK-00090
@@ -944,7 +983,7 @@ func TestGenerateHandoff_ExtractError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Initialize context normally.
 	contextContent := `# Task Context: TASK-00091
@@ -981,7 +1020,7 @@ func TestUpdateWiki_SubdirCreationError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Create wiki directory.
 	wikiDir := filepath.Join(dir, "docs", "wiki")
@@ -1019,7 +1058,7 @@ func TestCreateADR_ReadDirError(t *testing.T) {
 	dir := t.TempDir()
 	ctxMgr := storage.NewContextManager(dir)
 	commMgr := storage.NewCommunicationManager(dir)
-	ke := NewKnowledgeExtractor(dir, ctxMgr, commMgr)
+	ke := NewKnowledgeExtractor(dir, &storageContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Create decisions directory, then make it unreadable.
 	decisionsDir := filepath.Join(dir, "docs", "decisions")

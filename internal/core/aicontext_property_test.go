@@ -158,7 +158,7 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		backlogMgr := newFakeBacklogStore(dir)
+		backlogMgr := newFakeBacklogStore()
 		gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 		// Initial sync with some tasks.
@@ -171,26 +171,19 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 				Branch: genAlpha(t, fmt.Sprintf("iBranch%d", i), 3, 10),
 			})
 		}
-		_ = backlogMgr.Save()
 		_ = gen.SyncContext()
 
-		// Add a new task.
+		// Add a new task to the same store.
 		newTaskID := fmt.Sprintf("TASK-%05d", rapid.IntRange(10000, 99999).Draw(t, "newTaskID"))
-		newTitle := genAlpha(t, "newTitle", 3, 20)
-		backlogMgr2 := newFakeBacklogStore(dir)
-		_ = backlogMgr2.Load()
-		_ = backlogMgr2.AddTask(BacklogStoreEntry{
+		_ = backlogMgr.AddTask(BacklogStoreEntry{
 			ID:     newTaskID,
-			Title:  newTitle,
+			Title:  genAlpha(t, "newTitle", 3, 20),
 			Status: models.StatusInProgress,
 			Branch: genAlpha(t, "newBranch", 3, 10),
 		})
-		_ = backlogMgr2.Save()
 
-		// Re-sync with a fresh generator that will pick up the new backlog state.
-		backlogMgr3 := newFakeBacklogStore(dir)
-		gen2 := NewAIContextGenerator(dir, backlogMgr3, nil, nil)
-		if err := gen2.SyncContext(); err != nil {
+		// Re-sync — should pick up the newly added task.
+		if err := gen.SyncContext(); err != nil {
 			t.Fatal(err)
 		}
 

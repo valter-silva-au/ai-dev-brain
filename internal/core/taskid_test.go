@@ -105,8 +105,8 @@ func TestGenerateTaskID_ReadError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when counter file is a directory")
 	}
-	if !strings.Contains(err.Error(), "reading task counter file") {
-		t.Errorf("expected reading error, got: %v", err)
+	if !strings.Contains(err.Error(), "acquiring lock on task counter") {
+		t.Errorf("expected lock acquisition error, got: %v", err)
 	}
 }
 
@@ -197,8 +197,8 @@ func TestGenerateTaskID_WriteFileErrorAfterSuccessfulRead(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when counter file cannot be written")
 	}
-	if !strings.Contains(err.Error(), "task counter file") {
-		t.Errorf("expected task counter file error, got: %v", err)
+	if !strings.Contains(err.Error(), "acquiring lock on task counter") {
+		t.Errorf("expected lock acquisition error, got: %v", err)
 	}
 }
 

@@ -68,7 +68,7 @@ func TestProperty18_UpdateMessageOrder(t *testing.T) {
 			}
 		}
 
-		gen := NewUpdateGenerator(ctxMgr, commMgr)
+		gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 		plan, err := gen.GenerateUpdates(taskID)
 		if err != nil {
 			rt.Fatalf("GenerateUpdates failed: %v", err)
@@ -123,7 +123,7 @@ func TestProperty19_NoAutoSendInvariant(t *testing.T) {
 			}
 		}
 
-		gen := NewUpdateGenerator(ctxMgr, commMgr)
+		gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 		plan, err := gen.GenerateUpdates(taskID)
 		if err != nil {
 			rt.Fatalf("GenerateUpdates failed: %v", err)

@@ -37,7 +37,7 @@ func TestGenerateUpdates_EmptyTaskID(t *testing.T) {
 	base := t.TempDir()
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 
 	_, err := gen.GenerateUpdates("")
 	if err == nil {
@@ -55,7 +55,7 @@ func TestGenerateUpdates_NoComms_EmptyPlan(t *testing.T) {
 		t.Fatalf("initializing context: %v", err)
 	}
 
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -99,7 +99,7 @@ func TestGenerateUpdates_WithComms_GeneratesMessages(t *testing.T) {
 
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
@@ -169,7 +169,7 @@ func TestGenerateUpdates_ChannelFromSource(t *testing.T) {
 
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
@@ -245,7 +245,7 @@ Rate limiter implementation.
 		t.Fatalf("adding communication: %v", err)
 	}
 
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -299,7 +299,7 @@ func TestGenerateUpdates_DeduplicatesContacts(t *testing.T) {
 
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
@@ -319,7 +319,7 @@ func TestGenerateUpdates_ContextLoadError(t *testing.T) {
 	base := t.TempDir()
 	ctxMgr := storage.NewContextManager(base)
 	commMgr := storage.NewCommunicationManager(base)
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 
 	// Task does not exist, so loading context will fail.
 	_, err := gen.GenerateUpdates("TASK-NONEXISTENT")
@@ -351,7 +351,7 @@ func TestGenerateUpdates_CommunicationLoadError(t *testing.T) {
 		t.Fatalf("failed to write blocker file: %v", err)
 	}
 
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 	_, err := gen.GenerateUpdates("TASK-00001")
 	if err == nil {
 		t.Fatal("expected error when communications dir is not valid")
@@ -498,7 +498,7 @@ Building feature.
 		}
 	}
 
-	gen := NewUpdateGenerator(ctxMgr, commMgr)
+	gen := NewUpdateGenerator(&storageAIContextAdapter{mgr: ctxMgr}, commMgr)
 	plan, err := gen.GenerateUpdates(taskID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
