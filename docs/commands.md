@@ -570,7 +570,7 @@ None (takes no positional arguments).
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--filter` | string | `""` | Filter by a single status. Valid values: `backlog`, `in_progress`, `blocked`, `review`, `done`, `archived` |
+| `--filter` | string | `""` | Filter by a single status. Valid values: `backlog`, `in_progress`, `blocked`, `review`, `done`, `archived`. Note: Any string is accepted without validation; invalid values result in empty output. |
 
 **Output**
 
@@ -2842,6 +2842,141 @@ Prints cleanup summary (number of temporary files deleted). Exits 0.
 ```bash
 # Clean up after removing a worktree
 adb worktree-lifecycle post-remove
+```
+
+---
+
+## Hook System Commands
+
+### adb hook install
+
+Install adb-native hooks into `.claude/settings.json`.
+
+**Synopsis**
+
+```
+adb hook install [flags]
+```
+
+**Description**
+
+Install the adb-native hook system by configuring `.claude/settings.json` in
+the current repository to use the embedded hook wrapper scripts. These hooks
+provide quality gates, automatic formatting, change tracking, and knowledge
+extraction for Claude Code sessions.
+
+The hook scripts are thin shell wrappers that delegate to compiled Go code
+via `adb hook <type>` commands. This approach provides type safety, testability,
+and access to all adb functionality.
+
+Installed hooks:
+- `PreToolUse` (Edit|Write) -- Vendor guard, go.sum guard, ADR conflict checks
+- `PostToolUse` (Edit|Write) -- Go formatting, change tracking
+- `Stop` -- Advisory checks, context update, status timestamp
+- `TaskCompleted` -- Quality gates (tests, lint), knowledge extraction
+- `SessionEnd` -- Session capture, context update
+
+**Arguments**
+
+None.
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | `false` | Preview changes without modifying `.claude/settings.json` |
+
+**Output**
+
+Lists installed hooks and their configuration. With `--dry-run`, shows what
+would be installed without making changes.
+
+**Examples**
+
+```bash
+# Install hooks in the current repository
+adb hook install
+
+# Preview what would be installed
+adb hook install --dry-run
+```
+
+---
+
+### adb hook <type>
+
+Process hook events from Claude Code (internal commands).
+
+**Synopsis**
+
+```
+adb hook pre-tool-use
+adb hook post-tool-use
+adb hook stop
+adb hook task-completed
+adb hook session-end
+```
+
+**Description**
+
+Internal commands called by shell wrapper scripts installed via `adb hook install`.
+These commands read JSON input from stdin (piped by the wrapper scripts) and
+perform hook-specific validation, formatting, tracking, or knowledge work.
+
+Users typically do not call these commands directly. The shell wrappers handle
+stdin piping and exit code propagation.
+
+**Hook Types**
+
+| Command | Blocking | Purpose |
+|---------|----------|---------|
+| `pre-tool-use` | Yes | Block edits to vendor/, go.sum; check ADR conflicts |
+| `post-tool-use` | No | Auto-format Go files, track changed files |
+| `stop` | No | Update context.md, run advisory checks |
+| `task-completed` | Yes (Phase A) | Run quality gates (tests, lint, uncommitted check) |
+| `session-end` | No | Capture session transcript, update context |
+
+**Examples**
+
+```bash
+# Typically called by wrapper scripts, not directly by users:
+echo '{"tool":"Edit","path":"main.go"}' | adb hook post-tool-use
+```
+
+---
+
+### adb worktree-hook <event>
+
+Handle worktree lifecycle events (internal commands).
+
+**Synopsis**
+
+```
+adb worktree-hook create
+adb worktree-hook remove
+adb worktree-hook violation
+```
+
+**Description**
+
+Internal commands for processing worktree lifecycle events. These are called
+by legacy hook scripts and log events to the observability system.
+
+Users typically do not call these commands directly.
+
+**Event Types**
+
+| Command | Purpose |
+|---------|---------|
+| `create` | Log worktree creation event |
+| `remove` | Log worktree removal event |
+| `violation` | Log worktree boundary violation (tool use outside worktree) |
+
+**Examples**
+
+```bash
+# Called by hook scripts:
+adb worktree-hook create
 ```
 
 ---

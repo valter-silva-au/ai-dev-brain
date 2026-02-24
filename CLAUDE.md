@@ -22,7 +22,7 @@ Layered architecture: CLI -> Core -> Storage/Integration/Observability. All depe
 
 ## Technology Stack
 
-- Go 1.24
+- Go 1.26
 - Cobra (CLI framework), Viper (configuration), yaml.v3 (persistence)
 - pgregory.net/rapid (property-based testing)
 - GoReleaser (release automation), golangci-lint (linting)
@@ -64,7 +64,8 @@ internal/
     ticketpath.go             # Ticket path resolution (active vs _archived/)
     taskid.go                 # TaskIDGenerator (sequential TASK-XXXXX IDs)
     templates.go              # TemplateManager (notes.md, design.md per type)
-    doctemplates.go           # Built-in template content (unused alias)
+    doctemplates.go           # Built-in template content (notes, design, handoff templates)
+    branchformat.go           # Branch name sanitization and formatting
     updategen.go              # UpdateGenerator (stakeholder communication plans)
     aicontext.go              # AIContextGenerator (CLAUDE.md, kiro.md) with critical decisions, recent sessions, context evolution tracking ("What's Changed"), and captured sessions sections
     sessioncapturer.go        # SessionCapturer local interface (avoids importing storage)
@@ -119,8 +120,8 @@ templates/claude/
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md, embedded)
 .claude/
   settings.json               # Permissions and hooks configuration
-  agents/                     # Specialized Claude Code agent definitions (11 agents)
-  skills/                     # Reusable Claude Code skills (17 skills)
+  agents/                     # Specialized Claude Code agent definitions (18 agents)
+  skills/                     # Reusable Claude Code skills (23 skills)
   hooks/                      # Quality gate hook scripts (5 hooks)
 templates/claude/hooks/
   adb-hook-pre-tool-use.sh    # Shell wrapper: pipes stdin to adb hook pre-tool-use (blocking)
@@ -130,6 +131,9 @@ templates/claude/hooks/
   adb-hook-session-end.sh     # Shell wrapper: pipes stdin to adb hook session-end (non-blocking)
   adb-hook-teammate-idle.sh   # No-op: exit 0
   adb-session-capture.sh      # Legacy SessionEnd hook script for automatic session capture
+  adb-worktree-create.sh      # Validates task context exists, logs worktree creation event
+  adb-worktree-remove.sh      # Archives orphaned sessions, logs worktree removal event
+  adb-worktree-boundary.sh    # Validates tool paths are within worktree boundary, blocks violations
   rules/                      # Project rules (go-standards.md, cli-patterns.md, workspace.md)
 .mcp.json                     # MCP server configuration (aws-knowledge, context7)
 ```
@@ -191,7 +195,7 @@ templates/claude/hooks/
 
 | Interface | Purpose |
 |-----------|---------|
-| `TaskManager` | Task lifecycle: create, resume, archive, unarchive, status/priority updates |
+| `TaskManager` | Task lifecycle: create (with CreateTaskOpts for priority, owner, tags, prefix), resume, archive, unarchive, status/priority updates |
 | `BootstrapSystem` | Initialize new tasks with directory structure (incl. sessions/, knowledge/), templates, worktree, and task context generation |
 | `ConfigurationManager` | Load/merge/validate global (.taskconfig) and repo (.taskrc) config |
 | `TaskIDGenerator` | Generate sequential TASK-XXXXX IDs via file-based counter |
@@ -230,7 +234,7 @@ templates/claude/hooks/
 | `ScreenshotPipeline` | Capture screenshots, OCR, classify, and file content |
 | `TranscriptParser` | Parse Claude Code JSONL session transcripts into structured turn data (TranscriptResult) |
 | `OfflineManager` | Detect connectivity, queue operations for later sync |
-| `VersionChecker` | Detect Claude Code version, check feature gates, cache results |
+| `ClaudeCodeVersionChecker` | Detect Claude Code version, check feature gates, cache results |
 | `MCPClient` | Validate MCP server health (HTTP/stdio), cache discovery results with TTL |
 
 ### Observability Package (`internal/observability/`)
@@ -262,7 +266,7 @@ templates/claude/hooks/
 
 - `.taskconfig` -- Global config (YAML, read via Viper). Contains `defaults.ai`, `task_id.prefix`, `task_id.counter`, `defaults.priority`, `defaults.owner`, `screenshot.hotkey`, `offline_mode`, `cli_aliases`, `notifications`, `team_routing`, `hooks`.
 - `.taskrc` -- Per-repo config (YAML, read via Viper). Contains `build_command`, `test_command`, `default_reviewers`, `conventions`, `templates`.
-- Precedence: `.taskrc` > `.taskconfig` > defaults
+- Precedence: `.taskrc` > `.taskconfig` > defaults. `ADB_HOME` env var overrides base path resolution.
 - `.task_counter` -- File-based sequential counter for task ID generation
 - `.adb_events.jsonl` -- Append-only event log used by the observability package
 - `.session_counter` -- File-based sequential counter for captured session ID generation (S-XXXXX format)
@@ -350,8 +354,16 @@ hooks:
 - `adb team <team-name> <prompt>` -- Launch a multi-agent team session with task context
 - `adb agents` -- List available Claude Code agents
 - `adb mcp check [--no-cache]` -- Validate configured MCP servers and cache results
+- `adb hook install` -- Install adb-native hooks to .claude/settings.json
+- `adb hook pre-tool-use` -- Process PreToolUse hook events (internal, called by shell wrappers)
+- `adb hook post-tool-use` -- Process PostToolUse hook events (internal)
+- `adb hook stop` -- Process Stop hook events (internal)
+- `adb hook task-completed` -- Process TaskCompleted hook events (internal)
+- `adb hook session-end` -- Process SessionEnd hook events (internal)
 - `adb worktree-lifecycle {pre-create,post-create,pre-remove,post-remove}` -- Worktree lifecycle automation hooks
-- `adb worktree-hook {create,remove,violation}` -- Worktree event handlers for hook scripts
+- `adb worktree-hook create` -- Handle WorktreeCreate events (internal)
+- `adb worktree-hook remove` -- Handle WorktreeRemove events (internal)
+- `adb worktree-hook violation` -- Handle worktree boundary violations (internal)
 - `adb sync-task-context [--hook-mode]` -- Regenerate .claude/rules/task-context.md
 - `adb version` -- Print version information
 

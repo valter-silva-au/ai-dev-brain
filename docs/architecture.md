@@ -330,6 +330,27 @@ classDiagram
         +Notify(alerts) error
     }
 
+    class CommunicationManager {
+        <<interface>>
+        +AddCommunication(taskID, comm) error
+        +GetAllCommunications(taskID) []Communication, error
+        +SearchCommunications(taskID, filter) []Communication, error
+    }
+
+    class KnowledgeStoreManager {
+        <<interface>>
+        +AddEntry(entry) string, error
+        +GetEntry(id) KnowledgeEntry, error
+        +Load() error
+        +Save() error
+    }
+
+    class ClaudeCodeVersionChecker {
+        <<interface>>
+        +GetVersion() string, error
+        +SupportsFeature(feature) bool, error
+    }
+
     HookEngine --> KnowledgeExtractor : extracts knowledge (Phase 2)
     HookEngine --> ConflictDetector : checks ADR conflicts (Phase 3)
     TaskManager --> BootstrapSystem : delegates creation
@@ -677,7 +698,7 @@ sequenceDiagram
 
     CLI->>CLI: Check ADB_TASK_ID env var
     opt Task-scoped linking
-        CLI->>FS: Symlink/copy to tickets/TASK-XXXXX/sessions/
+        CLI->>FS: Symlink (Unix) or copy (Windows) to tickets/TASK-XXXXX/sessions/
     end
 
     CLI-->>Hook: exit 0
@@ -1302,7 +1323,7 @@ Claude Code sessions are captured automatically via a user-level `SessionEnd` ho
 - **Thin hook + thick binary**: The hook script is 4 lines of bash that pipes stdin to `adb session capture --from-hook`. All parsing, storage, and summarization logic lives in testable Go code.
 - **Structural summary as default**: The `StructuralSummarizer` produces a zero-dependency summary (first user message + tool counts). LLM-powered summarization is designed but deferred to Phase 2.
 - **min_turns_capture threshold**: Sessions with fewer than 3 turns (default) are skipped to avoid capturing trivial interactions (e.g., "what time is it?").
-- **Symlink for task-scoped linking**: When `ADB_TASK_ID` is set, the captured session is symlinked into the task's `sessions/` directory, maintaining a single source of truth.
+- **Symlink for task-scoped linking**: When `ADB_TASK_ID` is set, the captured session is symlinked (Unix) or copied (Windows) into the task's `sessions/` directory, maintaining a single source of truth.
 
 ### Context evolution via state snapshots
 
