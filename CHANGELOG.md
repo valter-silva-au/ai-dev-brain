@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.7.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.6.0...v1.7.0) (2026-02-24)
+
+
+### Features
+
+* add Claude Code status line with adb task context and portfolio… ([#26](https://github.com/valter-silva-au/ai-dev-brain/issues/26)) ([b2d7731](https://github.com/valter-silva-au/ai-dev-brain/commit/b2d77319bf2f05ff291ad521120269e78773ec19))
+* add configurable task ID pad width, branch pattern, and dynamic… ([#25](https://github.com/valter-silva-au/ai-dev-brain/issues/25)) ([6d585c2](https://github.com/valter-silva-au/ai-dev-brain/commit/6d585c28b584b166ab32956ed8dcdf68177b051c))
+* **browser:** add 4-layer agentic browser automation stack ([54e89c4](https://github.com/valter-silva-au/ai-dev-brain/commit/54e89c42422c8f543c44626df211d87c176831f2))
+* **claude:** add Claude Code template system with init-claude and sync-claude-user commands ([62bd7ba](https://github.com/valter-silva-au/ai-dev-brain/commit/62bd7babd9a1dd3209c1dd116a416909f4818a47))
+* **cli:** add universal Claude Code status line with tiered enrichment ([#31](https://github.com/valter-silva-au/ai-dev-brain/issues/31)) ([badb34b](https://github.com/valter-silva-au/ai-dev-brain/commit/badb34bde2de1e2253d1b2cc50dd7d290ce69278))
+* **cli:** auto-register adb MCP server in global Claude config ([c16fc61](https://github.com/valter-silva-au/ai-dev-brain/commit/c16fc61a934aa01301f9faf94c9463cfa1c393d6))
+* **core:** add repo-path-based task organization ([5d42e7a](https://github.com/valter-silva-au/ai-dev-brain/commit/5d42e7a343c6d4ce30f837b8896f5fdb3844209e))
+* **core:** add workspace-wide session capture and context evolution tracking ([#29](https://github.com/valter-silva-au/ai-dev-brain/issues/29)) ([f3ba3c7](https://github.com/valter-silva-au/ai-dev-brain/commit/f3ba3c723a80185d8768d878ae3f5d2b7935ae0d))
+* **hooks:** add adb-native hook system ([#38](https://github.com/valter-silva-au/ai-dev-brain/issues/38)) ([fc5e144](https://github.com/valter-silva-au/ai-dev-brain/commit/fc5e14486a053f4c6d69dfe0885b232bb2a0851c))
+* **integration:** Claude Code v2.1.50 integration ([#37](https://github.com/valter-silva-au/ai-dev-brain/issues/37)) ([3bcbd5a](https://github.com/valter-silva-au/ai-dev-brain/commit/3bcbd5a6b56de666256cced84ff546084e0d8ff7))
+
+
+### Bug Fixes
+
+* **cli:** sync statusline.sh in sync-claude-user command ([#35](https://github.com/valter-silva-au/ai-dev-brain/issues/35)) ([1b390e7](https://github.com/valter-silva-au/ai-dev-brain/commit/1b390e728c63642b61ebf87c16c8fcec7a2a99d1))
+* **integration:** resolve parent repo and force-remove worktrees ([aaeb15f](https://github.com/valter-silva-au/ai-dev-brain/commit/aaeb15ffc54035d845579d5832f9255bb306d984))
+* resolve CI lint failures and release workflow tag mismatch ([#23](https://github.com/valter-silva-au/ai-dev-brain/issues/23)) ([79f7c70](https://github.com/valter-silva-au/ai-dev-brain/commit/79f7c7034f44313603ee3cc2c02859a4a6ab0349))
+
 ## [1.6.0](https://github.com/valter-silva-au/ai-dev-brain/compare/v1.5.0...v1.6.0) (2026-02-13)
 
 
