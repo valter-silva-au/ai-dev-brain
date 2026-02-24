@@ -341,6 +341,24 @@ func linkSessionToTask(sessionID, taskID string) {
 	src := filepath.Join(BasePath, "sessions", sessionID, "summary.md")
 	dst := filepath.Join(sessionsDir, sessionID+".md")
 
+	// Validate both paths are within the workspace basePath (path traversal guard).
+	absSrc, err := filepath.Abs(src)
+	if err != nil {
+		return
+	}
+	absDst, err := filepath.Abs(dst)
+	if err != nil {
+		return
+	}
+	absBase, err := filepath.Abs(BasePath)
+	if err != nil {
+		return
+	}
+	if !strings.HasPrefix(filepath.Clean(absSrc), filepath.Clean(absBase)) ||
+		!strings.HasPrefix(filepath.Clean(absDst), filepath.Clean(absBase)) {
+		return // Paths escape workspace; skip linking.
+	}
+
 	if runtime.GOOS == "windows" {
 		// Windows: copy instead of symlink.
 		data, err := os.ReadFile(src) //nolint:gosec // G304: path from trusted internal code

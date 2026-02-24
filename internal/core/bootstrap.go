@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
@@ -95,6 +96,19 @@ func (bs *bootstrapSystem) Bootstrap(config BootstrapConfig) (*BootstrapResult, 
 	}
 
 	ticketPath := filepath.Join(bs.basePath, "tickets", taskID)
+
+	// Validate that the resolved ticket path is within basePath (path traversal guard).
+	absTicketPath, err := filepath.Abs(ticketPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolving ticket path: %w", err)
+	}
+	absBasePath, err := filepath.Abs(bs.basePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolving base path: %w", err)
+	}
+	if !strings.HasPrefix(filepath.Clean(absTicketPath), filepath.Clean(absBasePath)) {
+		return nil, fmt.Errorf("ticket path %q escapes base path %q", ticketPath, bs.basePath)
+	}
 
 	// Create the ticket directory structure.
 	dirs := []string{

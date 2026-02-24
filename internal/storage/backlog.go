@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -237,6 +238,13 @@ func hasAllTags(entryTags []string, requiredTags []string) bool {
 }
 
 func (m *fileBacklogManager) Load() error {
+	// Acquire shared lock for reading.
+	unlock, err := m.lockBacklogShared()
+	if err != nil {
+		return fmt.Errorf("loading backlog: acquiring lock: %w", err)
+	}
+	defer unlock()
+
 	data, err := os.ReadFile(m.filePath())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -264,6 +272,14 @@ func (m *fileBacklogManager) Save() error {
 	if err := os.MkdirAll(m.basePath, 0o750); err != nil {
 		return fmt.Errorf("saving backlog: creating directory: %w", err)
 	}
+
+	// Acquire exclusive lock for writing.
+	unlock, err := m.lockBacklogExclusive()
+	if err != nil {
+		return fmt.Errorf("saving backlog: acquiring lock: %w", err)
+	}
+	defer unlock()
+
 	data, err := yaml.Marshal(&m.data)
 	if err != nil {
 		return fmt.Errorf("saving backlog: marshaling YAML: %w", err)
@@ -272,4 +288,40 @@ func (m *fileBacklogManager) Save() error {
 		return fmt.Errorf("saving backlog: writing file: %w", err)
 	}
 	return nil
+}
+
+// lockBacklogShared acquires a shared (read) lock on the backlog file.
+func (m *fileBacklogManager) lockBacklogShared() (unlock func() error, err error) {
+	f, err := os.OpenFile(m.filePath(), os.O_RDONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening backlog for shared lock: %w", err)
+	}
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("acquiring shared lock on backlog: %w", err)
+	}
+
+	return func() error {
+		defer f.Close()
+		return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	}, nil
+}
+
+// lockBacklogExclusive acquires an exclusive (write) lock on the backlog file.
+func (m *fileBacklogManager) lockBacklogExclusive() (unlock func() error, err error) {
+	f, err := os.OpenFile(m.filePath(), os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("opening backlog for exclusive lock: %w", err)
+	}
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("acquiring exclusive lock on backlog: %w", err)
+	}
+
+	return func() error {
+		defer f.Close()
+		return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	}, nil
 }

@@ -312,8 +312,12 @@ func (tm *taskManager) ArchiveTask(taskID string) (*models.HandoffDocument, erro
 	// Update TicketPath in the moved status.yaml.
 	task.TicketPath = destDir
 	movedStatusPath := filepath.Join(destDir, "status.yaml")
-	if statusData, marshalErr := yaml.Marshal(task); marshalErr == nil {
-		_ = os.WriteFile(movedStatusPath, statusData, 0o600)
+	statusData, marshalErr := yaml.Marshal(task)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("archiving task %s: marshaling moved status: %w", taskID, marshalErr)
+	}
+	if err := os.WriteFile(movedStatusPath, statusData, 0o600); err != nil {
+		return nil, fmt.Errorf("archiving task %s: writing moved status: %w", taskID, err)
 	}
 
 	return handoff, nil

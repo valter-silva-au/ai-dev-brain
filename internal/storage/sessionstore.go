@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -69,6 +70,13 @@ func (s *fileSessionStore) GenerateID() (string, error) {
 		return "", fmt.Errorf("generating session ID: creating directory: %w", err)
 	}
 
+	// Acquire exclusive lock on counter file.
+	unlock, err := s.lockCounter()
+	if err != nil {
+		return "", fmt.Errorf("generating session ID: acquiring lock: %w", err)
+	}
+	defer unlock()
+
 	counter := 0
 	data, err := os.ReadFile(counterFile)
 	if err == nil {
@@ -87,6 +95,26 @@ func (s *fileSessionStore) GenerateID() (string, error) {
 		return "", fmt.Errorf("generating session ID: writing counter: %w", err)
 	}
 	return id, nil
+}
+
+// lockCounter acquires an exclusive lock on the session counter file.
+func (s *fileSessionStore) lockCounter() (unlock func() error, err error) {
+	f, err := os.OpenFile(s.counterPath(), os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("opening counter lock file: %w", err)
+	}
+
+	// syscall.Flock is Unix-specific. On Windows, this will compile but may not work.
+	// For production Windows support, use a different locking mechanism.
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("acquiring counter lock: %w", err)
+	}
+
+	return func() error {
+		defer f.Close()
+		return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	}, nil
 }
 
 // AddSession stores a captured session and its turns. The session must have

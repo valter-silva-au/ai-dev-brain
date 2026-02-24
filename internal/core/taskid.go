@@ -41,6 +41,13 @@ func NewTaskIDGenerator(basePath string, prefix string, padWidth int) TaskIDGene
 func (g *fileTaskIDGenerator) GenerateTaskID() (string, error) {
 	counterPath := filepath.Join(g.basePath, ".task_counter")
 
+	// Acquire exclusive lock on counter file.
+	unlock, err := lockFile(counterPath)
+	if err != nil {
+		return "", fmt.Errorf("acquiring lock on task counter: %w", err)
+	}
+	defer unlock()
+
 	counter := 0
 	data, err := os.ReadFile(counterPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -112,6 +119,10 @@ func ValidatePathTaskID(taskID string) error {
 	}
 	if strings.HasPrefix(taskID, "/") || strings.HasSuffix(taskID, "/") {
 		return fmt.Errorf("task ID %q must not start or end with /", taskID)
+	}
+	// Check for absolute paths (Unix-style or Windows drive letters).
+	if filepath.IsAbs(taskID) || (len(taskID) >= 2 && taskID[1] == ':') {
+		return fmt.Errorf("task ID %q must not be an absolute path", taskID)
 	}
 	segments := strings.Split(taskID, "/")
 	for _, seg := range segments {
