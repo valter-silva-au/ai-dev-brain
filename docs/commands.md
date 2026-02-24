@@ -2887,6 +2887,7 @@ Statuses are displayed in this lifecycle order by `adb status`:
 |------|---------|
 | `0` | Command completed successfully |
 | `1` | General error (invalid arguments, missing resources, operation failed) |
+| `2` | Hook blocked the operation (used by `adb hook pre-tool-use` and `adb hook task-completed` to signal Claude Code that the action should not proceed) |
 | Non-zero (from `exec`/`run`) | Propagated from the external tool's exit code |
 
 When `adb exec` or `adb run` invokes an external tool that exits with a

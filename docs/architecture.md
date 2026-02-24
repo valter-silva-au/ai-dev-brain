@@ -6,7 +6,7 @@ This document describes the internal architecture of AI Dev Brain (`adb`), cover
 
 ## System Overview
 
-AI Dev Brain is organized into five layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic, including the feedback loop orchestrator, knowledge manager, and channel registry. The integration layer communicates with external systems (git, OS tools, Taskfile, file-based channels). The storage layer persists data to the local filesystem, including the long-term knowledge store. The observability layer provides event logging, metrics derivation, and alerting. A shared `pkg/models` package defines the data structures used across layers.
+AI Dev Brain is organized into five layers, each with a clear responsibility boundary. The CLI layer accepts user commands. The core layer contains all business logic, including the feedback loop orchestrator, knowledge manager, channel registry, and hook engine. The integration layer communicates with external systems (git, OS tools, Taskfile, file-based channels). The storage layer persists data to the local filesystem, including the long-term knowledge store. The observability layer provides event logging, metrics derivation, and alerting. A shared `pkg/models` package defines the data structures used across layers. The `internal/hooks` support package provides stdin parsing, change tracking, and artifact helpers used by the hook engine.
 
 ```mermaid
 graph TD
@@ -28,6 +28,7 @@ graph TD
         KM[KnowledgeManager]
         FL[FeedbackLoopOrchestrator]
         CR[ChannelRegistry]
+        HEN[HookEngine]
     end
 
     subgraph "Observability Layer"
@@ -106,6 +107,9 @@ graph TD
     TFR --> EXEC
 
     CLI --> TP
+    CLI --> HEN
+    HEN --> KE
+    HEN --> CD
 
     BM --> MDL
     CTX --> MDL
@@ -126,6 +130,7 @@ graph TD
     style KM fill:#7b68ee,color:#fff
     style FL fill:#7b68ee,color:#fff
     style CR fill:#7b68ee,color:#fff
+    style HEN fill:#7b68ee,color:#fff
     style EL fill:#e74c3c,color:#fff
     style MC fill:#e74c3c,color:#fff
     style AE fill:#e74c3c,color:#fff
@@ -311,11 +316,22 @@ classDiagram
         +Init(config) InitResult, error
     }
 
+    class HookEngine {
+        <<interface>>
+        +HandlePreToolUse(input) error
+        +HandlePostToolUse(input) error
+        +HandleStop(input) error
+        +HandleTaskCompleted(input) error
+        +HandleSessionEnd(input) error
+    }
+
     class Notifier {
         <<interface>>
         +Notify(alerts) error
     }
 
+    HookEngine --> KnowledgeExtractor : extracts knowledge (Phase 2)
+    HookEngine --> ConflictDetector : checks ADR conflicts (Phase 3)
     TaskManager --> BootstrapSystem : delegates creation
     TaskManager --> BacklogStore : persists entries
     TaskManager --> ContextStore : loads context
@@ -741,6 +757,101 @@ The `diffStates` function produces `[]ContextChange` entries describing what cha
 - New or removed ADRs
 - Static section changes (glossary, conventions) detected via hash comparison
 - First-time sync notification
+
+---
+
+## Hook System Architecture
+
+The hook system replaces standalone shell-script hooks with compiled Go code running inside the `adb` binary. A thin shell wrapper delegates to `adb hook <type>`, which processes the event and updates adb artifacts.
+
+### Execution Model
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant SH as Shell Wrapper
+    participant ADB as adb hook <type>
+    participant HE as HookEngine
+    participant CT as ChangeTracker
+    participant FS as Filesystem
+
+    CC->>SH: Hook fires (pipes JSON to stdin)
+    SH->>SH: Check ADB_HOOK_ACTIVE
+    alt ADB_HOOK_ACTIVE=1
+        SH-->>CC: exit 0 (prevent recursion)
+    else Not set
+        SH->>SH: export ADB_HOOK_ACTIVE=1
+        SH->>ADB: pipe stdin to adb hook <type>
+        ADB->>ADB: ParseStdin[T](os.Stdin)
+        ADB->>HE: Handle<Type>(input)
+
+        alt PreToolUse / TaskCompleted (blocking)
+            HE->>HE: Run validation checks
+            alt Check fails
+                HE-->>ADB: error
+                ADB->>ADB: fmt.Fprintln(stderr, err)
+                ADB-->>SH: exit 2
+                SH-->>CC: exit 2 (block operation)
+            else Check passes
+                HE-->>ADB: nil
+                ADB-->>SH: exit 0
+                SH-->>CC: exit 0 (allow operation)
+            end
+        else PostToolUse / Stop / SessionEnd (non-blocking)
+            HE->>CT: Append change / Read changes
+            HE->>FS: Update context.md, status.yaml
+            HE-->>ADB: nil (always)
+            ADB-->>SH: exit 0
+            SH-->>CC: exit 0
+        end
+    end
+```
+
+### Change Tracker Data Flow
+
+The change tracker is the key coordination mechanism between hooks within a session:
+
+```mermaid
+flowchart TD
+    PTU["PostToolUse fires<br/>(on each Edit/Write)"] --> APPEND["tracker.Append()<br/>timestamp|tool|filepath"]
+    APPEND --> FILE[".adb_session_changes<br/>(append-only file)"]
+
+    STOP["Stop hook fires"] --> READ1["tracker.Read()"]
+    READ1 --> FILE
+    READ1 --> GROUP1["GroupChangesByDirectory()"]
+    GROUP1 --> FMT1["FormatSessionSummary()"]
+    FMT1 --> CTX1["AppendToContext(ticketPath)"]
+    CTX1 --> CTXMD["context.md updated"]
+    STOP --> CLEAN1["tracker.Cleanup()"]
+    CLEAN1 --> FILE
+
+    SE["SessionEnd hook fires"] --> READ2["tracker.Read()"]
+    READ2 --> FILE
+    READ2 --> GROUP2["GroupChangesByDirectory()"]
+    GROUP2 --> FMT2["FormatSessionSummary()"]
+    FMT2 --> CTX2["AppendToContext(ticketPath)"]
+    CTX2 --> CTXMD
+
+    style FILE fill:#e74c3c,color:#fff
+    style CTXMD fill:#2ecc71,color:#fff
+```
+
+### Hook Types and Behavior
+
+| Hook Type | Blocking | Exit Code | Key Actions |
+|-----------|----------|-----------|-------------|
+| PreToolUse | Yes | 0 or 2 | Vendor guard, go.sum guard, architecture guard, ADR conflict check |
+| PostToolUse | No | Always 0 | Go format, change tracking, dependency detection |
+| Stop | No | Always 0 | Advisory build/vet/uncommitted, context update, status timestamp, tracker cleanup |
+| TaskCompleted | Yes (Phase A) | 0 or 2 | Phase A: tests/lint/uncommitted. Phase B: knowledge/wiki/ADR/context |
+| SessionEnd | No | Always 0 | Context update from tracked changes |
+| TeammateIdle | No | Always 0 | No-op |
+
+### Configuration
+
+Hook behavior is controlled via `.taskconfig` under the `hooks:` key. Each hook type has an `enabled` flag plus feature-specific flags. `DefaultHookConfig()` enables Phase 1 features; Phase 2/3 features are opt-in.
+
+The `HookEngine` receives its configuration at construction time via `NewHookEngine(basePath, config, knowledgeX, conflictDt)`. The `knowledgeX` (KnowledgeExtractor) and `conflictDt` (ConflictDetector) parameters are optional -- Phase 2/3 features are disabled when nil.
 
 ---
 
@@ -1215,6 +1326,37 @@ The `templates/claude` package exports an `embed.FS` named `FS` containing all t
 
 The tradeoff is that template customization requires recompiling the binary. For users who need per-project template overrides, `.taskrc` still supports custom template paths for task templates (notes.md, design.md) as described in the Extension Points section.
 
+### Hybrid hook execution model
+
+The hook system uses a hybrid shell-wrapper + Go binary approach:
+
+- **Thin shell wrappers**: Each hook type has a 4-line bash script that checks `ADB_HOOK_ACTIVE`, sets it, pipes stdin to `adb hook <type>`, and propagates the exit code. This matches the proven `adb-session-capture.sh` pattern.
+- **Compiled Go logic**: All validation, formatting, tracking, and knowledge work runs in the `adb` binary. This provides type safety, testability, and access to all adb packages.
+- **Recursive hook prevention**: The `ADB_HOOK_ACTIVE` environment variable prevents infinite loops (e.g., PostToolUse -> gofmt writes file -> PostToolUse fires again). The shell wrapper checks `ADB_HOOK_ACTIVE` before exporting it.
+- **Graceful degradation**: If `adb` is not on PATH or fails to execute, the shell wrapper exits 0 (non-blocking hooks) or propagates the error (blocking hooks). Claude Code continues either way.
+
+The alternative approaches considered were:
+1. **Pure shell scripts**: Limited logic, no access to adb packages, hard to test, brittle string manipulation.
+2. **Pure adb binary** (registered directly in settings.json): Would require the Go binary to be the hook script itself. Not supported by Claude Code's hook contract (expects a shell command).
+
+### Change tracker pattern
+
+The `.adb_session_changes` file serves as a coordination mechanism between PostToolUse and Stop/SessionEnd hooks:
+
+- **Append-only**: Each PostToolUse appends one line (`timestamp|tool|filepath`). No reads during writes.
+- **Batched consumption**: Stop and SessionEnd read all entries, group by directory, format a summary, and append to context.md. This produces clean, batched summaries instead of per-file noise.
+- **Cleanup after consumption**: The tracker file is deleted after Stop consumes it, resetting for the next session.
+- **Malformed line tolerance**: The reader silently skips lines that don't parse as `timestamp|tool|filepath`, making the format resilient to partial writes.
+
+### Two-phase TaskCompleted gate
+
+TaskCompleted uses a deliberate two-phase architecture:
+
+- **Phase A (blocking)**: Quality gates (uncommitted check, tests, lint) that must pass before task completion is allowed. Exits with code 2 on failure.
+- **Phase B (non-blocking)**: Knowledge extraction, wiki updates, and ADR generation. Failures are logged to stderr but do not prevent task completion.
+
+This separation ensures that a knowledge extraction bug never blocks a developer from completing their task.
+
 ---
 
 ## Extension Points
@@ -1356,7 +1498,8 @@ This is a static configuration file read by AI assistants (e.g., Claude Code). I
 | `cmd/adb` | Binary entrypoint | -- |
 | `internal` | Composition root, adapters | `App` struct, `backlogStoreAdapter`, `contextStoreAdapter`, `worktreeAdapter`, `worktreeRemoverAdapter`, `eventLogAdapter`, `knowledgeStoreAdapter`, `sessionCapturerAdapter` |
 | `internal/cli` | Cobra command definitions | -- |
-| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `KnowledgeManager`, `FeedbackLoopOrchestrator`, `ChannelAdapter`, `ChannelRegistry`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `KnowledgeStoreAccess`, `SessionCapturer` |
+| `internal/core` | Business logic | `TaskManager`, `BootstrapSystem`, `ConfigurationManager`, `KnowledgeExtractor`, `ConflictDetector`, `AIContextGenerator`, `UpdateGenerator`, `TaskDesignDocGenerator`, `TaskIDGenerator`, `TemplateManager`, `ProjectInitializer`, `KnowledgeManager`, `FeedbackLoopOrchestrator`, `ChannelAdapter`, `ChannelRegistry`, `HookEngine`, `EventLogger`, `BacklogStore`, `ContextStore`, `WorktreeCreator`, `WorktreeRemover`, `KnowledgeStoreAccess`, `SessionCapturer` |
+| `internal/hooks` | Hook support library | `PreToolUseInput`, `PostToolUseInput`, `StopInput`, `TaskCompletedInput`, `SessionEndInput`, `ParseStdin[T]`, `ChangeTracker`, `AppendToContext`, `UpdateStatusTimestamp`, `GroupChangesByDirectory`, `FormatSessionSummary` |
 | `internal/observability` | Event logging, metrics, alerting, notifications | `EventLog`, `MetricsCalculator`, `AlertEngine`, `Notifier` |
 | `internal/storage` | File-based persistence | `BacklogManager`, `ContextManager`, `CommunicationManager`, `KnowledgeStoreManager`, `SessionStoreManager` |
 | `internal/integration` | External system interaction | `GitWorktreeManager`, `OfflineManager`, `TabManager`, `ScreenshotPipeline`, `CLIExecutor`, `TaskfileRunner`, `TranscriptParser`, `VersionChecker`, `MCPClient` |
