@@ -332,7 +332,19 @@ func (e *hookEngine) checkArchitectureGuard(fp string) error {
 	if !strings.Contains(normalized, "internal/core/") || !strings.HasSuffix(normalized, ".go") {
 		return nil
 	}
-	data, err := os.ReadFile(fp) //nolint:gosec // G304: path from trusted hook input
+
+	// Validate path is within workspace before reading file.
+	absPath := fp
+	if !filepath.IsAbs(fp) {
+		absPath = filepath.Join(e.basePath, fp)
+	}
+	cleanPath := filepath.Clean(absPath)
+	cleanBase := filepath.Clean(e.basePath)
+	if !strings.HasPrefix(cleanPath, cleanBase+string(filepath.Separator)) && cleanPath != cleanBase {
+		return nil // Path outside workspace, skip
+	}
+
+	data, err := os.ReadFile(cleanPath) //nolint:gosec // G304: path validated against basePath
 	if err != nil {
 		return nil // Can't read, skip check.
 	}

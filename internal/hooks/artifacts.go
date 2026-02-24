@@ -55,7 +55,7 @@ func UpdateStatusTimestamp(ticketPath string) error {
 		return fmt.Errorf("marshaling status.yaml: %w", err)
 	}
 
-	if err := os.WriteFile(statusPath, out, 0o644); err != nil {
+	if err := os.WriteFile(statusPath, out, 0o600); err != nil {
 		return fmt.Errorf("writing status.yaml: %w", err)
 	}
 	return nil

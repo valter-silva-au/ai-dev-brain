@@ -84,7 +84,6 @@ var hookStatusCmd = &cobra.Command{
 		fmt.Printf("  go_format:            %s\n", enabledStr(cfg.PostToolUse.GoFormat))
 		fmt.Printf("  change_tracking:      %s\n", enabledStr(cfg.PostToolUse.ChangeTracking))
 		fmt.Printf("  dependency_detection: %s\n", enabledStr(cfg.PostToolUse.DependencyDetection))
-		fmt.Printf("  glossary_extraction:  %s\n", enabledStr(cfg.PostToolUse.GlossaryExtraction))
 		fmt.Println()
 		fmt.Printf("Stop:           %s\n", enabledStr(cfg.Stop.Enabled))
 		fmt.Printf("  uncommitted_check: %s\n", enabledStr(cfg.Stop.UncommittedCheck))
@@ -152,7 +151,6 @@ func installHookWrappers(targetDir string) error {
 		"adb-hook-stop.sh",
 		"adb-hook-task-completed.sh",
 		"adb-hook-session-end.sh",
-		"adb-hook-teammate-idle.sh",
 	}
 
 	for _, name := range hookFiles {
@@ -223,12 +221,6 @@ func updateSettingsWithHooks(settingsPath, hooksDir string) error {
 			map[string]interface{}{
 				"type":    "command",
 				"command": filepath.Join(hooksDir, "adb-hook-session-end.sh"),
-			},
-		},
-		"TeammateIdle": []interface{}{
-			map[string]interface{}{
-				"type":    "command",
-				"command": filepath.Join(hooksDir, "adb-hook-teammate-idle.sh"),
 			},
 		},
 	}

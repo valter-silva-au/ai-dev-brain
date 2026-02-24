@@ -27,7 +27,6 @@ func DefaultHookConfig() HookConfig {
 			GoFormat:            true,
 			ChangeTracking:      true,
 			DependencyDetection: false, // Phase 2
-			GlossaryExtraction:  false, // Phase 2
 		},
 		Stop: StopConfig{
 			Enabled:          true,
@@ -75,7 +74,6 @@ type PostToolUseConfig struct {
 	GoFormat            bool `yaml:"go_format" mapstructure:"go_format"`
 	ChangeTracking      bool `yaml:"change_tracking" mapstructure:"change_tracking"`
 	DependencyDetection bool `yaml:"dependency_detection" mapstructure:"dependency_detection"`
-	GlossaryExtraction  bool `yaml:"glossary_extraction" mapstructure:"glossary_extraction"`
 }
 
 // StopConfig controls checks run when a conversation is stopped.

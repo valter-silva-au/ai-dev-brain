@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -91,7 +90,7 @@ type AIContextGenerator interface {
 
 type aiContextGenerator struct {
 	basePath       string
-	backlogMgr     storage.BacklogManager
+	backlogMgr     BacklogStore
 	knowledgeMgr   KnowledgeManager
 	sessionCapture SessionCapturer // may be nil
 	sections       AIContextSections
@@ -100,7 +99,7 @@ type aiContextGenerator struct {
 // NewAIContextGenerator creates a new AIContextGenerator.
 // knowledgeMgr may be nil if knowledge features are not available.
 // sessionCapture may be nil if session capture features are not available.
-func NewAIContextGenerator(basePath string, backlogMgr storage.BacklogManager, knowledgeMgr KnowledgeManager, sessionCapture SessionCapturer) AIContextGenerator {
+func NewAIContextGenerator(basePath string, backlogMgr BacklogStore, knowledgeMgr KnowledgeManager, sessionCapture SessionCapturer) AIContextGenerator {
 	return &aiContextGenerator{
 		basePath:       basePath,
 		backlogMgr:     backlogMgr,
@@ -315,7 +314,7 @@ func (g *aiContextGenerator) AssembleActiveTaskSummaries() (string, error) {
 		models.StatusInProgress, models.StatusBlocked,
 		models.StatusReview, models.StatusBacklog,
 	}
-	tasks, err := g.backlogMgr.FilterTasks(storage.BacklogFilter{
+	tasks, err := g.backlogMgr.FilterTasks(BacklogStoreFilter{
 		Status: activeStatuses,
 	})
 	if err != nil {
@@ -413,7 +412,7 @@ func (g *aiContextGenerator) assembleCriticalDecisions() (string, error) {
 		models.StatusInProgress, models.StatusBlocked,
 		models.StatusReview, models.StatusBacklog,
 	}
-	tasks, err := g.backlogMgr.FilterTasks(storage.BacklogFilter{
+	tasks, err := g.backlogMgr.FilterTasks(BacklogStoreFilter{
 		Status: activeStatuses,
 	})
 	if err != nil {
@@ -453,7 +452,7 @@ func (g *aiContextGenerator) assembleRecentSessions() (string, error) {
 		models.StatusInProgress, models.StatusBlocked,
 		models.StatusReview,
 	}
-	tasks, err := g.backlogMgr.FilterTasks(storage.BacklogFilter{
+	tasks, err := g.backlogMgr.FilterTasks(BacklogStoreFilter{
 		Status: activeStatuses,
 	})
 	if err != nil {
@@ -638,7 +637,7 @@ func (g *aiContextGenerator) saveState(state *ContextState) error {
 
 	path := filepath.Join(g.basePath, ".context_state.yaml")
 	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
 		return fmt.Errorf("saving context state: writing temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {

@@ -122,7 +122,7 @@ func (s *fileKnowledgeStore) GenerateID() (string, error) {
 	counter++
 	id := fmt.Sprintf("K-%05d", counter)
 
-	if err := os.WriteFile(counterFile, []byte(strconv.Itoa(counter)), 0o644); err != nil {
+	if err := os.WriteFile(counterFile, []byte(strconv.Itoa(counter)), 0o600); err != nil {
 		return "", fmt.Errorf("generating knowledge ID: writing counter: %w", err)
 	}
 	return id, nil
@@ -425,7 +425,7 @@ func (s *fileKnowledgeStore) saveYAML(path string, source interface{}) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func mergeStringSlices(existing, additions []string) []string {
