@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/valter-silva-au/ai-dev-brain/internal/ticketpath"
 )
 
 func TestResolveTicketDir_ActivePath(t *testing.T) {
@@ -25,14 +27,14 @@ func TestResolveTicketDir_ArchivedPath(t *testing.T) {
 	dir := t.TempDir()
 
 	taskID := "TASK-00002"
-	archivedDir := filepath.Join(dir, "tickets", archivedDir, taskID)
-	if err := os.MkdirAll(archivedDir, 0o755); err != nil {
+	archivedPath := filepath.Join(dir, "tickets", ticketpath.ArchivedDir, taskID)
+	if err := os.MkdirAll(archivedPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
 	got := resolveTicketDir(dir, taskID)
-	if got != archivedDir {
-		t.Errorf("resolveTicketDir() = %s, want %s", got, archivedDir)
+	if got != archivedPath {
+		t.Errorf("resolveTicketDir() = %s, want %s", got, archivedPath)
 	}
 }
 

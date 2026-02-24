@@ -6,10 +6,74 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"pgregory.net/rapid"
 )
+
+// fakeBacklogStore is a minimal in-memory implementation of BacklogStore for testing.
+type fakeBacklogStore struct {
+	tasks map[string]BacklogStoreEntry
+}
+
+func newFakeBacklogStore() *fakeBacklogStore {
+	return &fakeBacklogStore{
+		tasks: make(map[string]BacklogStoreEntry),
+	}
+}
+
+func (f *fakeBacklogStore) AddTask(entry BacklogStoreEntry) error {
+	f.tasks[entry.ID] = entry
+	return nil
+}
+
+func (f *fakeBacklogStore) UpdateTask(taskID string, updates BacklogStoreEntry) error {
+	f.tasks[taskID] = updates
+	return nil
+}
+
+func (f *fakeBacklogStore) GetTask(taskID string) (*BacklogStoreEntry, error) {
+	e, ok := f.tasks[taskID]
+	if !ok {
+		return nil, fmt.Errorf("task %s not found", taskID)
+	}
+	return &e, nil
+}
+
+func (f *fakeBacklogStore) GetAllTasks() ([]BacklogStoreEntry, error) {
+	result := make([]BacklogStoreEntry, 0, len(f.tasks))
+	for _, e := range f.tasks {
+		result = append(result, e)
+	}
+	return result, nil
+}
+
+func (f *fakeBacklogStore) FilterTasks(filter BacklogStoreFilter) ([]BacklogStoreEntry, error) {
+	var result []BacklogStoreEntry
+	for _, e := range f.tasks {
+		if len(filter.Status) > 0 {
+			match := false
+			for _, s := range filter.Status {
+				if e.Status == s {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		result = append(result, e)
+	}
+	return result, nil
+}
+
+func (f *fakeBacklogStore) Load() error {
+	return nil
+}
+
+func (f *fakeBacklogStore) Save() error {
+	return nil
+}
 
 // Feature: ai-dev-brain, Property 20: AI Context File Content Completeness
 func TestAIContextFileContentCompleteness(t *testing.T) {
@@ -20,7 +84,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		backlogMgr := storage.NewBacklogManager(dir)
+		backlogMgr := newFakeBacklogStore()
 
 		// Add random tasks.
 		nTasks := rapid.IntRange(0, 5).Draw(t, "nTasks")
@@ -32,7 +96,7 @@ func TestAIContextFileContentCompleteness(t *testing.T) {
 			}
 			status := statuses[rapid.IntRange(0, len(statuses)-1).Draw(t, fmt.Sprintf("status%d", i))]
 
-			_ = backlogMgr.AddTask(storage.BacklogEntry{
+			_ = backlogMgr.AddTask(BacklogStoreEntry{
 				ID:       taskID,
 				Title:    genAlpha(t, fmt.Sprintf("title%d", i), 3, 20),
 				Status:   status,
@@ -94,13 +158,13 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		}
 		defer func() { _ = os.RemoveAll(dir) }()
 
-		backlogMgr := storage.NewBacklogManager(dir)
+		backlogMgr := newFakeBacklogStore(dir)
 		gen := NewAIContextGenerator(dir, backlogMgr, nil, nil)
 
 		// Initial sync with some tasks.
 		nInitialTasks := rapid.IntRange(1, 3).Draw(t, "nInitial")
 		for i := 0; i < nInitialTasks; i++ {
-			_ = backlogMgr.AddTask(storage.BacklogEntry{
+			_ = backlogMgr.AddTask(BacklogStoreEntry{
 				ID:     fmt.Sprintf("TASK-%05d", i+1),
 				Title:  genAlpha(t, fmt.Sprintf("iTitle%d", i), 3, 20),
 				Status: models.StatusInProgress,
@@ -113,9 +177,9 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		// Add a new task.
 		newTaskID := fmt.Sprintf("TASK-%05d", rapid.IntRange(10000, 99999).Draw(t, "newTaskID"))
 		newTitle := genAlpha(t, "newTitle", 3, 20)
-		backlogMgr2 := storage.NewBacklogManager(dir)
+		backlogMgr2 := newFakeBacklogStore(dir)
 		_ = backlogMgr2.Load()
-		_ = backlogMgr2.AddTask(storage.BacklogEntry{
+		_ = backlogMgr2.AddTask(BacklogStoreEntry{
 			ID:     newTaskID,
 			Title:  newTitle,
 			Status: models.StatusInProgress,
@@ -124,7 +188,7 @@ func TestAIContextFileSyncConsistency(t *testing.T) {
 		_ = backlogMgr2.Save()
 
 		// Re-sync with a fresh generator that will pick up the new backlog state.
-		backlogMgr3 := storage.NewBacklogManager(dir)
+		backlogMgr3 := newFakeBacklogStore(dir)
 		gen2 := NewAIContextGenerator(dir, backlogMgr3, nil, nil)
 		if err := gen2.SyncContext(); err != nil {
 			t.Fatal(err)

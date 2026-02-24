@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
@@ -60,11 +59,11 @@ type TaskDesignDocGenerator interface {
 
 type taskDesignDocGenerator struct {
 	basePath string
-	commMgr  storage.CommunicationManager
+	commMgr  CommunicationStore
 }
 
 // NewTaskDesignDocGenerator creates a new TaskDesignDocGenerator.
-func NewTaskDesignDocGenerator(basePath string, commMgr storage.CommunicationManager) TaskDesignDocGenerator {
+func NewTaskDesignDocGenerator(basePath string, commMgr CommunicationStore) TaskDesignDocGenerator {
 	return &taskDesignDocGenerator{
 		basePath: basePath,
 		commMgr:  commMgr,

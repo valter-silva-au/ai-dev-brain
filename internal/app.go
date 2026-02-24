@@ -163,9 +163,14 @@ func NewApp(basePath string) (*App, error) {
 	}
 	app.TaskMgr = core.NewTaskManager(basePath, app.Bootstrap, blAdapter, ctxAdapter, wtRemoveAdapter, evtAdapter)
 
-	app.UpdateGen = core.NewUpdateGenerator(app.ContextMgr, app.CommMgr)
-	app.DesignGen = core.NewTaskDesignDocGenerator(basePath, app.CommMgr)
-	app.KnowledgeX = core.NewKnowledgeExtractor(basePath, app.ContextMgr, app.CommMgr)
+	// Create adapters for UpdateGenerator, DesignDocGenerator, and KnowledgeExtractor.
+	aiCtxAdapter := &aiContextProviderAdapter{mgr: app.ContextMgr}
+	commAdapter := &communicationStoreAdapter{mgr: app.CommMgr}
+	taskCtxAdapter := &taskContextLoaderAdapter{mgr: app.ContextMgr}
+
+	app.UpdateGen = core.NewUpdateGenerator(aiCtxAdapter, commAdapter)
+	app.DesignGen = core.NewTaskDesignDocGenerator(basePath, commAdapter)
+	app.KnowledgeX = core.NewKnowledgeExtractor(basePath, taskCtxAdapter, commAdapter)
 
 	// --- Knowledge store ---
 	app.KnowledgeStore = storage.NewKnowledgeStoreManager(basePath)
@@ -190,7 +195,7 @@ func NewApp(basePath string) (*App, error) {
 
 	// AIContextGenerator depends on KnowledgeManager for the knowledge summary section
 	// and SessionCapturer for captured session display.
-	app.AICtxGen = core.NewAIContextGenerator(basePath, app.BacklogMgr, app.KnowledgeMgr, scAdapter)
+	app.AICtxGen = core.NewAIContextGenerator(basePath, blAdapter, app.KnowledgeMgr, scAdapter)
 
 	app.ConflictDt = core.NewConflictDetector(basePath)
 	app.ProjectInit = core.NewProjectInitializer()
@@ -531,4 +536,52 @@ func (a *sessionCapturerAdapter) GenerateID() (string, error) {
 
 func (a *sessionCapturerAdapter) Save() error {
 	return a.mgr.Save()
+}
+
+// aiContextProviderAdapter adapts storage.ContextManager to core.AIContextProvider.
+type aiContextProviderAdapter struct {
+	mgr storage.ContextManager
+}
+
+func (a *aiContextProviderAdapter) GetContextForAI(taskID string) (*core.AIContext, error) {
+	storageCtx, err := a.mgr.GetContextForAI(taskID)
+	if err != nil {
+		return nil, err
+	}
+	// Convert storage.AIContext to core.AIContext.
+	return &core.AIContext{
+		Summary:        storageCtx.Summary,
+		RecentActivity: storageCtx.RecentActivity,
+		Blockers:       storageCtx.Blockers,
+		OpenQuestions:  storageCtx.OpenQuestions,
+	}, nil
+}
+
+// communicationStoreAdapter adapts storage.CommunicationManager to core.CommunicationStore.
+type communicationStoreAdapter struct {
+	mgr storage.CommunicationManager
+}
+
+func (a *communicationStoreAdapter) GetAllCommunications(taskID string) ([]models.Communication, error) {
+	return a.mgr.GetAllCommunications(taskID)
+}
+
+// taskContextLoaderAdapter adapts storage.ContextManager to core.TaskContextLoader.
+type taskContextLoaderAdapter struct {
+	mgr storage.ContextManager
+}
+
+func (a *taskContextLoaderAdapter) LoadContext(taskID string) (*core.TaskContext, error) {
+	storageCtx, err := a.mgr.LoadContext(taskID)
+	if err != nil {
+		return nil, err
+	}
+	// Convert storage.TaskContext to core.TaskContext.
+	return &core.TaskContext{
+		TaskID:         storageCtx.TaskID,
+		Notes:          storageCtx.Notes,
+		Context:        storageCtx.Context,
+		Communications: storageCtx.Communications,
+		LastUpdated:    storageCtx.LastUpdated,
+	}, nil
 }

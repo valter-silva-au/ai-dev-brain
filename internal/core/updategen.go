@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
@@ -64,13 +63,13 @@ type UpdateGenerator interface {
 
 // updateGenerator implements UpdateGenerator.
 type updateGenerator struct {
-	contextMgr storage.ContextManager
-	commMgr    storage.CommunicationManager
+	contextMgr AIContextProvider
+	commMgr    CommunicationStore
 }
 
 // NewUpdateGenerator creates a new UpdateGenerator backed by the given
 // context and communication managers.
-func NewUpdateGenerator(ctxMgr storage.ContextManager, commMgr storage.CommunicationManager) UpdateGenerator {
+func NewUpdateGenerator(ctxMgr AIContextProvider, commMgr CommunicationStore) UpdateGenerator {
 	return &updateGenerator{
 		contextMgr: ctxMgr,
 		commMgr:    commMgr,
@@ -152,7 +151,7 @@ func extractUniqueContacts(comms []models.Communication) []string {
 }
 
 // buildProgressMessage creates a progress update message for a contact.
-func buildProgressMessage(taskID string, contact string, aiCtx *storage.AIContext, comms []models.Communication) PlannedMessage {
+func buildProgressMessage(taskID string, contact string, aiCtx *AIContext, comms []models.Communication) PlannedMessage {
 	// Determine the channel from the most recent communication with this contact.
 	channel := ChannelSlack // default
 	for i := len(comms) - 1; i >= 0; i-- {
@@ -235,7 +234,7 @@ func channelFromSource(source string) MessageChannel {
 
 // buildInformationRequests generates information requests from task blockers
 // and open questions.
-func buildInformationRequests(taskID string, aiCtx *storage.AIContext, comms []models.Communication) []InformationRequest {
+func buildInformationRequests(taskID string, aiCtx *AIContext, comms []models.Communication) []InformationRequest {
 	var requests []InformationRequest
 
 	// Convert blockers to information requests.

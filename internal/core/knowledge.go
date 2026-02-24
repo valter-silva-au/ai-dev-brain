@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/valter-silva-au/ai-dev-brain/internal/storage"
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 )
 
@@ -21,13 +20,13 @@ type KnowledgeExtractor interface {
 
 type knowledgeExtractor struct {
 	basePath string
-	ctxMgr   storage.ContextManager
-	commMgr  storage.CommunicationManager
+	ctxMgr   TaskContextLoader
+	commMgr  CommunicationStore
 }
 
 // NewKnowledgeExtractor creates a KnowledgeExtractor that reads task context
 // and communications and produces knowledge artifacts.
-func NewKnowledgeExtractor(basePath string, ctxMgr storage.ContextManager, commMgr storage.CommunicationManager) KnowledgeExtractor {
+func NewKnowledgeExtractor(basePath string, ctxMgr TaskContextLoader, commMgr CommunicationStore) KnowledgeExtractor {
 	return &knowledgeExtractor{
 		basePath: basePath,
 		ctxMgr:   ctxMgr,
