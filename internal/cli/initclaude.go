@@ -188,7 +188,21 @@ func writeIfNotExists(data []byte, dst string, created, skipped *[]string) error
 	return nil
 }
 
+// initClaudeSubCmd is registered under "adb init claude" as the new preferred path.
+var initClaudeSubCmd = &cobra.Command{
+	Use:   "claude [path]",
+	Short: "Bootstrap Claude Code configuration for a repository",
+	Long:  initClaudeCmd.Long,
+	Args:  cobra.MaximumNArgs(1),
+	RunE:  initClaudeCmd.RunE,
+}
+
 func init() {
+	initClaudeCmd.Deprecated = "use 'adb init claude'"
 	initClaudeCmd.Flags().Bool("managed", false, "Set managed: true in settings.json for enterprise deployments")
 	rootCmd.AddCommand(initClaudeCmd)
+
+	// Register "claude" as a subcommand of "init".
+	initClaudeSubCmd.Flags().Bool("managed", false, "Set managed: true in settings.json for enterprise deployments")
+	initCmd.AddCommand(initClaudeSubCmd)
 }

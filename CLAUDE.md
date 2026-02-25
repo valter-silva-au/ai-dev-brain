@@ -36,15 +36,17 @@ internal/
   app.go                      # Dependency wiring, adapters (incl. eventLogAdapter, sessionCapturerAdapter)
   cli/
     root.go                   # Root command and version
-    feat.go                   # feat/bug/spike/refactor task creation
-    resume.go                 # Resume a task
-    archive.go                # Archive a task (generates handoff.md, moves to _archived/)
-    unarchive.go              # Restore archived task (moves back from _archived/)
-    migratearchive.go         # Migrate existing archived tasks to _archived/
-    status.go                 # Update task status
-    priority.go               # Update task priority
-    update.go                 # Generate stakeholder update plan
-    synccontext.go            # Regenerate AI context files
+    task.go                   # `adb task` command group (create, resume, archive, unarchive, cleanup, status, priority, update)
+    sync.go                   # `adb sync` command group (context, task-context, repos, claude-user, all)
+    feat.go                   # feat/bug/spike/refactor task creation (deprecated, use `adb task create --type=`)
+    resume.go                 # Resume a task (deprecated, use `adb task resume`)
+    archive.go                # Archive a task (deprecated, use `adb task archive`)
+    unarchive.go              # Restore archived task (deprecated, use `adb task unarchive`)
+    migratearchive.go         # Migrate existing archived tasks to _archived/ (hidden)
+    status.go                 # Display tasks by status (deprecated, use `adb task status`)
+    priority.go               # Reorder task priorities (deprecated, use `adb task priority`)
+    update.go                 # Generate stakeholder update plan (deprecated, use `adb task update`)
+    synccontext.go            # Regenerate AI context files (deprecated, use `adb sync context`)
     exec.go                   # Execute external CLI with alias resolution
     run.go                    # Run Taskfile tasks
     alerts.go                 # Show active alerts and warnings
@@ -53,9 +55,9 @@ internal/
     sessioncapture.go         # Session capture commands (capture --from-hook, list, show)
     team.go                   # Launch multi-agent team sessions (adb team)
     agents.go                 # List Claude Code agents (adb agents)
-    synctaskcontext.go        # Sync task context on config change (adb sync-task-context)
-    worktreehook.go           # Worktree hook event handlers (adb worktree-hook create/remove/violation)
-    worktreelifecycle.go      # Worktree lifecycle automation (adb worktree-lifecycle pre-create/post-create/pre-remove/post-remove)
+    synctaskcontext.go        # Sync task context (deprecated, use `adb sync task-context`)
+    worktreehook.go           # Worktree hook event handlers (hidden, internal)
+    worktreelifecycle.go      # Worktree lifecycle automation (hidden, internal)
     vars.go                   # Package-level variables (EventLog, AlertEngine, MetricsCalc, SessionCapture)
   core/
     config.go                 # ConfigurationManager (Viper-based)
@@ -329,43 +331,71 @@ hooks:
 
 ## CLI Commands
 
-- `adb feat <branch>` -- Create a feature task
-- `adb bug <branch>` -- Create a bug task
-- `adb spike <branch>` -- Create a spike task
-- `adb refactor <branch>` -- Create a refactor task
-- `adb resume <task-id>` -- Resume a task (promotes backlog to in_progress, launches Claude Code with `--resume`)
-- `adb archive <task-id>` -- Archive a task (generates handoff.md, moves ticket to _archived/, removes worktree)
-- `adb unarchive <task-id>` -- Restore an archived task (moves ticket back from _archived/)
-- `adb cleanup <task-id>` -- Remove a task's git worktree without archiving
-- `adb migrate-archive` -- Move existing archived tasks to tickets/_archived/
-- `adb status <task-id> <status>` -- Update task status
-- `adb priority <task-id> <priority>` -- Update task priority
-- `adb update <task-id>` -- Generate stakeholder update plan
-- `adb sync-context` -- Regenerate AI context files
+### Task Management (`adb task`)
+
+- `adb task create <branch> --type=feat|bug|spike|refactor [--repo] [--priority] [--owner] [--tags] [--prefix]` -- Create a new task (default type: feat)
+- `adb task resume <task-id>` -- Resume a task (promotes backlog to in_progress, launches Claude Code with `--resume`)
+- `adb task archive <task-id> [--force] [--keep-worktree]` -- Archive a task (generates handoff.md, moves ticket to _archived/, removes worktree)
+- `adb task unarchive <task-id>` -- Restore an archived task (moves ticket back from _archived/)
+- `adb task cleanup <task-id>` -- Remove a task's git worktree without archiving
+- `adb task status [--filter <status>]` -- Display tasks grouped by status
+- `adb task priority <task-id>...` -- Reorder task priorities
+- `adb task update <task-id>` -- Generate stakeholder update plan
+
+### Sync Commands (`adb sync`)
+
+- `adb sync context` -- Regenerate AI context files (CLAUDE.md, kiro.md)
+- `adb sync task-context [--hook-mode]` -- Regenerate .claude/rules/task-context.md in the current worktree
+- `adb sync repos` -- Fetch, prune, and clean all tracked repositories
+- `adb sync claude-user [--dry-run] [--mcp]` -- Sync Claude Code agents, skills, and status line to user config
+- `adb sync all` -- Run context + repos + claude-user sequentially
+
+### Project Setup
+
+- `adb init [path] [--name] [--ai] [--prefix]` -- Initialize a new adb project workspace
+- `adb init claude [path] [--managed]` -- Bootstrap Claude Code configuration for a repository
+- `adb version` -- Print version information
+
+### External Tools
+
 - `adb exec <cli> [args...]` -- Execute external CLI with alias resolution
 - `adb run <task-name>` -- Run a Taskfile task
+
+### Observability
+
 - `adb metrics [--json] [--since 7d]` -- Display task and agent metrics from the event log
-- `adb alerts` -- Show active alerts (blocked tasks, stale tasks, long reviews, backlog size)
+- `adb alerts [--notify]` -- Show active alerts (blocked tasks, stale tasks, long reviews, backlog size)
+- `adb dashboard` -- Interactive TUI dashboard for task metrics and alerts
+
+### Sessions
+
 - `adb session save [task-id]` -- Save a session summary to the task's sessions/ directory
 - `adb session ingest [task-id]` -- Ingest knowledge from the latest session file
 - `adb session capture --from-hook` -- Capture a Claude Code session from a JSONL transcript (called by SessionEnd hook)
 - `adb session list [--task-id ID] [--since 7d]` -- List captured sessions with optional filters
 - `adb session show <session-id>` -- Show details and turns for a captured session
+
+### Claude Code & Teams
+
 - `adb team <team-name> <prompt>` -- Launch a multi-agent team session with task context
 - `adb agents` -- List available Claude Code agents
 - `adb mcp check [--no-cache]` -- Validate configured MCP servers and cache results
-- `adb hook install` -- Install adb-native hooks to .claude/settings.json
-- `adb hook pre-tool-use` -- Process PreToolUse hook events (internal, called by shell wrappers)
-- `adb hook post-tool-use` -- Process PostToolUse hook events (internal)
-- `adb hook stop` -- Process Stop hook events (internal)
-- `adb hook task-completed` -- Process TaskCompleted hook events (internal)
-- `adb hook session-end` -- Process SessionEnd hook events (internal)
-- `adb worktree-lifecycle {pre-create,post-create,pre-remove,post-remove}` -- Worktree lifecycle automation hooks
-- `adb worktree-hook create` -- Handle WorktreeCreate events (internal)
-- `adb worktree-hook remove` -- Handle WorktreeRemove events (internal)
-- `adb worktree-hook violation` -- Handle worktree boundary violations (internal)
-- `adb sync-task-context [--hook-mode]` -- Regenerate .claude/rules/task-context.md
-- `adb version` -- Print version information
+
+### Deprecated Commands (still work, print warnings)
+
+Old top-level commands are deprecated in favor of the noun-verb hierarchy above:
+- `adb feat/bug/spike/refactor` -> `adb task create --type=`
+- `adb resume/archive/unarchive/cleanup` -> `adb task resume/archive/unarchive/cleanup`
+- `adb status/priority/update` -> `adb task status/priority/update`
+- `adb sync-context/sync-repos/sync-claude-user/sync-task-context` -> `adb sync context/repos/claude-user/task-context`
+- `adb init-claude` -> `adb init claude`
+
+### Internal (hidden from help, still functional)
+
+- `adb hook {install,status,pre-tool-use,post-tool-use,stop,task-completed,session-end}`
+- `adb worktree-hook {create,remove,violation}`
+- `adb worktree-lifecycle {pre-create,post-create,pre-remove,post-remove}`
+- `adb migrate-archive`
 
 ## Observability
 

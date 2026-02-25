@@ -72,6 +72,7 @@ if it was in backlog, and launches Claude Code in the worktree directory.`,
 }
 
 func init() {
+	resumeCmd.Deprecated = "use 'adb task resume'"
 	resumeCmd.ValidArgsFunction = completeTaskIDs(models.StatusArchived, models.StatusDone)
 	rootCmd.AddCommand(resumeCmd)
 }

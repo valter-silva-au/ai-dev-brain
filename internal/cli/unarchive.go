@@ -39,6 +39,7 @@ pre-archive status, allowing work to continue where it left off.`,
 }
 
 func init() {
+	unarchiveCmd.Deprecated = "use 'adb task unarchive'"
 	// Only show archived tasks for unarchive completion.
 	unarchiveCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if TaskMgr == nil {

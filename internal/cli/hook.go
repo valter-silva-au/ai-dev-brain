@@ -248,5 +248,6 @@ func init() {
 
 	hookCmd.AddCommand(hookInstallCmd)
 	hookCmd.AddCommand(hookStatusCmd)
+	hookCmd.Hidden = true
 	rootCmd.AddCommand(hookCmd)
 }

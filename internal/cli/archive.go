@@ -94,6 +94,7 @@ Without --force, archiving an active task will return an error.`,
 }
 
 func init() {
+	archiveCmd.Deprecated = "use 'adb task archive'"
 	archiveCmd.Flags().BoolVar(&archiveForce, "force", false, "Force archive an active task")
 	archiveCmd.Flags().BoolVar(&archiveKeepWorktree, "keep-worktree", false, "Do not remove the git worktree when archiving")
 	archiveCmd.ValidArgsFunction = completeTaskIDs(models.StatusArchived)

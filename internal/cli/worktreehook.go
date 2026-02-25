@@ -151,5 +151,6 @@ func init() {
 	worktreeHookCmd.AddCommand(worktreeHookCreateCmd)
 	worktreeHookCmd.AddCommand(worktreeHookRemoveCmd)
 	worktreeHookCmd.AddCommand(worktreeHookViolationCmd)
+	worktreeHookCmd.Hidden = true
 	rootCmd.AddCommand(worktreeHookCmd)
 }

@@ -123,5 +123,6 @@ func buildProtectedBranches() (map[string]map[string]bool, error) {
 }
 
 func init() {
+	syncReposCmd.Deprecated = "use 'adb sync repos'"
 	rootCmd.AddCommand(syncReposCmd)
 }

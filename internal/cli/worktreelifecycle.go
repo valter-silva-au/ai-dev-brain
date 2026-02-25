@@ -244,5 +244,6 @@ func init() {
 	worktreeLifecycleCmd.AddCommand(worktreePostCreateCmd)
 	worktreeLifecycleCmd.AddCommand(worktreePreRemoveCmd)
 	worktreeLifecycleCmd.AddCommand(worktreePostRemoveCmd)
+	worktreeLifecycleCmd.Hidden = true
 	rootCmd.AddCommand(worktreeLifecycleCmd)
 }

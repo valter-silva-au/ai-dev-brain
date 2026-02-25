@@ -109,6 +109,7 @@ This worktree is for task %s (%s).
 }
 
 func init() {
+	syncTaskContextCmd.Deprecated = "use 'adb sync task-context'"
 	syncTaskContextCmd.Flags().Bool("hook-mode", false, "Run in hook mode (silent, non-fatal)")
 	rootCmd.AddCommand(syncTaskContextCmd)
 }

@@ -89,6 +89,7 @@ Use --dry-run to preview which tasks would be moved without making changes.`,
 }
 
 func init() {
+	migrateArchiveCmd.Hidden = true
 	migrateArchiveCmd.Flags().BoolVar(&migrateArchiveDryRun, "dry-run", false, "Preview changes without moving any files")
 	rootCmd.AddCommand(migrateArchiveCmd)
 }

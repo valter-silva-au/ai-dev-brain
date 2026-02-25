@@ -99,6 +99,7 @@ func printStatusGroup(status string, tasks []*models.Task) {
 }
 
 func init() {
+	statusCmd.Deprecated = "use 'adb task status'"
 	statusCmd.Flags().StringVar(&statusFilter, "filter", "", "Filter by status (backlog, in_progress, blocked, review, done, archived)")
 	_ = statusCmd.RegisterFlagCompletionFunc("filter", completeStatuses)
 	rootCmd.AddCommand(statusCmd)

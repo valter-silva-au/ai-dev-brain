@@ -121,6 +121,7 @@ files, and registers the task in the backlog.`, taskType),
 func init() {
 	for _, tt := range []models.TaskType{models.TaskTypeFeat, models.TaskTypeBug, models.TaskTypeSpike, models.TaskTypeRefactor} {
 		cmd := newTaskCommand(tt)
+		cmd.Deprecated = fmt.Sprintf("use 'adb task create --type=%s'", tt)
 		registerTaskCommandCompletions(cmd)
 		rootCmd.AddCommand(cmd)
 	}

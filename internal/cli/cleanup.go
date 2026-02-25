@@ -43,6 +43,7 @@ Use this to reclaim disk space when you no longer need the worktree for a task.`
 }
 
 func init() {
+	cleanupCmd.Deprecated = "use 'adb task cleanup'"
 	cleanupCmd.ValidArgsFunction = completeTaskIDs()
 	rootCmd.AddCommand(cleanupCmd)
 }

@@ -34,5 +34,6 @@ This ensures AI assistants have up-to-date project context.`,
 }
 
 func init() {
+	syncContextCmd.Deprecated = "use 'adb sync context'"
 	rootCmd.AddCommand(syncContextCmd)
 }

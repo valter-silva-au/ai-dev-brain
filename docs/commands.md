@@ -7,49 +7,35 @@ description, arguments, flags, and usage examples.
 
 ```mermaid
 graph LR
+    subgraph "Task Management"
+        taskcreate["adb task create"]
+        taskresume["adb task resume"]
+        taskarchive["adb task archive"]
+        taskunarchive["adb task unarchive"]
+        taskcleanup["adb task cleanup"]
+        taskstatus["adb task status"]
+        taskpriority["adb task priority"]
+        taskupdate["adb task update"]
+    end
+
+    subgraph "Sync"
+        syncctx["adb sync context"]
+        synctaskctx["adb sync task-context"]
+        syncrepos["adb sync repos"]
+        syncclaudeuser["adb sync claude-user"]
+        syncall["adb sync all"]
+    end
+
     subgraph "Project Setup"
         init["adb init"]
+        initclaude["adb init claude"]
         completion["adb completion"]
         version["adb version"]
-    end
-
-    subgraph "Task Creation"
-        feat["adb feat"]
-        bug["adb bug"]
-        spike["adb spike"]
-        refactor["adb refactor"]
-    end
-
-    subgraph "Task Lifecycle"
-        resume["adb resume"]
-        archive["adb archive"]
-        unarchive["adb unarchive"]
-        cleanup["adb cleanup"]
-    end
-
-    subgraph "Task Management"
-        status["adb status"]
-        priority["adb priority"]
-        update["adb update"]
-        syncctx["adb sync-context"]
-        syncrepos["adb sync-repos"]
-        migrate["adb migrate-archive"]
     end
 
     subgraph "External Tools"
         exec["adb exec"]
         run["adb run"]
-    end
-
-    subgraph "Claude Code"
-        initclaude["adb init-claude"]
-        syncuser["adb sync-claude-user"]
-        team["adb team"]
-        agents["adb agents"]
-    end
-
-    subgraph "Worktree Automation"
-        wtlifecycle["adb worktree-lifecycle"]
     end
 
     subgraph "Knowledge & Channels"
@@ -65,7 +51,9 @@ graph LR
         dashboard["adb dashboard"]
     end
 
-    subgraph "MCP Server"
+    subgraph "Claude Code & Teams"
+        team["adb team"]
+        agents["adb agents"]
         mcpserve["adb mcp serve"]
         mcpcheck["adb mcp check"]
     end
@@ -94,7 +82,157 @@ tracking communications, and maintaining organizational knowledge.
 
 ---
 
-## Task Creation Commands
+## Unified Task Commands (`adb task`)
+
+> **v1.10.0**: The `adb task` command group unifies task creation, lifecycle, and
+> management commands under a single noun-verb hierarchy. Old top-level commands
+> (`feat`, `resume`, `archive`, etc.) still work but print deprecation warnings.
+
+### adb task create
+
+Create a new task of any type.
+
+**Synopsis**
+
+```
+adb task create <branch-name> [flags]
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--type` | string | `"feat"` | Task type: `feat`, `bug`, `spike`, or `refactor` |
+| `--repo` | string | `""` | Repository path (e.g. `github.com/org/repo`) |
+| `--priority` | string | `""` | Task priority: `P0`, `P1`, `P2`, or `P3` |
+| `--owner` | string | `""` | Task owner (e.g. `@username`) |
+| `--tags` | string | `nil` | Comma-separated tags for the task |
+| `--prefix` | string | `""` | Custom prefix for organizing task folders |
+
+**Examples**
+
+```bash
+# Create a feature task (default)
+adb task create add-user-auth
+
+# Create a bug task with priority
+adb task create fix-login --type=bug --priority=P0
+
+# Create a spike with tags
+adb task create evaluate-db --type=spike --tags architecture,backend
+```
+
+### adb task resume
+
+Resume working on an existing task. Same behavior as the deprecated `adb resume`.
+
+```
+adb task resume <task-id>
+```
+
+### adb task archive
+
+Archive a completed task. Same behavior as the deprecated `adb archive`.
+
+```
+adb task archive <task-id> [--force] [--keep-worktree]
+```
+
+### adb task unarchive
+
+Restore an archived task. Same behavior as the deprecated `adb unarchive`.
+
+```
+adb task unarchive <task-id>
+```
+
+### adb task cleanup
+
+Remove the git worktree for a task. Same behavior as the deprecated `adb cleanup`.
+
+```
+adb task cleanup <task-id>
+```
+
+### adb task status
+
+Display tasks grouped by status. Same behavior as the deprecated `adb status`.
+
+```
+adb task status [--filter <status>]
+```
+
+### adb task priority
+
+Reorder task priorities. Same behavior as the deprecated `adb priority`.
+
+```
+adb task priority <task-id> [task-id...]
+```
+
+### adb task update
+
+Generate stakeholder update plan. Same behavior as the deprecated `adb update`.
+
+```
+adb task update <task-id>
+```
+
+---
+
+## Unified Sync Commands (`adb sync`)
+
+> **v1.10.0**: The `adb sync` command group unifies all synchronization operations.
+> Old `sync-*` commands still work but print deprecation warnings.
+
+### adb sync context
+
+Regenerate AI context files. Same behavior as the deprecated `adb sync-context`.
+
+```
+adb sync context
+```
+
+### adb sync task-context
+
+Regenerate task context in the current worktree. Same behavior as the deprecated `adb sync-task-context`.
+
+```
+adb sync task-context [--hook-mode]
+```
+
+### adb sync repos
+
+Fetch, prune, and clean all tracked repositories. Same behavior as the deprecated `adb sync-repos`.
+
+```
+adb sync repos
+```
+
+### adb sync claude-user
+
+Sync Claude Code agents, skills, and status line to user config. Same behavior as the deprecated `adb sync-claude-user`.
+
+```
+adb sync claude-user [--dry-run] [--mcp]
+```
+
+### adb sync all
+
+Run all sync operations sequentially (context, repos, claude-user). Collects errors and reports at the end.
+
+```
+adb sync all
+```
+
+---
+
+## Task Creation Commands (Deprecated)
+
+> **Deprecated in v1.10.0**: Use `adb task create --type=<type>` instead.
+> These commands still work but print deprecation warnings to stderr.
+
+## Task Creation Commands (Legacy)
 
 The four task creation commands -- `feat`, `bug`, `spike`, and `refactor` --
 share identical flags and behavior. They differ only in the task type assigned

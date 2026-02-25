@@ -43,6 +43,7 @@ Examples:
 }
 
 func init() {
+	priorityCmd.Deprecated = "use 'adb task priority'"
 	priorityCmd.ValidArgsFunction = completeTaskIDs()
 	rootCmd.AddCommand(priorityCmd)
 }

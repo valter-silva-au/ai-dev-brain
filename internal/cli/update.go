@@ -67,6 +67,7 @@ your review. You decide what to send and when.`,
 }
 
 func init() {
+	updateCmd.Deprecated = "use 'adb task update'"
 	updateCmd.ValidArgsFunction = completeTaskIDs()
 	rootCmd.AddCommand(updateCmd)
 }

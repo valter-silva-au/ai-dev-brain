@@ -531,6 +531,7 @@ func ensureStatusLineConfig(userClaudeDir string, dryRun bool) error {
 }
 
 func init() {
+	syncClaudeUserCmd.Deprecated = "use 'adb sync claude-user'"
 	syncClaudeUserCmd.Flags().Bool("dry-run", false, "Preview changes without writing files")
 	syncClaudeUserCmd.Flags().Bool("mcp", false, "Also sync third-party MCP servers (aws-docs, aws-knowledge, context7) to ~/.claude.json")
 	rootCmd.AddCommand(syncClaudeUserCmd)
