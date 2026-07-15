@@ -1,0 +1,229 @@
+{
+  "name": "adb-brain",
+  "displayName": "AI Dev Brain",
+  "description": "Manage AI Dev Brain (adb) tickets from VS Code: command palette + tickets tree view, plus styled terminal tabs for adb tasks.",
+  "version": "0.5.0",
+  "publisher": "valter-silva-au",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "SCM Providers"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "adb.startAll",
+        "title": "Start All Tasks",
+        "category": "ADB",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "adb.closeAll",
+        "title": "Close All Tasks",
+        "category": "ADB",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "adb.closeTerminals",
+        "title": "Close Terminals",
+        "category": "ADB",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "adb.taskStatus",
+        "title": "Task Status",
+        "category": "ADB",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "adb.createTask",
+        "title": "Create Task",
+        "category": "ADB",
+        "icon": "$(add)"
+      },
+      {
+        "command": "adb.startTask",
+        "title": "Start Task",
+        "category": "ADB",
+        "icon": "$(play)"
+      },
+      {
+        "command": "adb.closeTask",
+        "title": "Close Task",
+        "category": "ADB",
+        "icon": "$(check)"
+      },
+      {
+        "command": "adb.updateStatus",
+        "title": "Update Task Status",
+        "category": "ADB",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "adb.openDashboard",
+        "title": "Open Dashboard",
+        "category": "ADB",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "adb.showMetrics",
+        "title": "Show Metrics",
+        "category": "ADB",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "adb.showAlerts",
+        "title": "Show Alerts",
+        "category": "ADB",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "adb.refreshTickets",
+        "title": "Refresh Tickets",
+        "category": "ADB",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "adb.newClaude",
+        "title": "New Claude Session",
+        "category": "ADB",
+        "icon": "$(terminal)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "adb.newClaude",
+        "key": "ctrl+shift+`",
+        "mac": "cmd+shift+`"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "adb-brain",
+          "title": "AI Dev Brain",
+          "icon": "$(checklist)"
+        }
+      ]
+    },
+    "views": {
+      "adb-brain": [
+        {
+          "id": "adb.ticketsView",
+          "name": "Tickets",
+          "icon": "$(checklist)",
+          "contextualTitle": "AI Dev Brain Tickets"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "adb.refreshTickets",
+          "when": "view == adb.ticketsView",
+          "group": "navigation"
+        },
+        {
+          "command": "adb.createTask",
+          "when": "view == adb.ticketsView",
+          "group": "navigation"
+        },
+        {
+          "command": "adb.startAll",
+          "when": "view == adb.ticketsView",
+          "group": "1_bulk"
+        },
+        {
+          "command": "adb.closeAll",
+          "when": "view == adb.ticketsView",
+          "group": "1_bulk"
+        },
+        {
+          "command": "adb.closeTerminals",
+          "when": "view == adb.ticketsView",
+          "group": "1_bulk"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "adb.startTask",
+          "when": "view == adb.ticketsView && viewItem == adbTask",
+          "group": "inline@1"
+        },
+        {
+          "command": "adb.closeTask",
+          "when": "view == adb.ticketsView && viewItem == adbTask",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Dev Brain",
+      "properties": {
+        "adb.binaryPath": {
+          "type": "string",
+          "default": "adb",
+          "description": "Path to the adb binary. Use an absolute path if adb is not on VS Code's PATH (e.g. /usr/local/bin/adb)."
+        },
+        "adb.home": {
+          "type": "string",
+          "default": "",
+          "description": "ADB_HOME workspace path passed to adb. Defaults to the first workspace folder if empty."
+        },
+        "adb.dashboard.maxFeedItems": {
+          "type": "number",
+          "default": 500,
+          "minimum": 1,
+          "description": "Maximum event-feed rows retained in the dashboard webview (oldest evicted). Applies to the in-editor 'ADB: Open Dashboard' panel."
+        },
+        "adb.startAll.groupByOrg": {
+          "type": "boolean",
+          "default": true,
+          "description": "Group 'ADB: Start All Tasks' terminals under a per-org divider header (falls back to a flat sorted list when off)."
+        },
+        "adb.startAll.orderByPriority": {
+          "type": "boolean",
+          "default": true,
+          "description": "Order tasks P0 to P3 within each group. When off, tasks keep their status order."
+        },
+        "adb.startAll.cap": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum task terminals opened per 'Start All' click (0 = unlimited)."
+        },
+        "adb.startAll.orgOrder": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Explicit org ordering for Start-All groups. Empty = alphabetical with _local last."
+        },
+        "adb.tmux.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Host each Claude session inside a survivable tmux session (attach-or-create) so it reattaches after a VS Code reload. Off = bare claude in the terminal (NON-durable — the session dies on reload)."
+        },
+        "adb.tmux.sessionPrefix": {
+          "type": "string",
+          "default": "cc-",
+          "description": "Prefix for the tmux session name (session = <prefix><sanitized-dir-basename>). Must match cc-survive if you share sessions with the ctrl+shift+` ad-hoc profile."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "test": "tsc -p ./ && node out/run-tests.js",
+    "coverage": "tsc -p ./ && c8 --reporter=text --reporter=text-summary --include='out/terminals.js' --include='out/launch.js' --include='out/launchRequest.js' --include='out/orggroup.js' --include='out/config.js' --include='out/webview/feed.js' --include='out/webview/overview.js' --include='out/webview/panel.js' --include='out/webview/source.js' --include='out/webview/chat.js' --include='out/webview/actions.js' --exclude='out/extension.js' --exclude='out/**/*.test.js' --exclude='out/run-tests.js' --exclude='out/test-harness.js' node out/run-tests.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "c8": "^11.0.0",
+    "typescript": "^5.3.0"
+  }
+}

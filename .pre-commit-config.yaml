@@ -1,0 +1,79 @@
+# Pre-commit config for ai-dev-brain.
+#
+# Strict tier, scoped by content:
+#   • HYGIENE + SECRETS  → every file (LF, whitespace, large-file, key/secret scan)
+#   • FORMAT + LINT GATE → code only (Python, shell, JS/TS)
+#   • MARKDOWN / PROSE   → hygiene only, NEVER reflowed
+#
+# After editing this file: `pre-commit autoupdate` to re-pin `rev:`s.
+
+# Paths never worth touching (vendored, generated, binary, big).
+exclude: |
+  (?x)^(
+    .*/node_modules/.*|
+    .*/\.venv/.*|
+    .*/venv/.*|
+    .*/\.pw-browsers/.*|
+    .*/\.agent-browser/.*|
+    .*/\.browser-profiles/.*|
+    .*/browsers/.*|
+    .*/cron/output/.*|
+    .*\.min\.(js|css)|
+    .*\.lock
+  )$
+
+repos:
+  # ── Universal hygiene (all files) ─────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]   # keep MD hard-break double-spaces
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]                       # the fix for THIS class of outage
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-json
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: detect-private-key
+
+  # ── Secrets (blocks any committed credential/.env) ────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # ── Python: format + lint gate (skip vendored upstream patches) ───────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff                               # lint gate (auto-fixes what it can)
+        args: [--fix]
+      - id: ruff-format
+
+  # ── Shell: format + lint gate ─────────────────────────────────────────────
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.13.1-1
+    hooks:
+      - id: shfmt
+        args: [-w, -i, "2", -ci, -sr]
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # Gate on real problems only: warning+ severity, and don't demand that
+        # every sourced file (.env, sibling libs) be resolvable (SC1091 is info
+        # noise on ~every script). Tighten later if you want a stricter bar.
+        args: [--severity=warning, --exclude=SC1091]
+
+  # ── JS/TS: format (only actual source files) ──────────────────────────────
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.4
+    hooks:
+      - id: prettier
+        files: \.(m?js|cjs|jsx|tsx?)$

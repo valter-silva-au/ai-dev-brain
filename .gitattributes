@@ -1,0 +1,38 @@
+# Canonical .gitattributes — normalize line endings so a cross-platform checkout
+# (esp. Windows core.autocrlf) can never corrupt files that run in Linux
+# containers. `env: 'python3\r': No such file or directory` is what happens
+# without this. Deployed per-repo by bootstrap.sh.
+
+# Default: git auto-detects text vs binary; text is ALWAYS checked out as LF.
+* text=auto eol=lf
+
+# Belt-and-suspenders for things that MUST be LF (shebangs break on CRLF).
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.py    text eol=lf
+*.pl    text eol=lf
+*.rb    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+
+# Windows-only helpers stay CRLF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary / media — git must never touch these.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.wav  binary
+*.mp3  binary
+*.mp4  binary
+*.woff  binary
+*.woff2 binary
+*.zip  binary
+*.gz   binary

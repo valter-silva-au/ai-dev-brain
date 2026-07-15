@@ -1,0 +1,11 @@
+task_id: {{.TaskID}}
+title: {{.Title}}
+status: {{.Status}}
+created_at: {{.CreatedAt}}
+updated_at: {{.UpdatedAt}}
+{{if .CompletedAt}}completed_at: {{.CompletedAt}}{{end}}
+{{if .Assignee}}assignee: {{.Assignee}}{{end}}
+{{if .Priority}}priority: {{.Priority}}{{end}}
+{{if .Tags}}tags:
+{{range .Tags}}  - {{.}}
+{{end}}{{end}}

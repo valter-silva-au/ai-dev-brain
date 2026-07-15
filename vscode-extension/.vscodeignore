@@ -1,0 +1,15 @@
+.vscode/**
+src/**
+node_modules/**
+tsconfig.json
+*.map
+.gitignore
+**/*.ts
+out/**/*.test.js
+out/**/*.test.js.map
+out/test-harness.js
+out/test-harness.js.map
+out/run-tests.js
+out/run-tests.js.map
+coverage/**
+*.vsix

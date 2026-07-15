@@ -1,0 +1,22 @@
+# AI Dev Brain Repository Configuration
+# This file configures the workspace for AI-assisted development
+
+name: {{yamlq .Name}}
+ai_provider: {{yamlq .AIProvider}}
+task_id_prefix: {{yamlq .TaskIDPrefix}}
+
+# Build/test commands are project-specific. Set them to whatever your stack
+# uses (e.g. "npm run build" / "npm test", or "cargo build" / "cargo test").
+# Empty means "no command configured".
+build:
+  command: {{yamlq .BuildCommand}}
+  test_command: {{yamlq .TestCommand}}
+
+git:
+  worktree_dir: "work"
+  default_branch: "main"
+
+hooks:
+  enabled: true
+  on_task_create: true
+  on_status_change: true

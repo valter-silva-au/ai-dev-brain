@@ -1,0 +1,22 @@
+# AI Dev Brain
+# All adb per-workspace state lives under .adb/ (#186) — one ignore covers the
+# counters, scheduler state, memory db, event logs, etc.
+.adb/
+work/
+sessions/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out

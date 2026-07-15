@@ -1,0 +1,55 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Advanced Go linter
+    - unused        # Find unused code
+    - gosec         # Security-focused linter
+    - bodyclose     # Check HTTP response body is closed
+    - exhaustive    # Check exhaustiveness of enum switch statements
+    - nilerr        # Find code that returns nil even if it checks that error is not nil
+    - unparam       # Find unused function parameters
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  gosec:
+    excludes:
+      - G104  # Unhandled errors (covered by errcheck)
+
+  govet:
+    enable-all: true
+
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-rules:
+    # Exclude gosec, unparam, and errcheck for test files
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+        - errcheck
+
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA1019:"  # Ignore deprecation warnings
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
