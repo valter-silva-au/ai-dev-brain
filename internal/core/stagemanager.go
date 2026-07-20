@@ -58,6 +58,23 @@ type StageManager interface {
 	// initiative is unknown or no evidence root is configured. Callers scaffold
 	// validation worksheets into this directory.
 	EvidenceDir(initiativeID string) (string, error)
+
+	// EvaluateCurrentGate evaluates the gate for the initiative's CURRENT stage
+	// and returns the result WITHOUT mutating anything — a side-effect-free read.
+	// It is the read companion to AdvanceStage: AdvanceStage persists a gate only
+	// when it decides an advance (a clean pass or an override), so the gate stored
+	// on Initiative.Gate is the LAST TRANSITION DECISION, which may describe an
+	// EARLIER transition than the current stage (e.g. an overridden Idea->MVP gate
+	// left behind on an initiative that now sits at MVP). Reading Initiative.Gate
+	// to answer "what's blocking this initiative right now?" is therefore wrong;
+	// this method computes the current-stage gate fresh instead. The returned
+	// CurrentGateEvaluation separates the fresh CurrentEvaluation (+ EvaluatedAt)
+	// from the stored LastTransitionDecision so a caller never confuses the two.
+	// At the terminal stage (Scale, no gate defined) HasGate is false. It errors
+	// on an unknown initiative or an unconfigured evidence root, mirroring
+	// AdvanceStage. It never writes to the store, emits no events, and is safe to
+	// call repeatedly (e.g. from a polling UI).
+	EvaluateCurrentGate(initiativeID string) (CurrentGateEvaluation, error)
 }
 
 // AdvanceOptions modulates AdvanceStage. Override advances PAST a blocked gate
@@ -87,6 +104,40 @@ type AdvanceResult struct {
 	Gate       models.GateState
 	Advanced   bool
 	Overridden bool
+}
+
+// CurrentGateEvaluation is the side-effect-free result of EvaluateCurrentGate. It
+// answers "what does the gate for the initiative's CURRENT stage look like right
+// now?" without touching the store, and deliberately keeps two things apart that
+// callers otherwise conflate:
+//
+//   - CurrentEvaluation — the fresh, UNPERSISTED evaluation of the current stage's
+//     gate (valid only when HasGate is true; EvaluatedAt is when it was computed).
+//   - LastTransitionDecision — the gate PERSISTED by the most recent actual advance
+//     or override (Initiative.Gate), or nil if the initiative has never advanced.
+//     Its Transition may name an earlier transition than the current stage — that
+//     staleness is exactly what this type exists to expose.
+//
+// HasGate is false at the terminal stage (Scale), where no gate is defined; in that
+// case CurrentEvaluation is the zero value and EvaluatedAt is zero, and a caller
+// must not render a checklist.
+type CurrentGateEvaluation struct {
+	InitiativeID string
+	// Stage is the initiative's current stage (the stage the CurrentEvaluation gate
+	// advances FROM).
+	Stage models.Stage
+	// HasGate reports whether a gate is defined for the current stage. False at the
+	// terminal Scale stage (or any stage without a bundle).
+	HasGate bool
+	// CurrentEvaluation is the fresh evaluation of the current stage's gate. Only
+	// meaningful when HasGate is true. Its Evaluated field equals EvaluatedAt.
+	CurrentEvaluation models.GateState
+	// EvaluatedAt is when this evaluation ran (UTC). Zero when HasGate is false.
+	EvaluatedAt time.Time
+	// LastTransitionDecision is the durably-stored gate from the last actual
+	// advance/override (Initiative.Gate). Nil until the initiative first advances.
+	// Read-only — callers must not mutate the pointee.
+	LastTransitionDecision *models.GateState
 }
 
 type stageManager struct {
@@ -389,4 +440,52 @@ func (m *stageManager) emitAdvanceEvents(init models.Initiative, bundle gateBund
 			logger.Log("stage.override", override)
 		}
 	}
+}
+
+// EvaluateCurrentGate implements the read companion to AdvanceStage. See the
+// interface doc for the contract. It reuses the exact same pure evaluateGate the
+// advance path uses (same evidence dir, verdict, and metric sources), stamps the
+// evaluation timestamp, and returns — it NEVER calls UpdateInitiative or emits an
+// event, so it is safe to call on every UI poll.
+func (m *stageManager) EvaluateCurrentGate(initiativeID string) (CurrentGateEvaluation, error) {
+	if m.basePath == "" {
+		return CurrentGateEvaluation{}, fmt.Errorf("evidence root not configured (construct the StageManager with WithEvidenceRoot)")
+	}
+	init, found, err := m.store.GetInitiative(initiativeID)
+	if err != nil {
+		return CurrentGateEvaluation{}, err
+	}
+	if !found {
+		return CurrentGateEvaluation{}, fmt.Errorf("initiative %q not found", initiativeID)
+	}
+
+	result := CurrentGateEvaluation{
+		InitiativeID:           init.ID,
+		Stage:                  init.Stage,
+		LastTransitionDecision: init.Gate,
+	}
+
+	// Terminal stage (Scale) or any stage with no defined gate: nothing to
+	// evaluate. HasGate stays false; the stored LastTransitionDecision (the gate
+	// that got the initiative here) is still returned for context.
+	bundle, ok := stageGates[init.Stage]
+	if !ok {
+		return result, nil
+	}
+
+	gate := evaluateGate(bundle, gateEval{
+		evidenceDir:  m.evidenceDir(initiativeID),
+		initiativeID: initiativeID,
+		verdicts:     m.verdicts,
+		metrics:      m.metrics,
+	})
+	// Stamp the read's own timestamp so the evaluation is self-describing. This is
+	// the ONLY mutation and it is confined to the returned value — the initiative
+	// in the store is untouched (contrast AdvanceStage, which persists on decide).
+	gate.Evaluated = m.now()
+
+	result.HasGate = true
+	result.CurrentEvaluation = gate
+	result.EvaluatedAt = gate.Evaluated
+	return result, nil
 }
