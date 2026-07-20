@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/valter-silva-au/ai-dev-brain/internal/core"
@@ -28,6 +29,7 @@ metadata (initiatives/index.yaml).`,
 	cmd.AddCommand(newInitiativeListCmd())
 	cmd.AddCommand(newInitiativeShowCmd())
 	cmd.AddCommand(newInitiativeSetStageCmd())
+	cmd.AddCommand(newInitiativeGateCmd())
 	cmd.AddCommand(newInitiativeScaffoldEvidenceCmd())
 	cmd.AddCommand(newInitiativeLintInterviewCmd())
 	return cmd
@@ -238,4 +240,98 @@ func newInitiativeSetStageCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
+}
+
+func newInitiativeGateCmd() *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "gate <id>",
+		Short: "Show the current-stage gate evaluation (read-only; does not advance)",
+		Long: `Evaluate the gate for the initiative's CURRENT stage and print the result
+WITHOUT advancing or persisting anything — the read companion to ` + "`adb stage advance`" + `.
+
+This is deliberately distinct from the gate shown by ` + "`adb initiative show`" + `:
+` + "`adb stage advance`" + ` persists a gate only when it DECIDES an advance, so the
+stored gate is the LAST TRANSITION DECISION and may describe an EARLIER
+transition than the current stage (e.g. an overridden Idea->MVP gate left on an
+initiative that now sits at MVP). This command computes the CURRENT-stage gate
+fresh instead; --json returns both the fresh current_evaluation (with
+evaluated_at) and the stored last_transition_decision so a caller never confuses
+them. At the terminal Scale stage there is no gate (has_gate=false).`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if App == nil {
+				return fmt.Errorf("app not initialized")
+			}
+			res, err := App.StageManager.EvaluateCurrentGate(args[0])
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				return printJSON(toGateView(res))
+			}
+			printGateHuman(res)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
+	return cmd
+}
+
+// printGateHuman renders a current-gate evaluation for the terminal (non-JSON path).
+func printGateHuman(res core.CurrentGateEvaluation) {
+	fmt.Printf("Initiative: %s (stage %s)\n", res.InitiativeID, res.Stage)
+	if !res.HasGate {
+		fmt.Printf("No gate: %s is the terminal stage — nothing to advance.\n", res.Stage)
+	} else {
+		state := "BLOCKED"
+		if res.CurrentEvaluation.Passed {
+			state = "READY"
+		}
+		fmt.Printf("Current gate: %s — %s (evaluated %s)\n",
+			res.CurrentEvaluation.Transition, state, res.EvaluatedAt.Format("2006-01-02 15:04:05 MST"))
+		for _, it := range res.CurrentEvaluation.Items {
+			fmt.Printf("  %-8s %-22s %s\n", it.Status, it.ID, it.Detail)
+		}
+	}
+	if d := res.LastTransitionDecision; d != nil {
+		suffix := ""
+		if d.Overridden {
+			suffix = fmt.Sprintf(" (overridden: %s)", d.Reason)
+		}
+		fmt.Printf("Last transition decision: %s%s — evaluated %s\n",
+			d.Transition, suffix, d.Evaluated.Format("2006-01-02 15:04:05 MST"))
+	}
+}
+
+// gateView is the JSON projection of a current-gate evaluation for
+// `adb initiative gate --json` (the CLI-level shape a UI/HTTP layer consumes,
+// mirroring taskStatusJSON's projection role). It uses pointers so a terminal
+// stage (no gate) serializes current_evaluation/evaluated_at as null rather than
+// a misleading zero value; models.GateState already carries json tags.
+type gateView struct {
+	InitiativeID           string            `json:"initiative_id"`
+	Stage                  string            `json:"stage"`
+	HasGate                bool              `json:"has_gate"`
+	CurrentEvaluation      *models.GateState `json:"current_evaluation"`
+	EvaluatedAt            *time.Time        `json:"evaluated_at"`
+	LastTransitionDecision *models.GateState `json:"last_transition_decision"`
+}
+
+// toGateView maps the core evaluation to its JSON projection, nil-ing the
+// current-gate fields at a terminal stage so the JSON is unambiguous.
+func toGateView(res core.CurrentGateEvaluation) gateView {
+	v := gateView{
+		InitiativeID:           res.InitiativeID,
+		Stage:                  string(res.Stage),
+		HasGate:                res.HasGate,
+		LastTransitionDecision: res.LastTransitionDecision,
+	}
+	if res.HasGate {
+		ce := res.CurrentEvaluation
+		ea := res.EvaluatedAt
+		v.CurrentEvaluation = &ce
+		v.EvaluatedAt = &ea
+	}
+	return v
 }
