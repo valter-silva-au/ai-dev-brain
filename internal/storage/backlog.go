@@ -118,20 +118,17 @@ func (fbm *FileBacklogManager) Load() (*models.Backlog, error) {
 
 // saveUnsafe writes the backlog to the YAML file without acquiring locks
 func (fbm *FileBacklogManager) saveUnsafe(backlog *models.Backlog) error {
-	// Ensure directory exists
-	dir := filepath.Dir(fbm.filePath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
 	// Marshal to YAML
 	data, err := yaml.Marshal(backlog)
 	if err != nil {
 		return fmt.Errorf("failed to marshal backlog to YAML: %w", err)
 	}
 
-	// Write to file with proper permissions
-	if err := os.WriteFile(fbm.filePath, data, 0o644); err != nil {
+	// Write atomically: atomicWriteFile writes to a temp file in the same
+	// directory (creating it 0o755 as needed) and renames it over the target, so
+	// a concurrent reader never observes a half-written backlog — unlike a plain
+	// os.WriteFile, which truncates the file in place before rewriting it.
+	if err := atomicWriteFile(fbm.filePath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write backlog file: %w", err)
 	}
 

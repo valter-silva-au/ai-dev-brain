@@ -6,6 +6,15 @@ import (
 	"path/filepath"
 )
 
+// testHookAfterTempWrite, when non-nil, is invoked inside atomicWriteFile after
+// the temp file has been fully written, synced, and closed but BEFORE the atomic
+// rename. It is a test-only seam (the stdlib testHook* convention): it is nil in
+// every production build and is only ever assigned by the crash-safety test in a
+// re-exec'd child process (registry_crash_test.go), where it simulates a writer
+// dying mid-write to prove the target file is left as its previous, valid
+// contents. Production code never sets it, so the branch below is inert.
+var testHookAfterTempWrite func()
+
 // atomicWriteFile writes data to path atomically. It creates the parent
 // directory if needed (0o755), writes to a temp file IN THE SAME directory, then
 // renames it over path. Because the committing step is a rename within one
@@ -54,6 +63,9 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	}
 	if err := os.Chmod(tmpName, perm); err != nil {
 		return fmt.Errorf("chmod temp file: %w", err)
+	}
+	if testHookAfterTempWrite != nil {
+		testHookAfterTempWrite()
 	}
 	if err := os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("rename temp file into place: %w", err)
