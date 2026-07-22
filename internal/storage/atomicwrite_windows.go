@@ -47,12 +47,18 @@ func renameWithRetry(oldpath, newpath string) error {
 	return err
 }
 
-// targetIsReadOnly reports whether newpath exists and carries the read-only
-// attribute (no owner-write bit). os.Stat maps Windows FILE_ATTRIBUTE_READONLY to
-// a cleared 0o200 mode bit. A stat error (e.g. the target does not exist) returns
-// false, so a genuine transient failure still gets its retry.
+// targetIsReadOnly reports whether newpath itself carries the read-only attribute
+// (no owner-write bit). Go maps Windows FILE_ATTRIBUTE_READONLY to a cleared 0o200
+// mode bit. It uses os.Lstat, NOT os.Stat: if newpath is a symlink, the thing
+// MoveFileEx replaces is the link (the reparse point), so what governs whether the
+// rename is permanently blocked is the LINK's own read-only attribute, not the
+// referent's. os.Stat would follow the link and could misread a writable link
+// pointing at a read-only file as a permanent failure, aborting a rename that would
+// actually have succeeded (or was only transiently blocked). A stat error (e.g. the
+// target does not exist) returns false, so a genuine transient failure still gets
+// its retry.
 func targetIsReadOnly(newpath string) bool {
-	info, err := os.Stat(newpath)
+	info, err := os.Lstat(newpath)
 	if err != nil {
 		return false
 	}

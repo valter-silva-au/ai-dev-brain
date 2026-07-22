@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -72,19 +73,22 @@ func TestProperty_StorageMissingDirectory(t *testing.T) {
 // TestProperty_StorageReadOnlyTargetIsAllOrNothing verifies how Save behaves when
 // the TARGET file is read-only. saveUnsafe now writes through atomicWriteFile — a
 // temp-file-plus-rename replace — rather than truncating the target in place, and
-// that deliberately changes what a read-only target means, per platform:
+// that deliberately changes what a read-only target means, per platform. Each
+// platform's outcome is asserted EXPLICITLY (not "either is acceptable"), so the
+// test still proves a specific contract on both:
 //
 //   - On POSIX, rename(2) takes its permission from the containing DIRECTORY, not
-//     the target file, so replacing a read-only file SUCCEEDS. (The pre-atomic
-//     os.WriteFile path errored here; this test used to assert that stale
-//     expectation and is why it broke when the atomic replace landed.)
-//   - On Windows, the read-only attribute blocks MoveFileEx, so the replace FAILS.
+//     the target file, so replacing a read-only file MUST SUCCEED with the new
+//     content. (The pre-atomic os.WriteFile path errored here; this test used to
+//     assert that stale expectation and is why it broke when the atomic replace
+//     landed.) POSIX permission-error surfacing now lives in the unwritable-DIRECTORY
+//     case, TestStorage_UnwritableDirectorySurfacesSaveError.
+//   - On Windows, the read-only attribute blocks MoveFileEx, so the replace MUST
+//     FAIL and leave the prior backlog intact — this is where Windows proves Save
+//     still surfaces a permission error.
 //
-// Rather than pin a platform-specific permission-error expectation the atomic
-// replace no longer guarantees, this asserts the property that actually holds
-// everywhere: the write is ALL-OR-NOTHING. Save either fully applies the new
-// content, or leaves the previous valid backlog untouched — it never truncates or
-// leaves a torn file behind.
+// In both directions the write is ALL-OR-NOTHING: Save either fully applies the new
+// content or leaves the previous valid backlog untouched — never torn.
 func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("Skipping read-only test when running as root")
@@ -112,23 +116,91 @@ func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 		updated.AddTask(*task)
 		saveErr := fbm.Save(updated)
 
-		// Whatever the platform decides, the file must remain a fully valid backlog.
+		// The file must always remain a fully valid backlog (never torn), and the
+		// per-platform outcome is asserted explicitly below.
 		reloaded, err := fbm.Load()
 		if err != nil {
 			t.Fatalf("backlog unreadable after Save over a read-only target (torn write?): %v", err)
 		}
-		if saveErr == nil {
-			// Atomic replace succeeded (POSIX): the new task must be present.
-			if reloaded.FindTaskByID("TASK-00001") == nil {
-				t.Fatal("Save reported success but the new task is missing (lost write)")
+
+		if runtime.GOOS == "windows" {
+			// The read-only ATTRIBUTE blocks MoveFileEx: the replace MUST fail and
+			// leave the prior (empty) backlog intact.
+			if saveErr == nil {
+				t.Fatal("Save over a read-only target must fail on Windows (the read-only attribute blocks MoveFileEx), but it succeeded")
 			}
-		} else {
-			// Replace refused (Windows read-only attribute): the prior backlog is intact.
 			if len(reloaded.Tasks) != 0 {
 				t.Fatalf("Save failed but the backlog was mutated: %d tasks, want 0 (partial write)", len(reloaded.Tasks))
 			}
+			return
+		}
+
+		// POSIX: rename(2) draws permission from the DIRECTORY, not the target file,
+		// so the replace MUST succeed with the new content.
+		if saveErr != nil {
+			t.Fatalf("Save over a read-only target must succeed on POSIX (rename permission comes from the directory), got: %v", saveErr)
+		}
+		if reloaded.FindTaskByID("TASK-00001") == nil {
+			t.Fatal("Save reported success but the new task is missing (lost write)")
 		}
 	})
+}
+
+// TestStorage_UnwritableDirectorySurfacesSaveError proves Save still surfaces a
+// permission error — and leaves the target intact — when the write genuinely cannot
+// proceed. In the atomic-replace world a read-only TARGET no longer errors on POSIX
+// (rename(2) draws its permission from the directory), so the place a permission
+// error still surfaces there is an unwritable DIRECTORY: os.CreateTemp for the temp
+// file fails with EACCES before any rename, so the existing target is never touched.
+//
+// This runs on POSIX only. Contrary to the intuition that directory-permission
+// denial is cross-platform, the Windows read-only attribute on a directory does NOT
+// deny creating files inside it, so chmod cannot make a directory unwritable here;
+// Windows keeps its permission-error coverage through the read-only-TARGET branch of
+// TestProperty_StorageReadOnlyTargetIsAllOrNothing (which fails the replace and
+// asserts the prior backlog is intact). Skipped as root, which bypasses directory
+// permission bits.
+func TestStorage_UnwritableDirectorySurfacesSaveError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows directory read-only does not deny file creation; Windows permission-error coverage is the read-only-target case")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root bypasses directory permission bits")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "registry")
+	if err := os.Mkdir(subdir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	filePath := filepath.Join(subdir, "backlog.yaml")
+
+	fbm := NewFileBacklogManager(filePath)
+	// Seed a valid backlog we can prove stays intact.
+	if err := fbm.Save(models.NewBacklog()); err != nil {
+		t.Fatalf("initial save: %v", err)
+	}
+
+	// Deny writes to the directory: os.CreateTemp inside it must now fail.
+	if err := os.Chmod(subdir, 0o555); err != nil {
+		t.Fatalf("chmod dir read-only: %v", err)
+	}
+	defer func() { _ = os.Chmod(subdir, 0o755) }() // restore for TempDir cleanup
+
+	updated := models.NewBacklog()
+	updated.AddTask(*models.NewTask("TASK-00001", "test", models.TaskTypeFeat))
+	if err := fbm.Save(updated); err == nil {
+		t.Fatal("Save into an unwritable directory should return a permission error, got nil")
+	}
+
+	// The prior backlog must be intact and readable — the failed Save touched nothing.
+	reloaded, err := fbm.Load()
+	if err != nil {
+		t.Fatalf("prior backlog unreadable after a failed Save (torn write?): %v", err)
+	}
+	if len(reloaded.Tasks) != 0 {
+		t.Fatalf("failed Save mutated the backlog: %d tasks, want 0", len(reloaded.Tasks))
+	}
 }
 
 // TestProperty_StorageConcurrentWrites verifies concurrent write safety
