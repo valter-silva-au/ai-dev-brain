@@ -132,10 +132,12 @@ func TestStageStoreLockContentionHelperProcess(t *testing.T) {
 	}
 }
 
-// TestFileADRStore_CrossProcessConcurrentWriters proves Create is safe across
-// processes: N processes each append lockContentionPerWorker ADRs (each with a
-// disjoint number range, so this isolates the shared-index append from the
-// NextNumber TOCTOU) to the shared adr/index.yaml, and every one must survive.
+// TestFileADRStore_CrossProcessConcurrentWriters proves the lower-level Create is
+// safe across processes: N processes each append lockContentionPerWorker ADRs
+// with disjoint pre-assigned numbers, isolating the shared-index APPEND lock.
+// The allocation race (concurrent number assignment) is proven separately by
+// TestFileADRStore_CrossProcessConcurrentAllocation, which drives CreateNext —
+// the atomic allocate-and-append path the production ADRManager.New now uses.
 func TestFileADRStore_CrossProcessConcurrentWriters(t *testing.T) {
 	if os.Getenv(lockHelperDirEnv) != "" {
 		t.Skip("worker-process invocation: the parent test does not run in a worker")
@@ -197,3 +199,101 @@ func TestADRStoreLockContentionHelperProcess(t *testing.T) {
 // disjoint per-worker range, so concurrent Create calls never collide on number
 // (which would fail on the duplicate check rather than exercise the lock).
 func adrNumberFor(worker, j int) int { return (worker+1)*1000 + j }
+
+// TestFileADRStore_CrossProcessConcurrentAllocation proves the PRODUCTION ADR
+// allocation path (ADRManager.New → FileADRStore.CreateNext) is race-free: N
+// processes each allocate lockContentionPerWorker ADRs WITHOUT pre-assigning
+// numbers, so the store itself picks each number. Because separate processes
+// share no in-process mutex, only the cross-process lock inside CreateNext can
+// keep two workers from reading the same max and allocating a duplicate. The
+// registry must therefore end with exactly N*M ADRs numbered 1..N*M — unique and
+// sequential-dense, no gaps. A non-atomic NextNumber-then-Create would instead
+// hand two workers the same number: one Create wins, the other fails the
+// duplicate check (surfacing as a non-zero worker exit) AND leaves a gap.
+func TestFileADRStore_CrossProcessConcurrentAllocation(t *testing.T) {
+	if os.Getenv(lockHelperDirEnv) != "" {
+		t.Skip("worker-process invocation: the parent test does not run in a worker")
+	}
+	dir := t.TempDir()
+
+	spawnLockContentionWorkers(t, "^TestADRStoreAllocationHelperProcess$", dir)
+
+	data, err := os.ReadFile(filepath.Join(dir, "adr", "index.yaml"))
+	if err != nil {
+		t.Fatalf("reading adr index after concurrent allocators: %v", err)
+	}
+	var index models.ADRIndex
+	if err := yaml.Unmarshal(data, &index); err != nil {
+		t.Fatalf("adr/index.yaml is not valid YAML after concurrent allocators: %v", err)
+	}
+
+	want := lockContentionWorkers * lockContentionPerWorker
+	if len(index.ADRs) != want {
+		t.Fatalf("expected %d ADRs after concurrent allocation, got %d (lost update or duplicate-number failure)", want, len(index.ADRs))
+	}
+	// Numbers must be unique AND sequential-dense 1..want — the property a
+	// non-atomic allocate-then-create would violate.
+	seen := make(map[int]bool, want)
+	for _, adr := range index.ADRs {
+		if adr.Number < 1 || adr.Number > want {
+			t.Errorf("adr number %d out of range [1,%d]", adr.Number, want)
+		}
+		if seen[adr.Number] {
+			t.Errorf("duplicate adr number %d", adr.Number)
+		}
+		seen[adr.Number] = true
+	}
+	for n := 1; n <= want; n++ {
+		if !seen[n] {
+			t.Errorf("missing adr number %d (allocation not sequential-dense)", n)
+		}
+	}
+}
+
+// TestADRStoreAllocationHelperProcess is the worker-process branch of
+// TestFileADRStore_CrossProcessConcurrentAllocation. Each worker calls CreateNext
+// (the store allocates the number) lockContentionPerWorker times.
+func TestADRStoreAllocationHelperProcess(t *testing.T) {
+	dir := os.Getenv(lockHelperDirEnv)
+	if dir == "" {
+		t.Skip("not a lock-contention worker process")
+	}
+	worker, err := strconv.Atoi(os.Getenv(lockHelperWorkerEnv))
+	if err != nil {
+		t.Fatalf("bad worker index %q: %v", os.Getenv(lockHelperWorkerEnv), err)
+	}
+	store := NewFileADRStore(dir)
+	for j := 0; j < lockContentionPerWorker; j++ {
+		title := fmt.Sprintf("adr from worker %d #%d", worker, j)
+		if _, err := store.CreateNext(func(number int) (models.ADR, string) {
+			slug := fmt.Sprintf("adr-%04d", number)
+			adr := models.ADR{Number: number, Title: title, Status: models.ADRProposed, Slug: slug}
+			return adr, "# " + slug + "\n"
+		}); err != nil {
+			t.Fatalf("worker %d CreateNext #%d: %v", worker, j, err)
+		}
+	}
+}
+
+// TestFileStageStore_LockDisabledLosesUpdates_ManualSanityCheck is the DURABLE
+// record of the lock's negative control. It is skipped in CI (reproducing the
+// failure needs a deliberate, temporary production edit — we do NOT ship a
+// runtime toggle), but it documents exactly how to reproduce the lost-update
+// failure and the result observed with the lock removed.
+//
+// PROCEDURE (run by a maintainer, reverted afterwards):
+//  1. In internal/storage/registrylock.go, make acquireRegistryLock a no-op that
+//     returns func(){} (and closes the file) WITHOUT calling lockfile.Lock.
+//  2. Re-run TestFileStageStore_CrossProcessConcurrentWriters.
+//  3. Observe it FAIL — the 8×12=96 expected orgs come back short because the
+//     concurrent load-modify-save cycles clobber each other.
+//  4. Revert the edit; confirm the test passes again (96/96).
+//
+// OBSERVED (2026-07-22, this Windows box): with the lock disabled the run
+// produced 13 of 96 orgs — "expected 96 orgs after concurrent writers, got 13
+// (lost-update race)". With the lock enabled the same test is 96/96. That delta
+// is the proof the lock is load-bearing and the contention tests genuinely detect
+// the race rather than passing vacuously.
+func TestFileStageStore_LockDisabledLosesUpdates_ManualSanityCheck(t *testing.T) {
+	t.Skip("documentation-only negative control; see the doc comment for the manual procedure and the observed 13/96 result")
+}

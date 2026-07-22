@@ -15,6 +15,11 @@ import (
 type ADRStore interface {
 	NextNumber() (int, error)
 	Create(adr models.ADR, body string) error
+	// CreateNext allocates the next number and appends the record atomically
+	// (one lock), invoking build with the allocated number so number-dependent
+	// fields stay consistent. It is the race-free replacement for a NextNumber
+	// then Create pair.
+	CreateNext(build func(number int) (models.ADR, string)) (models.ADR, error)
 	List() ([]models.ADR, error)
 	Get(number int) (models.ADR, bool, error)
 	Update(adr models.ADR) error
@@ -67,28 +72,28 @@ func (m *adrManager) New(title string, links []models.Link) (models.ADR, error) 
 	if strings.TrimSpace(title) == "" {
 		return models.ADR{}, fmt.Errorf("adr title is required")
 	}
-	number, err := m.store.NextNumber()
-	if err != nil {
-		return models.ADR{}, err
-	}
-	slug := models.Slugify(title)
-	if slug == "" {
-		slug = fmt.Sprintf("adr-%04d", number)
-	}
 	ts := m.now()
-	adr := models.ADR{
-		Number:  number,
-		Title:   title,
-		Status:  models.ADRProposed,
-		Slug:    slug,
-		Created: ts,
-		Updated: ts,
-		Links:   links,
-	}
-	if err := m.store.Create(adr, renderMADR(adr)); err != nil {
-		return models.ADR{}, err
-	}
-	return adr, nil
+	// Allocate the number and append under one store lock (CreateNext), so two
+	// concurrent New calls can never grab the same number. build runs with the
+	// allocated number in hand, keeping number-dependent fields (the slug
+	// fallback, the MADR heading rendered by renderMADR) consistent with what is
+	// stored.
+	return m.store.CreateNext(func(number int) (models.ADR, string) {
+		slug := models.Slugify(title)
+		if slug == "" {
+			slug = fmt.Sprintf("adr-%04d", number)
+		}
+		adr := models.ADR{
+			Number:  number,
+			Title:   title,
+			Status:  models.ADRProposed,
+			Slug:    slug,
+			Created: ts,
+			Updated: ts,
+			Links:   links,
+		}
+		return adr, renderMADR(adr)
+	})
 }
 
 func (m *adrManager) List() ([]models.ADR, error) {

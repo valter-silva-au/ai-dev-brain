@@ -62,8 +62,57 @@ func (s *FileADRStore) NextNumber() (int, error) {
 	return max + 1, nil
 }
 
+// CreateNext allocates the next ADR number and appends the record under a SINGLE
+// lock acquisition, closing the read-allocate-write race that separate
+// NextNumber + Create calls leave open (two processes could otherwise read the
+// same max and allocate a duplicate number, so one Create then fails). build is
+// invoked with the allocated number while the lock is held, so the caller can
+// render number-dependent fields (the slug fallback, the MADR heading); the
+// store then forces adr.Number to the allocated value whatever build chose. The
+// markdown body is written first (same all-or-nothing reasoning as Create). It
+// returns the stored record.
+func (s *FileADRStore) CreateNext(build func(number int) (models.ADR, string)) (models.ADR, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return models.ADR{}, err
+	}
+	defer unlock()
+
+	idx, err := s.loadUnsafe()
+	if err != nil {
+		return models.ADR{}, err
+	}
+	max := 0
+	for _, a := range idx.ADRs {
+		if a.Number > max {
+			max = a.Number
+		}
+	}
+	number := max + 1
+	adr, body := build(number)
+	adr.Number = number // the lock-allocated number wins, regardless of build
+
+	if err := os.MkdirAll(s.docsDir, 0o755); err != nil {
+		return models.ADR{}, fmt.Errorf("create adr docs dir: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(s.docsDir, adr.Filename()), []byte(body), 0o644); err != nil {
+		return models.ADR{}, fmt.Errorf("write adr markdown: %w", err)
+	}
+	idx.ADRs = append(idx.ADRs, adr)
+	if err := writeYAML(s.indexPath, idx); err != nil {
+		return models.ADR{}, err
+	}
+	return adr, nil
+}
+
 // Create appends adr to the registry and writes its MADR body to
 // docs/adr/NNNN-<slug>.md. It errors if an ADR with the same number exists.
+// Callers that allocate the number from NextNumber should prefer CreateNext,
+// which makes allocate-and-append atomic across processes; Create remains for
+// callers supplying an explicit number.
 func (s *FileADRStore) Create(adr models.ADR, body string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

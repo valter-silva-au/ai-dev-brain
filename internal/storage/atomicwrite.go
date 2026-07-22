@@ -20,9 +20,15 @@ var testHookAfterTempWrite func()
 // renames it over path. Because the committing step is a rename within one
 // directory, a reader concurrent with the write sees either the whole previous
 // file or the whole new one — never a half-written file, unlike os.WriteFile,
-// which truncates the target and then writes in place. On Unix this is rename(2);
-// on Windows os.Rename issues MoveFileEx with MOVEFILE_REPLACE_EXISTING, so the
-// replace is atomic on both platforms.
+// which truncates the target and then writes in place.
+//
+// On Unix the commit is rename(2), which is atomic. On Windows os.Rename maps to
+// MoveFileEx(MOVEFILE_REPLACE_EXISTING): a best-effort replace, NOT a documented
+// atomicity guarantee — it can transiently fail with a sharing violation while
+// another process holds the target open. renameWithRetry (the per-platform
+// atomicwrite_windows.go / atomicwrite_other.go) absorbs those transient errors
+// with a bounded retry; the reader still only ever observes the old or the new
+// file, because the temp file is written in full before the swap.
 //
 // It is the shared save primitive for the mutable YAML registries; callers pair
 // it with a cross-process lock (see acquireRegistryLock) held around the whole
@@ -67,7 +73,7 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	if testHookAfterTempWrite != nil {
 		testHookAfterTempWrite()
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := renameWithRetry(tmpName, path); err != nil {
 		return fmt.Errorf("rename temp file into place: %w", err)
 	}
 	committed = true
