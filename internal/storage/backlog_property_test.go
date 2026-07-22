@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -110,6 +111,14 @@ func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 		}
 		defer func() { _ = os.Chmod(filePath, 0o644) }() // restore for cleanup
 
+		// Capture the seeded bytes: Load() returns an empty backlog for a MISSING
+		// file too, so "0 tasks" alone can't prove the target survived a failed
+		// replace — only byte-identity to the seeded file can.
+		seeded, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("reading seeded backlog: %v", err)
+		}
+
 		// Attempt to add a task over the read-only target.
 		updated := models.NewBacklog()
 		task := models.NewTask("TASK-00001", "test", models.TaskTypeFeat)
@@ -131,6 +140,13 @@ func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 			}
 			if len(reloaded.Tasks) != 0 {
 				t.Fatalf("Save failed but the backlog was mutated: %d tasks, want 0 (partial write)", len(reloaded.Tasks))
+			}
+			after, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("target missing/unreadable after failed Save (deleted, not preserved?): %v", err)
+			}
+			if !bytes.Equal(after, seeded) {
+				t.Fatalf("failed Save changed the target bytes:\n got: %q\nwant: %q", after, seeded)
 			}
 			return
 		}
@@ -180,6 +196,12 @@ func TestStorage_UnwritableDirectorySurfacesSaveError(t *testing.T) {
 	if err := fbm.Save(models.NewBacklog()); err != nil {
 		t.Fatalf("initial save: %v", err)
 	}
+	// Byte-capture the seed: Load() maps a MISSING file to an empty backlog, so
+	// only byte-identity proves the failed Save left the target untouched.
+	seeded, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("reading seeded backlog: %v", err)
+	}
 
 	// Deny writes to the directory: os.CreateTemp inside it must now fail.
 	if err := os.Chmod(subdir, 0o555); err != nil {
@@ -200,6 +222,13 @@ func TestStorage_UnwritableDirectorySurfacesSaveError(t *testing.T) {
 	}
 	if len(reloaded.Tasks) != 0 {
 		t.Fatalf("failed Save mutated the backlog: %d tasks, want 0", len(reloaded.Tasks))
+	}
+	after, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("target missing/unreadable after failed Save (deleted, not preserved?): %v", err)
+	}
+	if !bytes.Equal(after, seeded) {
+		t.Fatalf("failed Save changed the target bytes:\n got: %q\nwant: %q", after, seeded)
 	}
 }
 
