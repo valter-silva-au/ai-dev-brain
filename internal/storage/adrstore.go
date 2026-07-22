@@ -62,11 +62,80 @@ func (s *FileADRStore) NextNumber() (int, error) {
 	return max + 1, nil
 }
 
+// CreateNext allocates the next ADR number and appends the record under a SINGLE
+// lock acquisition, closing the read-allocate-write race that separate
+// NextNumber + Create calls leave open (two processes could otherwise read the
+// same max and allocate a duplicate number, so one Create then fails). build is
+// invoked with the allocated number while the lock is held, so the caller can
+// render number-dependent fields (the slug fallback, the MADR heading). The
+// markdown body is written first (same all-or-nothing reasoning as Create). It
+// returns the stored record.
+//
+// CALLBACK CONTRACT: build MUST return an ADR whose Number is the number it was
+// given. A callback returning a different number is a programming error and is
+// REJECTED (rather than silently overwritten), because the number is baked into
+// the body/slug/filename build produced — forcing a mismatching number would
+// persist markdown inconsistent with the index.
+//
+// NON-REENTRANT: build runs while BOTH this store's in-process mutex AND the
+// cross-process file lock are held. It MUST NOT call back into any FileADRStore
+// method (Create, CreateNext, List, Get, Update, NextNumber) — the mutex is not
+// reentrant, so doing so self-deadlocks. Keep build to pure, number-dependent
+// rendering.
+func (s *FileADRStore) CreateNext(build func(number int) (models.ADR, string)) (models.ADR, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return models.ADR{}, fmt.Errorf("lock adr registry: %w", err)
+	}
+	defer unlock()
+
+	idx, err := s.loadUnsafe()
+	if err != nil {
+		return models.ADR{}, err
+	}
+	max := 0
+	for _, a := range idx.ADRs {
+		if a.Number > max {
+			max = a.Number
+		}
+	}
+	number := max + 1
+	adr, body := build(number)
+	if adr.Number != number {
+		return models.ADR{}, fmt.Errorf("adr build callback returned number %d, want the allocated %d (the callback must use the number it was given)", adr.Number, number)
+	}
+
+	if err := os.MkdirAll(s.docsDir, 0o755); err != nil {
+		return models.ADR{}, fmt.Errorf("create adr docs dir: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(s.docsDir, adr.Filename()), []byte(body), 0o644); err != nil {
+		return models.ADR{}, fmt.Errorf("write adr markdown: %w", err)
+	}
+	idx.ADRs = append(idx.ADRs, adr)
+	if err := writeYAML(s.indexPath, idx); err != nil {
+		return models.ADR{}, err
+	}
+	return adr, nil
+}
+
 // Create appends adr to the registry and writes its MADR body to
 // docs/adr/NNNN-<slug>.md. It errors if an ADR with the same number exists.
+// Callers that allocate the number from NextNumber should prefer CreateNext,
+// which makes allocate-and-append atomic across processes; Create remains for
+// callers supplying an explicit number.
 func (s *FileADRStore) Create(adr models.ADR, body string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	idx, err := s.loadUnsafe()
 	if err != nil {
 		return err
@@ -124,6 +193,13 @@ func (s *FileADRStore) Get(number int) (models.ADR, bool, error) {
 func (s *FileADRStore) Update(adr models.ADR) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	idx, err := s.loadUnsafe()
 	if err != nil {
 		return err
