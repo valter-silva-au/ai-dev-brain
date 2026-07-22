@@ -69,10 +69,25 @@ func TestProperty_StorageMissingDirectory(t *testing.T) {
 	})
 }
 
-// TestProperty_StoragePermissionErrors verifies handling of permission errors
-func TestProperty_StoragePermissionErrors(t *testing.T) {
+// TestProperty_StorageReadOnlyTargetIsAllOrNothing verifies how Save behaves when
+// the TARGET file is read-only. saveUnsafe now writes through atomicWriteFile — a
+// temp-file-plus-rename replace — rather than truncating the target in place, and
+// that deliberately changes what a read-only target means, per platform:
+//
+//   - On POSIX, rename(2) takes its permission from the containing DIRECTORY, not
+//     the target file, so replacing a read-only file SUCCEEDS. (The pre-atomic
+//     os.WriteFile path errored here; this test used to assert that stale
+//     expectation and is why it broke when the atomic replace landed.)
+//   - On Windows, the read-only attribute blocks MoveFileEx, so the replace FAILS.
+//
+// Rather than pin a platform-specific permission-error expectation the atomic
+// replace no longer guarantees, this asserts the property that actually holds
+// everywhere: the write is ALL-OR-NOTHING. Save either fully applies the new
+// content, or leaves the previous valid backlog untouched — it never truncates or
+// leaves a torn file behind.
+func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("Skipping permission test when running as root")
+		t.Skip("Skipping read-only test when running as root")
 	}
 
 	baseDir := t.TempDir()
@@ -81,30 +96,38 @@ func TestProperty_StoragePermissionErrors(t *testing.T) {
 		filePath := filepath.Join(baseDir, suffix+"_backlog.yaml")
 
 		fbm := NewFileBacklogManager(filePath)
-		backlog := models.NewBacklog()
 
-		// First save to create file
-		if err := fbm.Save(backlog); err != nil {
+		// Seed an empty backlog, then make the file read-only.
+		if err := fbm.Save(models.NewBacklog()); err != nil {
 			t.Fatalf("Initial save failed: %v", err)
 		}
-
-		// Make file read-only
 		if err := os.Chmod(filePath, 0o444); err != nil {
 			t.Fatalf("Failed to change permissions: %v", err)
 		}
+		defer func() { _ = os.Chmod(filePath, 0o644) }() // restore for cleanup
 
-		// Try to save again - should fail
+		// Attempt to add a task over the read-only target.
+		updated := models.NewBacklog()
 		task := models.NewTask("TASK-00001", "test", models.TaskTypeFeat)
-		backlog.AddTask(*task)
-		err := fbm.Save(backlog)
+		updated.AddTask(*task)
+		saveErr := fbm.Save(updated)
 
-		// Should get permission error
-		if err == nil {
-			t.Fatal("Expected permission error when writing to read-only file")
+		// Whatever the platform decides, the file must remain a fully valid backlog.
+		reloaded, err := fbm.Load()
+		if err != nil {
+			t.Fatalf("backlog unreadable after Save over a read-only target (torn write?): %v", err)
 		}
-
-		// Restore permissions for cleanup
-		_ = os.Chmod(filePath, 0o644)
+		if saveErr == nil {
+			// Atomic replace succeeded (POSIX): the new task must be present.
+			if reloaded.FindTaskByID("TASK-00001") == nil {
+				t.Fatal("Save reported success but the new task is missing (lost write)")
+			}
+		} else {
+			// Replace refused (Windows read-only attribute): the prior backlog is intact.
+			if len(reloaded.Tasks) != 0 {
+				t.Fatalf("Save failed but the backlog was mutated: %d tasks, want 0 (partial write)", len(reloaded.Tasks))
+			}
+		}
 	})
 }
 

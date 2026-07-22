@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,9 +15,20 @@ func runADB(t *testing.T, args ...string) error {
 	t.Helper()
 	cmd := NewRootCmd()
 	cmd.SetArgs(args)
-	// Silence cobra's own output during tests.
-	cmd.SetOut(os.NewFile(0, os.DevNull))
-	cmd.SetErr(os.NewFile(0, os.DevNull))
+	// Discard cobra's own output during tests. Use io.Discard (a pure io.Writer,
+	// no file descriptor) — NOT os.NewFile(0, os.DevNull). The latter is a trap:
+	// it wraps fd 0 (stdin, despite the os.DevNull label) in an *os.File whose GC
+	// finalizer CLOSES fd 0. Every runADB call leaks two such throwaway wrappers;
+	// when their finalizers eventually run they corrupt the process fd table
+	// (closing fd 0, which fd reuse then hands to a later os.Pipe/os.CreateTemp).
+	// On Linux that raced with the os.Pipe-based stdout capture in
+	// initiative_gate_test.go — the pipe's write end was lost, its reader never saw
+	// EOF, and the gate test hung to the package timeout — once PR #2 added
+	// per-registry-write temp-file churn (extra *os.File allocations) that shifted
+	// GC/finalizer and fd-allocation timing. io.Discard has no fd and no finalizer,
+	// which is also the pattern every other CLI test helper already uses.
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
 	return cmd.Execute()
 }
 
