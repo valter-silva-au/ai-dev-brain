@@ -67,6 +67,13 @@ func (s *FileADRStore) NextNumber() (int, error) {
 func (s *FileADRStore) Create(adr models.ADR, body string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	idx, err := s.loadUnsafe()
 	if err != nil {
 		return err
@@ -124,6 +131,13 @@ func (s *FileADRStore) Get(number int) (models.ADR, bool, error) {
 func (s *FileADRStore) Update(adr models.ADR) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	unlock, err := acquireRegistryLock(s.indexPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	idx, err := s.loadUnsafe()
 	if err != nil {
 		return err

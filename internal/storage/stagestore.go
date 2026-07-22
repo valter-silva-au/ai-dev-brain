@@ -70,6 +70,12 @@ func (s *FileStageStore) CreateOrganization(org models.Organization) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	unlock, err := acquireRegistryLock(s.orgsPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	index, err := s.loadOrgsUnsafe()
 	if err != nil {
 		return err
@@ -142,6 +148,12 @@ func (s *FileStageStore) CreateInitiative(init models.Initiative) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	unlock, err := acquireRegistryLock(s.initiativesPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	index, err := s.loadInitiativesUnsafe()
 	if err != nil {
 		return err
@@ -191,6 +203,12 @@ func (s *FileStageStore) UpdateInitiative(init models.Initiative) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	unlock, err := acquireRegistryLock(s.initiativesPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	index, err := s.loadInitiativesUnsafe()
 	if err != nil {
 		return err
@@ -219,17 +237,18 @@ func readFileOrEmpty(path string) ([]byte, error) {
 	return data, nil
 }
 
-// writeYAML marshals v and writes it to path, creating the parent directory (0o755)
-// and the file (0o644) per the workspace persistence conventions.
+// writeYAML marshals v and writes it to path via an atomic replace (temp file in
+// the same directory + rename), creating the parent directory (0o755) and the
+// file (0o644) per the workspace persistence conventions. The atomic replace
+// keeps a concurrent reader from ever observing a half-written registry. Callers
+// that mutate a registry must hold the registry's cross-process lock (see
+// acquireRegistryLock) around the whole load-modify-save cycle.
 func writeYAML(path string, v any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create registry directory: %w", err)
-	}
 	data, err := yaml.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("marshal registry: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := atomicWriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write registry file: %w", err)
 	}
 	return nil
