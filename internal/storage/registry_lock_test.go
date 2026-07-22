@@ -16,7 +16,8 @@ import (
 // Cross-process contention proof for the founder-playbook YAML registries
 // (stagestore + adrstore) — backend-readiness contract #2 for the cockpit spike
 // (TASK-00070). It extends the backlog lock proof (backlog_lock_test.go) to the
-// registries this PR put behind the same cross-process lock + atomic replace.
+// registries this PR put behind the same cross-process lock + temp-file-plus-
+// rename replace (atomic on POSIX; best-effort with bounded retry on Windows).
 //
 // Unlike the backlog test — which uses separate manager instances in ONE process
 // (distinct in-process mutexes coordinating only through the OS file lock) —
