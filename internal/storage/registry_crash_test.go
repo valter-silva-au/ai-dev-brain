@@ -14,9 +14,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Crash-safety proof for the shared atomic-replace primitive (atomicWriteFile),
-// exercised through a real store write path — backend-readiness contract #2 for
-// the cockpit spike (TASK-00070), spec-concurrency.md "Crash-safety test":
+// Crash-safety proof for the shared temp-file-plus-rename replace primitive
+// (atomicWriteFile), exercised through a real store write path — backend-readiness
+// contract #2 for the cockpit spike (TASK-00070), spec-concurrency.md
+// "Crash-safety test":
 //
 //	kill a writer between temp-write and rename → registry remains the old,
 //	valid YAML (no torn file).

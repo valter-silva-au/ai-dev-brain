@@ -7,13 +7,22 @@ import (
 )
 
 // testHookAfterTempWrite, when non-nil, is invoked inside atomicWriteFile after
-// the temp file has been fully written, synced, and closed but BEFORE the atomic
-// rename. It is a test-only seam (the stdlib testHook* convention): it is nil in
-// every production build and is only ever assigned by the crash-safety test in a
-// re-exec'd child process (registry_crash_test.go), where it simulates a writer
-// dying mid-write to prove the target file is left as its previous, valid
-// contents. Production code never sets it, so the branch below is inert.
+// the temp file has been fully written, synced, and closed but BEFORE the rename
+// that publishes it over the target. It is a test-only seam (the stdlib testHook*
+// convention): it is nil in every production build and is only ever assigned by
+// the crash-safety test in a re-exec'd child process (registry_crash_test.go),
+// where it simulates a writer dying mid-write to prove the target file is left as
+// its previous, valid contents. Production code never sets it, so the branch below
+// is inert.
 var testHookAfterTempWrite func()
+
+// testHookRenameAttempt, when non-nil, is invoked by the Windows renameWithRetry
+// after each os.Rename attempt with the 0-based attempt index and that attempt's
+// result. Like testHookAfterTempWrite it is a test-only seam — nil in every
+// production build, assigned only by the Windows rename-retry test to observe and
+// deterministically synchronize with the retry path. Only the Windows
+// renameWithRetry calls it; the POSIX path does not retry, so it never fires there.
+var testHookRenameAttempt func(attempt int, err error)
 
 // atomicWriteFile writes data to path via a temp-file-plus-rename replace. It
 // creates the parent directory if needed (0o755), writes the full contents to a

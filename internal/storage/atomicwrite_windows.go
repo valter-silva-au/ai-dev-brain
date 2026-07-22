@@ -23,6 +23,9 @@ func renameWithRetry(oldpath, newpath string) error {
 	var err error
 	for i := 0; i < attempts; i++ {
 		err = os.Rename(oldpath, newpath)
+		if testHookRenameAttempt != nil {
+			testHookRenameAttempt(i, err)
+		}
 		if err == nil || !isTransientReplaceErr(err) {
 			return err
 		}

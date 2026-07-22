@@ -124,10 +124,11 @@ func (fbm *FileBacklogManager) saveUnsafe(backlog *models.Backlog) error {
 		return fmt.Errorf("failed to marshal backlog to YAML: %w", err)
 	}
 
-	// Write atomically: atomicWriteFile writes to a temp file in the same
-	// directory (creating it 0o755 as needed) and renames it over the target, so
-	// a concurrent reader never observes a half-written backlog — unlike a plain
-	// os.WriteFile, which truncates the file in place before rewriting it.
+	// atomicWriteFile writes to a temp file in the same directory (creating it
+	// 0o755 as needed) and renames it over the target, rather than truncating in
+	// place like a plain os.WriteFile. The replace is atomic on POSIX (a concurrent
+	// reader sees the whole old or the whole new backlog) and a best-effort replace
+	// on Windows (bounded retry on sharing violations) — see atomicWriteFile.
 	if err := atomicWriteFile(fbm.filePath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write backlog file: %w", err)
 	}
