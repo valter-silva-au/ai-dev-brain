@@ -237,12 +237,13 @@ func readFileOrEmpty(path string) ([]byte, error) {
 	return data, nil
 }
 
-// writeYAML marshals v and writes it to path via an atomic replace (temp file in
-// the same directory + rename), creating the parent directory (0o755) and the
-// file (0o644) per the workspace persistence conventions. The atomic replace
-// keeps a concurrent reader from ever observing a half-written registry. Callers
-// that mutate a registry must hold the registry's cross-process lock (see
-// acquireRegistryLock) around the whole load-modify-save cycle.
+// writeYAML marshals v and writes it to path via atomicWriteFile — a temp-file-
+// plus-rename replace (atomic on POSIX; a best-effort replace with a bounded
+// sharing-violation retry on Windows, see atomicWriteFile) — creating the parent
+// directory (0o755) and the file (0o644) per the workspace persistence
+// conventions. Callers that mutate a registry must hold the registry's
+// cross-process lock (see acquireRegistryLock) around the whole load-modify-save
+// cycle.
 func writeYAML(path string, v any) error {
 	data, err := yaml.Marshal(v)
 	if err != nil {

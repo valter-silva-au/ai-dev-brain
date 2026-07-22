@@ -26,15 +26,19 @@ func TestAtomicWriteFile_ConcurrentOpenReader(t *testing.T) {
 		t.Fatalf("seed target: %v", err)
 	}
 
-	// Hold the target open for reading, then release it shortly so a rename retry
-	// (renameWithRetry's bounded loop) can win before the budget is spent.
+	// Hold the target open for reading long enough that even a slow temp-file
+	// write can't reach the rename before the reader blocks it — this guarantees
+	// the first os.Rename hits a sharing violation and the retry path is actually
+	// exercised. 60ms sits comfortably inside renameWithRetry's ~225ms budget
+	// (10 attempts, 5ms-stepped backoff), so a retry still lands well before the
+	// budget is spent: fast and non-flaky.
 	reader, err := os.Open(target)
 	if err != nil {
 		t.Fatalf("open reader: %v", err)
 	}
 	closed := make(chan struct{})
 	go func() {
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(60 * time.Millisecond)
 		_ = reader.Close()
 		close(closed)
 	}()

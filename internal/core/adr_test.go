@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,11 @@ func (s *memADRStore) CreateNext(build func(number int) (models.ADR, string)) (m
 	}
 	number := max + 1
 	adr, body := build(number)
-	adr.Number = number
+	// Mirror FileADRStore.CreateNext's contract: reject a callback that did not
+	// use the allocated number rather than silently forcing it.
+	if adr.Number != number {
+		return models.ADR{}, fmt.Errorf("adr build callback returned number %d, want %d", adr.Number, number)
+	}
 	s.adrs = append(s.adrs, adr)
 	s.bodies[adr.Number] = body
 	return adr, nil

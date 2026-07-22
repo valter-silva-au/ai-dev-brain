@@ -18,7 +18,9 @@ type ADRStore interface {
 	// CreateNext allocates the next number and appends the record atomically
 	// (one lock), invoking build with the allocated number so number-dependent
 	// fields stay consistent. It is the race-free replacement for a NextNumber
-	// then Create pair.
+	// then Create pair. build MUST return that exact number (a mismatch is
+	// rejected) and MUST NOT re-enter the store (it runs under the store's locks;
+	// see FileADRStore.CreateNext).
 	CreateNext(build func(number int) (models.ADR, string)) (models.ADR, error)
 	List() ([]models.ADR, error)
 	Get(number int) (models.ADR, bool, error)
@@ -78,7 +80,7 @@ func (m *adrManager) New(title string, links []models.Link) (models.ADR, error) 
 	// allocated number in hand, keeping number-dependent fields (the slug
 	// fallback, the MADR heading rendered by renderMADR) consistent with what is
 	// stored.
-	return m.store.CreateNext(func(number int) (models.ADR, string) {
+	adr, err := m.store.CreateNext(func(number int) (models.ADR, string) {
 		slug := models.Slugify(title)
 		if slug == "" {
 			slug = fmt.Sprintf("adr-%04d", number)
@@ -94,6 +96,10 @@ func (m *adrManager) New(title string, links []models.Link) (models.ADR, error) 
 		}
 		return adr, renderMADR(adr)
 	})
+	if err != nil {
+		return models.ADR{}, fmt.Errorf("create adr: %w", err)
+	}
+	return adr, nil
 }
 
 func (m *adrManager) List() ([]models.ADR, error) {

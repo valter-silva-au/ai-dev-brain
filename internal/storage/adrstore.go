@@ -67,17 +67,28 @@ func (s *FileADRStore) NextNumber() (int, error) {
 // NextNumber + Create calls leave open (two processes could otherwise read the
 // same max and allocate a duplicate number, so one Create then fails). build is
 // invoked with the allocated number while the lock is held, so the caller can
-// render number-dependent fields (the slug fallback, the MADR heading); the
-// store then forces adr.Number to the allocated value whatever build chose. The
+// render number-dependent fields (the slug fallback, the MADR heading). The
 // markdown body is written first (same all-or-nothing reasoning as Create). It
 // returns the stored record.
+//
+// CALLBACK CONTRACT: build MUST return an ADR whose Number is the number it was
+// given. A callback returning a different number is a programming error and is
+// REJECTED (rather than silently overwritten), because the number is baked into
+// the body/slug/filename build produced — forcing a mismatching number would
+// persist markdown inconsistent with the index.
+//
+// NON-REENTRANT: build runs while BOTH this store's in-process mutex AND the
+// cross-process file lock are held. It MUST NOT call back into any FileADRStore
+// method (Create, CreateNext, List, Get, Update, NextNumber) — the mutex is not
+// reentrant, so doing so self-deadlocks. Keep build to pure, number-dependent
+// rendering.
 func (s *FileADRStore) CreateNext(build func(number int) (models.ADR, string)) (models.ADR, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	unlock, err := acquireRegistryLock(s.indexPath)
 	if err != nil {
-		return models.ADR{}, err
+		return models.ADR{}, fmt.Errorf("lock adr registry: %w", err)
 	}
 	defer unlock()
 
@@ -93,7 +104,9 @@ func (s *FileADRStore) CreateNext(build func(number int) (models.ADR, string)) (
 	}
 	number := max + 1
 	adr, body := build(number)
-	adr.Number = number // the lock-allocated number wins, regardless of build
+	if adr.Number != number {
+		return models.ADR{}, fmt.Errorf("adr build callback returned number %d, want the allocated %d (the callback must use the number it was given)", adr.Number, number)
+	}
 
 	if err := os.MkdirAll(s.docsDir, 0o755); err != nil {
 		return models.ADR{}, fmt.Errorf("create adr docs dir: %w", err)

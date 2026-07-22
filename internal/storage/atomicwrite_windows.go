@@ -22,10 +22,15 @@ func renameWithRetry(oldpath, newpath string) error {
 	const attempts = 10
 	var err error
 	for i := 0; i < attempts; i++ {
-		if err = os.Rename(oldpath, newpath); err == nil || !isTransientReplaceErr(err) {
+		err = os.Rename(oldpath, newpath)
+		if err == nil || !isTransientReplaceErr(err) {
 			return err
 		}
-		time.Sleep(time.Duration(i+1) * 5 * time.Millisecond)
+		// Back off before the NEXT attempt only — no point sleeping after the last
+		// one, whose transient error we are about to return.
+		if i < attempts-1 {
+			time.Sleep(time.Duration(i+1) * 5 * time.Millisecond)
+		}
 	}
 	return err
 }

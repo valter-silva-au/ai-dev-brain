@@ -15,20 +15,21 @@ import (
 // contents. Production code never sets it, so the branch below is inert.
 var testHookAfterTempWrite func()
 
-// atomicWriteFile writes data to path atomically. It creates the parent
-// directory if needed (0o755), writes to a temp file IN THE SAME directory, then
-// renames it over path. Because the committing step is a rename within one
-// directory, a reader concurrent with the write sees either the whole previous
-// file or the whole new one — never a half-written file, unlike os.WriteFile,
-// which truncates the target and then writes in place.
+// atomicWriteFile writes data to path via a temp-file-plus-rename replace. It
+// creates the parent directory if needed (0o755), writes the full contents to a
+// temp file IN THE SAME directory, fsyncs and closes it, then renames it over
+// path. Because the whole file is written before the swap, the commit is a single
+// rename rather than an in-place truncate-then-write (unlike os.WriteFile).
 //
-// On Unix the commit is rename(2), which is atomic. On Windows os.Rename maps to
-// MoveFileEx(MOVEFILE_REPLACE_EXISTING): a best-effort replace, NOT a documented
-// atomicity guarantee — it can transiently fail with a sharing violation while
-// another process holds the target open. renameWithRetry (the per-platform
+// The replace is ATOMIC ON POSIX: rename(2) either fully replaces the target or
+// does nothing, so a concurrent reader sees the whole old or the whole new file.
+// On WINDOWS it is a BEST-EFFORT REPLACE: os.Rename maps to
+// MoveFileEx(MOVEFILE_REPLACE_EXISTING), which is not a documented atomicity
+// guarantee and can transiently fail with a sharing violation while another
+// process holds the target open. renameWithRetry (per-platform in
 // atomicwrite_windows.go / atomicwrite_other.go) absorbs those transient errors
-// with a bounded retry; the reader still only ever observes the old or the new
-// file, because the temp file is written in full before the swap.
+// with a bounded retry on Windows; it does NOT promote the Windows replace to a
+// POSIX-grade atomic operation.
 //
 // It is the shared save primitive for the mutable YAML registries; callers pair
 // it with a cross-process lock (see acquireRegistryLock) held around the whole
