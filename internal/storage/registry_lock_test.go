@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/valter-silva-au/ai-dev-brain/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -228,4 +229,71 @@ func adrNumberFor(worker, j int) int { return (worker+1)*1000 + j }
 // the race rather than passing vacuously.
 func TestFileStageStore_LockDisabledLosesUpdates_ManualSanityCheck(t *testing.T) {
 	t.Skip("documentation-only negative control; see the doc comment for the manual procedure and the observed 13/96 result")
+}
+
+// TestFileStageStore_SameProcessConcurrentWritersNoDeadlock is the re-entrancy /
+// self-deadlock guard for the registry lock, on EVERY platform. Each write method
+// takes the store's in-process mutex FIRST and then the cross-process file lock
+// (flock on POSIX, LockFileEx on Windows); BOTH are non-reentrant. If a locked
+// method ever called another locked method on the same instance, the mutex would
+// self-deadlock (all platforms); and because one FileStageStore holds a single
+// lock fd, a nested second acquisition would block on the OS lock too — on POSIX a
+// second flock(LOCK_EX) on a fresh fd of the same file blocks even within one
+// process. Either bug shows up as a hang. This hammers the write methods from
+// several goroutines against ONE store and FAILS (rather than hanging to the
+// package timeout) if the run does not finish promptly, so the regression surfaces
+// as a clear message on any platform. It passes today, confirming the write
+// methods never re-enter the lock.
+func TestFileStageStore_SameProcessConcurrentWritersNoDeadlock(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStageStore(dir)
+	if err := store.CreateOrganization(models.Organization{ID: "acme", Name: "Acme"}); err != nil {
+		t.Fatalf("CreateOrganization: %v", err)
+	}
+
+	const (
+		writers   = 4
+		perWriter = 15
+	)
+
+	done := make(chan struct{})
+	go func() {
+		var wg sync.WaitGroup
+		for w := 0; w < writers; w++ {
+			wg.Add(1)
+			go func(worker int) {
+				defer wg.Done()
+				for j := 0; j < perWriter; j++ {
+					id := fmt.Sprintf("init-%02d-%02d", worker, j)
+					if err := store.CreateInitiative(models.Initiative{ID: id, Name: id, OrgID: "acme", Stage: models.StageIdea}); err != nil {
+						t.Errorf("worker %d CreateInitiative(%s): %v", worker, id, err)
+						return
+					}
+					// A create immediately followed by an update on the SAME store
+					// runs two distinct locked methods back-to-back — the shape a
+					// re-entrant lock would deadlock on.
+					if err := store.UpdateInitiative(models.Initiative{ID: id, Name: id + "-v2", OrgID: "acme", Stage: models.StageMVP}); err != nil {
+						t.Errorf("worker %d UpdateInitiative(%s): %v", worker, id, err)
+						return
+					}
+				}
+			}(w)
+		}
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("concurrent same-process writers did not finish in 30s — suspected lock re-entrancy / self-deadlock in a stage-store write method")
+	}
+
+	got, err := store.ListInitiatives()
+	if err != nil {
+		t.Fatalf("ListInitiatives: %v", err)
+	}
+	if len(got) != writers*perWriter {
+		t.Fatalf("expected %d initiatives after concurrent writers, got %d (lost update)", writers*perWriter, len(got))
+	}
 }

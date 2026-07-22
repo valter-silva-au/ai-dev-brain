@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,9 +15,29 @@ func runADB(t *testing.T, args ...string) error {
 	t.Helper()
 	cmd := NewRootCmd()
 	cmd.SetArgs(args)
-	// Silence cobra's own output during tests.
-	cmd.SetOut(os.NewFile(0, os.DevNull))
-	cmd.SetErr(os.NewFile(0, os.DevNull))
+	// Discard cobra's own output during tests. Use io.Discard (a pure io.Writer,
+	// no file descriptor) — NOT os.NewFile(0, os.DevNull). The latter is a trap:
+	// it wraps fd 0 (stdin, despite the os.DevNull label) in an *os.File whose GC
+	// finalizer CLOSES fd 0 when the wrapper is collected. Every runADB call leaks
+	// two such throwaway wrappers, so their finalizers fire at unpredictable points
+	// later in the run.
+	//
+	// The hazard class is a stale finalizer closing a REUSED descriptor. Once fd 0
+	// is closed, the kernel is free to hand the number 0 to the next descriptor the
+	// process opens — e.g. the READ end of the os.Pipe the gate test uses to capture
+	// os.Stdout (captureGateStdout in initiative_gate_test.go). When a leftover
+	// wrapper's finalizer then runs, its close(2) lands on fd 0 — now that reused
+	// pipe descriptor — out from under the runtime, which had registered it with the
+	// netpoller. The capture goroutine parked in io.Copy on the read end never wakes
+	// or sees EOF (even though the write end was closed), so the gate test hung to
+	// the package timeout on Linux. PR #2's per-registry-write temp-file churn added
+	// *os.File allocations that shifted GC/finalizer and fd-allocation timing enough
+	// to surface it. The exact descriptor a given stale finalizer lands on is
+	// timing-dependent — what is certain is the hazard class (stale finalizer closes
+	// a reused fd), and that dropping the fd-0 wrappers removes it. io.Discard has no
+	// fd and no finalizer, and is the pattern every other CLI test helper uses.
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
 	return cmd.Execute()
 }
 

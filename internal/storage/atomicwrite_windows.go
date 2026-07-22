@@ -29,6 +29,15 @@ func renameWithRetry(oldpath, newpath string) error {
 		if err == nil || !isTransientReplaceErr(err) {
 			return err
 		}
+		// A read-only TARGET is a permanent condition, not the momentary sharing
+		// violation the retry exists to absorb — MoveFileEx keeps returning
+		// ACCESS_DENIED, so retrying only burns the whole budget (~225ms) before
+		// failing anyway. Fail fast instead. Genuine transient ACCESS_DENIED (an
+		// AV scanner / indexer briefly holding the file) and SHARING_VIOLATION are
+		// NOT read-only, so they still get their retries.
+		if targetIsReadOnly(newpath) {
+			return err
+		}
 		// Back off before the NEXT attempt only — no point sleeping after the last
 		// one, whose transient error we are about to return.
 		if i < attempts-1 {
@@ -36,6 +45,24 @@ func renameWithRetry(oldpath, newpath string) error {
 		}
 	}
 	return err
+}
+
+// targetIsReadOnly reports whether newpath itself carries the read-only attribute
+// (no owner-write bit). Go maps Windows FILE_ATTRIBUTE_READONLY to a cleared 0o200
+// mode bit. It uses os.Lstat, NOT os.Stat: if newpath is a symlink, the thing
+// MoveFileEx replaces is the link (the reparse point), so what governs whether the
+// rename is permanently blocked is the LINK's own read-only attribute, not the
+// referent's. os.Stat would follow the link and could misread a writable link
+// pointing at a read-only file as a permanent failure, aborting a rename that would
+// actually have succeeded (or was only transiently blocked). A stat error (e.g. the
+// target does not exist) returns false, so a genuine transient failure still gets
+// its retry.
+func targetIsReadOnly(newpath string) bool {
+	info, err := os.Lstat(newpath)
+	if err != nil {
+		return false
+	}
+	return info.Mode().Perm()&0o200 == 0
 }
 
 // isTransientReplaceErr reports whether err is a Windows sharing/access error that

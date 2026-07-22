@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -69,10 +71,28 @@ func TestProperty_StorageMissingDirectory(t *testing.T) {
 	})
 }
 
-// TestProperty_StoragePermissionErrors verifies handling of permission errors
-func TestProperty_StoragePermissionErrors(t *testing.T) {
+// TestProperty_StorageReadOnlyTargetIsAllOrNothing verifies how Save behaves when
+// the TARGET file is read-only. saveUnsafe now writes through atomicWriteFile — a
+// temp-file-plus-rename replace — rather than truncating the target in place, and
+// that deliberately changes what a read-only target means, per platform. Each
+// platform's outcome is asserted EXPLICITLY (not "either is acceptable"), so the
+// test still proves a specific contract on both:
+//
+//   - On POSIX, rename(2) takes its permission from the containing DIRECTORY, not
+//     the target file, so replacing a read-only file MUST SUCCEED with the new
+//     content. (The pre-atomic os.WriteFile path errored here; this test used to
+//     assert that stale expectation and is why it broke when the atomic replace
+//     landed.) POSIX permission-error surfacing now lives in the unwritable-DIRECTORY
+//     case, TestStorage_UnwritableDirectorySurfacesSaveError.
+//   - On Windows, the read-only attribute blocks MoveFileEx, so the replace MUST
+//     FAIL and leave the prior backlog intact — this is where Windows proves Save
+//     still surfaces a permission error.
+//
+// In both directions the write is ALL-OR-NOTHING: Save either fully applies the new
+// content or leaves the previous valid backlog untouched — never torn.
+func TestProperty_StorageReadOnlyTargetIsAllOrNothing(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("Skipping permission test when running as root")
+		t.Skip("Skipping read-only test when running as root")
 	}
 
 	baseDir := t.TempDir()
@@ -81,31 +101,135 @@ func TestProperty_StoragePermissionErrors(t *testing.T) {
 		filePath := filepath.Join(baseDir, suffix+"_backlog.yaml")
 
 		fbm := NewFileBacklogManager(filePath)
-		backlog := models.NewBacklog()
 
-		// First save to create file
-		if err := fbm.Save(backlog); err != nil {
+		// Seed an empty backlog, then make the file read-only.
+		if err := fbm.Save(models.NewBacklog()); err != nil {
 			t.Fatalf("Initial save failed: %v", err)
 		}
-
-		// Make file read-only
 		if err := os.Chmod(filePath, 0o444); err != nil {
 			t.Fatalf("Failed to change permissions: %v", err)
 		}
+		defer func() { _ = os.Chmod(filePath, 0o644) }() // restore for cleanup
 
-		// Try to save again - should fail
-		task := models.NewTask("TASK-00001", "test", models.TaskTypeFeat)
-		backlog.AddTask(*task)
-		err := fbm.Save(backlog)
-
-		// Should get permission error
-		if err == nil {
-			t.Fatal("Expected permission error when writing to read-only file")
+		// Capture the seeded bytes: Load() returns an empty backlog for a MISSING
+		// file too, so "0 tasks" alone can't prove the target survived a failed
+		// replace — only byte-identity to the seeded file can.
+		seeded, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("reading seeded backlog: %v", err)
 		}
 
-		// Restore permissions for cleanup
-		_ = os.Chmod(filePath, 0o644)
+		// Attempt to add a task over the read-only target.
+		updated := models.NewBacklog()
+		task := models.NewTask("TASK-00001", "test", models.TaskTypeFeat)
+		updated.AddTask(*task)
+		saveErr := fbm.Save(updated)
+
+		// The file must always remain a fully valid backlog (never torn), and the
+		// per-platform outcome is asserted explicitly below.
+		reloaded, err := fbm.Load()
+		if err != nil {
+			t.Fatalf("backlog unreadable after Save over a read-only target (torn write?): %v", err)
+		}
+
+		if runtime.GOOS == "windows" {
+			// The read-only ATTRIBUTE blocks MoveFileEx: the replace MUST fail and
+			// leave the prior (empty) backlog intact.
+			if saveErr == nil {
+				t.Fatal("Save over a read-only target must fail on Windows (the read-only attribute blocks MoveFileEx), but it succeeded")
+			}
+			if len(reloaded.Tasks) != 0 {
+				t.Fatalf("Save failed but the backlog was mutated: %d tasks, want 0 (partial write)", len(reloaded.Tasks))
+			}
+			after, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("target missing/unreadable after failed Save (deleted, not preserved?): %v", err)
+			}
+			if !bytes.Equal(after, seeded) {
+				t.Fatalf("failed Save changed the target bytes:\n got: %q\nwant: %q", after, seeded)
+			}
+			return
+		}
+
+		// POSIX: rename(2) draws permission from the DIRECTORY, not the target file,
+		// so the replace MUST succeed with the new content.
+		if saveErr != nil {
+			t.Fatalf("Save over a read-only target must succeed on POSIX (rename permission comes from the directory), got: %v", saveErr)
+		}
+		if reloaded.FindTaskByID("TASK-00001") == nil {
+			t.Fatal("Save reported success but the new task is missing (lost write)")
+		}
 	})
+}
+
+// TestStorage_UnwritableDirectorySurfacesSaveError proves Save still surfaces a
+// permission error — and leaves the target intact — when the write genuinely cannot
+// proceed. In the atomic-replace world a read-only TARGET no longer errors on POSIX
+// (rename(2) draws its permission from the directory), so the place a permission
+// error still surfaces there is an unwritable DIRECTORY: os.CreateTemp for the temp
+// file fails with EACCES before any rename, so the existing target is never touched.
+//
+// This runs on POSIX only. Contrary to the intuition that directory-permission
+// denial is cross-platform, the Windows read-only attribute on a directory does NOT
+// deny creating files inside it, so chmod cannot make a directory unwritable here;
+// Windows keeps its permission-error coverage through the read-only-TARGET branch of
+// TestProperty_StorageReadOnlyTargetIsAllOrNothing (which fails the replace and
+// asserts the prior backlog is intact). Skipped as root, which bypasses directory
+// permission bits.
+func TestStorage_UnwritableDirectorySurfacesSaveError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows directory read-only does not deny file creation; Windows permission-error coverage is the read-only-target case")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root bypasses directory permission bits")
+	}
+
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "registry")
+	if err := os.Mkdir(subdir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	filePath := filepath.Join(subdir, "backlog.yaml")
+
+	fbm := NewFileBacklogManager(filePath)
+	// Seed a valid backlog we can prove stays intact.
+	if err := fbm.Save(models.NewBacklog()); err != nil {
+		t.Fatalf("initial save: %v", err)
+	}
+	// Byte-capture the seed: Load() maps a MISSING file to an empty backlog, so
+	// only byte-identity proves the failed Save left the target untouched.
+	seeded, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("reading seeded backlog: %v", err)
+	}
+
+	// Deny writes to the directory: os.CreateTemp inside it must now fail.
+	if err := os.Chmod(subdir, 0o555); err != nil {
+		t.Fatalf("chmod dir read-only: %v", err)
+	}
+	defer func() { _ = os.Chmod(subdir, 0o755) }() // restore for TempDir cleanup
+
+	updated := models.NewBacklog()
+	updated.AddTask(*models.NewTask("TASK-00001", "test", models.TaskTypeFeat))
+	if err := fbm.Save(updated); err == nil {
+		t.Fatal("Save into an unwritable directory should return a permission error, got nil")
+	}
+
+	// The prior backlog must be intact and readable — the failed Save touched nothing.
+	reloaded, err := fbm.Load()
+	if err != nil {
+		t.Fatalf("prior backlog unreadable after a failed Save (torn write?): %v", err)
+	}
+	if len(reloaded.Tasks) != 0 {
+		t.Fatalf("failed Save mutated the backlog: %d tasks, want 0", len(reloaded.Tasks))
+	}
+	after, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("target missing/unreadable after failed Save (deleted, not preserved?): %v", err)
+	}
+	if !bytes.Equal(after, seeded) {
+		t.Fatalf("failed Save changed the target bytes:\n got: %q\nwant: %q", after, seeded)
+	}
 }
 
 // TestProperty_StorageConcurrentWrites verifies concurrent write safety
