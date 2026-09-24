@@ -1,0 +1,105 @@
+program:
+  id: change-adoption
+  name: Change Adoption
+  version: 1
+  description: >-
+    Phase-ordered adoption pack: assess the capability you actually have, plan
+    the change against a named model, then close the specific gaps the
+    assessment found. Enablement follows evidence, never enthusiasm.
+  lineage:
+    - "Team Topologies — Matthew Skelton and Manuel Pais (public): four team types, three interaction modes, cognitive load as the capability constraint"
+    - "Skills matrix / competency-matrix practice (public)"
+    - "Prosci ADKAR — Awareness, Desire, Knowledge, Ability, Reinforcement (publicly described model)"
+    - "Leading Change 8-step process — John Kotter (public)"
+    - "Training-needs analysis — public instructional-design and L&D practice"
+    - "Kirkpatrick four levels of training evaluation (public)"
+
+phases:
+  - id: assess
+    name: Assess
+    description: >-
+      Establish the current capability and cognitive load honestly, before any
+      commitment is made about what the team can absorb.
+  - id: plan
+    name: Plan
+    description: >-
+      Design the change itself: who is affected, how ready they are, and how
+      the change will be communicated and reinforced.
+  - id: enable
+    name: Enable
+    description: >-
+      Close the named gaps with specific interventions that have owners, dates
+      and an evaluation method.
+
+templates:
+  - id: capability-assessment
+    name: Capability Assessment
+    phase: assess
+    path: templates/assess/capability-assessment.md
+    output: docs/change-adoption/assess/capability-assessment.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "project-doc/**"
+      - "docs/**"
+      - "README.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must validate the current-state skill ratings with the people
+        being rated, and confirm the cognitive-load judgement reflects what the
+        team is actually carrying, including the unwritten operational load.
+      risk: >-
+        Capability inferred from a repository overstates what a team can absorb
+        and ignores the load it already carries. Every plan built on it
+        overcommits real people, and the change fails as burnout rather than as
+        a visible planning error.
+
+  - id: change-management
+    name: Change Management Plan
+    phase: plan
+    path: templates/plan/change-management.md
+    output: docs/change-adoption/plan/change-management.md
+    requires:
+      - capability-assessment
+    requires_mode: all
+    reads:
+      - "docs/change-adoption/assess/capability-assessment.md"
+      - "docs/product-discovery/frame/stakeholder-map.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm the readiness and desire assessment with the
+        affected groups themselves, and name a real sponsor who has agreed to
+        do the sponsorship work rather than merely lend a title.
+      risk: >-
+        Desire is the one ADKAR element that cannot be assessed from the
+        outside. Assuming it produces a plan that trains people who have
+        already decided not to adopt, and the rollout is reported as complete
+        while usage stays at zero.
+
+  - id: enablement-plan
+    name: Enablement Plan
+    phase: enable
+    path: templates/enable/enablement-plan.md
+    output: docs/change-adoption/enable/enablement-plan.md
+    requires:
+      - capability-assessment
+      - change-management
+    requires_mode: all
+    reads:
+      - "docs/change-adoption/assess/capability-assessment.md"
+      - "docs/change-adoption/plan/change-management.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm each intervention traces to a specific gap in the
+        capability assessment, that participants' time has actually been
+        released by their managers, and that a named person owns delivery.
+      risk: >-
+        Enablement scheduled without releasing people's time is cancelled by
+        the first delivery pressure. The capability gap stays open, but it is
+        now recorded as addressed, so nobody looks at it again.

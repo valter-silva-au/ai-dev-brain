@@ -1,0 +1,112 @@
+program:
+  id: operations
+  name: Operations
+  version: 1
+  description: >-
+    Artifacts for running a system after it is live: the incident record and its
+    blameless postmortem, the reliability targets it is held to, the standing
+    review that keeps operational load visible, and the adoption metrics that say
+    whether anyone benefits from all of it.
+  lineage:
+    - "Google SRE book — blameless postmortem culture and postmortem triggers (sre.google/sre-book)"
+    - "Google SRE book — incident management and the written incident record"
+    - "Google SRE book — service level objectives, indicators and error budgets"
+    - "Google SRE book — the weekly production meeting"
+    - "Google HEART framework and goals-signals-metrics (Rodden, Hutchinson, Fu, CHI 2010)"
+
+phases:
+  - { id: incident, name: Incident }
+  - { id: operate,  name: Operate }
+
+templates:
+  - id: incident-timeline
+    name: Incident Timeline
+    phase: incident
+    path: templates/incident/incident-timeline.md
+    output: docs/operations/incident/incident-timeline.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/release/runbook.md"
+    trigger: event
+    human_review:
+      required: true
+      note: "Reviewed by at least one responder other than the scribe, while memory is fresh."
+      risk: >-
+        A timeline reconstructed days later from recollection silently misplaces
+        detection and escalation times, which is exactly the data used to argue
+        that monitoring was adequate when it was not.
+
+  - id: postmortem
+    name: Postmortem
+    phase: incident
+    path: templates/incident/postmortem.md
+    output: docs/operations/incident/postmortem.md
+    requires: [incident-timeline]
+    requires_mode: all
+    reads:
+      - "docs/operations/incident/incident-timeline.md"
+      - "docs/operations/operate/slo-error-budget.md"
+    trigger: event
+    human_review:
+      required: true
+      note: "Must be reviewed by someone who was not a responder; an unreviewed postmortem might as well never have existed."
+      risk: >-
+        An unreviewed postmortem lets a proximate trigger stand in for a
+        contributing cause, so the same failure recurs with different cosmetics
+        and the action items expire unowned.
+
+  - id: slo-error-budget
+    name: SLO and Error Budget
+    phase: operate
+    path: templates/operate/slo-error-budget.md
+    output: docs/operations/operate/slo-error-budget.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/verify/prr-checklist.md"
+    trigger: manual
+    human_review:
+      required: true
+      note: "Agreed jointly by the team that operates the service and whoever represents its users."
+      risk: >-
+        An SLO set by engineers alone becomes a number nobody outside the team
+        respects, so the error-budget policy is overridden the first time it would
+        actually stop a release.
+
+  - id: weekly-ops-review
+    name: Weekly Operations Review
+    phase: operate
+    path: templates/operate/weekly-ops-review.md
+    output: docs/operations/operate/weekly-ops-review.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "docs/operations/operate/slo-error-budget.md"
+      - "docs/operations/incident/**"
+    trigger: manual
+    human_review:
+      required: true
+      note: "Chaired by a human who closes each action item aloud; the notes are the record."
+      risk: >-
+        Without a standing review, paging volume and unresolved action items
+        accumulate invisibly until on-call burnout, not a dashboard, is what
+        surfaces the problem.
+
+  - id: adoption-kpis
+    name: Adoption KPIs
+    phase: operate
+    path: templates/operate/adoption-kpis.md
+    output: docs/operations/operate/adoption-kpis.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "project-doc/**"
+    trigger: manual
+    human_review:
+      required: true
+      note: "Whoever owns the outcome confirms each metric would change their decisions."
+      risk: >-
+        Metrics chosen because they are easy to instrument drive the team to
+        optimise activity counts while the users the system was built for quietly
+        stop succeeding at their task.

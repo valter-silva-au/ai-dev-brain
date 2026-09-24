@@ -1,0 +1,132 @@
+program:
+  id: delivery-readiness
+  name: Delivery Readiness
+  version: 1
+  description: >-
+    Phase-ordered artifacts that take a change from "the code works on my branch"
+    to "a named on-call rotation has accepted this into production support".
+  lineage:
+    - "Google SRE book — Production Readiness Review, the six axes (sre.google/sre-book)"
+    - "Google SRE book — launch coordination and launch checklists"
+    - "Google SRE book — operational documentation and playbook practice"
+    - "Google SRE book — service onboarding and handover"
+    - "Test pyramid (Mike Cohn, Succeeding with Agile) and continuous-delivery quality gates"
+    - "Change-management practice: reversible releases and documented rollback"
+
+phases:
+  - { id: verify,  name: Verify }
+  - { id: release, name: Release }
+
+templates:
+  - id: test-strategy
+    name: Test Strategy
+    phase: verify
+    path: templates/verify/test-strategy.md
+    output: docs/delivery-readiness/verify/test-strategy.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "project-doc/**"
+      - "docs/**"
+    trigger: phase
+    human_review:
+      required: true
+      note: "The engineer who will maintain the suite agrees the layer split and the coverage target."
+      risk: >-
+        An unreviewed test strategy tends to converge on whatever is easy to
+        automate, leaving the risky paths — data migration, auth boundaries,
+        failure injection — untested while coverage numbers look healthy.
+
+  - id: prr-checklist
+    name: Production Readiness Review
+    phase: verify
+    path: templates/verify/prr-checklist.md
+    output: docs/delivery-readiness/verify/prr-checklist.md
+    requires: [test-strategy]
+    requires_mode: all
+    reads:
+      - "project-doc/**"
+      - "docs/delivery-readiness/verify/test-strategy.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: "Sign-off from whoever will carry the pager, not only from the author."
+      risk: >-
+        Accepting a service into production support without agreed SLOs makes the
+        on-call rotation unowned: pages arrive with no definition of "too broken"
+        and no budget to spend on fixing it.
+
+  - id: runbook
+    name: Operational Runbook
+    phase: release
+    path: templates/release/runbook.md
+    output: docs/delivery-readiness/release/runbook.md
+    requires: [prr-checklist]
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/verify/prr-checklist.md"
+      - "project-doc/**"
+    trigger: phase
+    human_review:
+      required: true
+      note: "Walked through by someone who did not build the system, against a real alert."
+      risk: >-
+        A runbook that only its author can follow is worthless at 3am. Untested
+        remediation steps turn a five-minute mitigation into an hour of guessing.
+
+  - id: rollback-plan
+    name: Rollback Plan
+    phase: release
+    path: templates/release/rollback-plan.md
+    output: docs/delivery-readiness/release/rollback-plan.md
+    requires: [prr-checklist]
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/verify/prr-checklist.md"
+      - "project-doc/**"
+    trigger: phase
+    human_review:
+      required: true
+      note: "Rehearsed at least once in a non-production environment before release."
+      risk: >-
+        An unrehearsed rollback is a hypothesis. Irreversible data migrations
+        discovered during an incident convert a recoverable outage into permanent
+        data loss.
+
+  - id: launch-checklist
+    name: Launch Checklist
+    phase: release
+    path: templates/release/launch-checklist.md
+    output: docs/delivery-readiness/release/launch-checklist.md
+    requires: [runbook, rollback-plan]
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/release/runbook.md"
+      - "docs/delivery-readiness/release/rollback-plan.md"
+      - "docs/delivery-readiness/verify/prr-checklist.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: "The go/no-go decision is a human call with a named decider and a timestamp."
+      risk: >-
+        A checklist self-approved by the person shipping removes the only pause
+        where an unresolved blocker can still stop the release cheaply.
+
+  - id: operational-handover
+    name: Operational Handover
+    phase: release
+    path: templates/release/operational-handover.md
+    output: docs/delivery-readiness/release/operational-handover.md
+    requires: [launch-checklist]
+    requires_mode: all
+    reads:
+      - "docs/delivery-readiness/release/launch-checklist.md"
+      - "docs/delivery-readiness/release/runbook.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: "Both the outgoing and receiving parties sign, with a dated end of the support tail."
+      risk: >-
+        Handover without an explicit acceptance leaves the system in a limbo where
+        the builders assume ops owns it and ops assumes the builders do, so nobody
+        answers the page.

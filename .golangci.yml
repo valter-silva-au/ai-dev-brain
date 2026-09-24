@@ -1,0 +1,123 @@
+version: "2"
+run:
+  modules-download-mode: readonly
+  tests: true
+linters:
+  # errcheck, govet, ineffassign, staticcheck and unused are golangci-lint v2's
+  # DEFAULT set, so they are no longer listed here — they were in the v1 config
+  # explicitly. gosimple is gone as a separate linter: v2 folded it into
+  # staticcheck as the S* checks.
+  enable:
+    - bodyclose
+    - exhaustive
+    - gosec
+    - nilerr
+    - unparam
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    gosec:
+      excludes:
+        - G104 # Unhandled errors (covered by errcheck)
+        # G306 wants WriteFile permissions <= 0600. CLAUDE.md mandates 0o644 for
+        # files (0o755 for dirs), so every one of adb's ~42 write sites trips it —
+        # this is a conflict between two rules, not 42 defects, and it is resolved
+        # here once rather than by 42 nolint directives.
+        #
+        # The audit behind that (TASK-00039, Batch 4) walked every site and asked
+        # one question: could the bytes written contain a credential? Findings:
+        #   - No site writes a token, API key, private key, or env-var VALUE.
+        #     Issue-sync auth never touches disk (the host `gh`/`glab` login owns
+        #     it, enforced by argv-boundary tests in internal/integration/issuesync).
+        #   - Most targets are git-committed BY DESIGN — AGENTS.md/CLAUDE.md, ticket
+        #     artifacts, scaffolded project files, the wiki corpus, .taskrc. 0600 on
+        #     a file the user commits protects nothing.
+        #   - Highest-entropy sites, named so a future reader can re-judge them:
+        #     internal/core/ruleactions.go (serialises a rule event's payload map) and
+        #     internal/cli/init.go (.taskrc from --build-command). Neither is archived:
+        #     `.adb`, `sessions/` and `communications/` are DENIED segments in
+        #     internal/integration/cloudsync/allowlist.go.
+        #   - The transcript case was the worst of the set and is now RESOLVED rather
+        #     than excluded: internal/storage/sessionstore.go writes 0o600
+        #     (`sessionFileMode`), the one named exception to the 0o644 mandate — see
+        #     CLAUDE.md. It therefore no longer trips G306 at all. Follow-up 5 of
+        #     TASK-00039 Batch 4.
+        - G306
+    govet:
+      # enable-all turns on two analyzers that are NOT in govet's own default set,
+      # both for the same reason: they are advisory style opinions whose "fix" is
+      # worse than the finding. Measured on this tree in TASK-00039 Batch 4.
+      enable-all: true
+      disable:
+        # 476 findings, 475 of them the identifier `err`, 299 of them in tests.
+        # They are the idiomatic scoped form — `if err := f(); err != nil` inside a
+        # function that already has an `err`. Satisfying the analyzer means renaming
+        # to err2/writeErr at ~476 call sites, which is less readable Go than the
+        # shadow it removes. This is why `shadow` is not in govet's default set.
+        - shadow
+        # 316 findings, and the payoff is what the first one states verbatim: "App
+        # has 392 leading bytes of pointer data but optimal value is 384" — 8 bytes,
+        # on a struct built once per process. Nothing here is allocation-hot.
+        #
+        # `golangci-lint run --fix` is NOT a mechanical path for it. Measured, then
+        # reverted: on pkg/models alone it deleted 79 field doc-comment lines and
+        # re-added ZERO (including Task.Links' "SOURCE OF TRUTH for the graph" note
+        # and the whole WS-E sync-baseline explanation), and left config_test.go not
+        # compiling — it reorders fields without reordering unkeyed struct literals,
+        # and that typecheck failure halted the run before any other package.
+        # Reordering also changes YAML/JSON marshal order, so it would rewrite every
+        # workspace's backlog.yaml key order.
+        - fieldalignment
+    staticcheck:
+      # v2 merged gosimple (S*) + stylecheck (ST*) + quickfix (QF*) into
+      # staticcheck, so a bare "all" here is WIDER than the v1 config was: v1
+      # enabled staticcheck (SA*) + gosimple (S*) and deliberately never enabled
+      # stylecheck. Excluding ST*/QF* keeps the same surface across the migration
+      # (they were 37 of the 455 findings on the first v2 run).
+      checks:
+        - all
+        - -ST*
+        - -QF*
+  exclusions:
+    generated: lax
+    # These four presets are what v1's `issues.exclude-use-default: true` (the v1
+    # DEFAULT) applied implicitly. Spelled out here because v2 has no such default.
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Exclude gosec, unparam, and errcheck for test files
+      - linters:
+          - errcheck
+          - gosec
+          - unparam
+        path: _test\.go
+      # Ignore deprecation warnings
+      - linters:
+          - staticcheck
+        text: 'SA1019:'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  # gofmt is enabled so that ONE command is the whole Go gate. The pre-commit hook
+  # (.pre-commit-config.yaml) runs `golangci-lint run ./...` and nothing else, so
+  # formatting drift has to be reportable by that same run or it is not gated at
+  # all — `make fmt` only helps someone who remembers to type it, which is how 985
+  # findings accumulated in the first place. It reported 0 issues when enabled, so
+  # this added a gate, not a backlog.
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -1,0 +1,134 @@
+program:
+  id: technical-design
+  name: Technical Design
+  version: 1
+  description: >-
+    Phase-ordered technical design artifacts: business requirements, a PRD with
+    testable requirement IDs, high-level and detailed design docs, an interface
+    sketch, an RFC, and a STRIDE threat model. Architecture decisions themselves
+    are recorded with `adb adr new` (MADR), not by these templates.
+  lineage:
+    - "Design Docs at Google — Malte Ubl (industrialempathy.com)"
+    - "Rust RFC template — rust-lang/rfcs (MIT/Apache-2.0)"
+    - "C4 model — Simon Brown (CC-BY-4.0)"
+    - "Oxide RFD 1 — oxidecomputer/rfd"
+    - "STRIDE / OWASP"
+    - "BABOK — IIBA"
+
+phases:
+  - { id: requirements, name: Requirements }
+  - { id: design,       name: Design }
+  - { id: detail,       name: Detail }
+
+templates:
+  - id: business-requirements
+    name: Business Requirements
+    phase: requirements
+    path: templates/requirements/business-requirements.md
+    output: docs/technical-design/requirements/business-requirements.md
+    requires: []
+    requires_mode: all
+    reads: ["project-doc/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Confirm the business objectives and success measures with whoever owns the budget."
+      risk: "An unowned or invented objective sends every downstream artifact after the wrong outcome."
+
+  - id: prd
+    name: Product Requirements Document
+    phase: requirements
+    path: templates/requirements/prd.md
+    output: docs/technical-design/requirements/prd.md
+    requires: [business-requirements]
+    requires_mode: all
+    reads: ["project-doc/**", "docs/technical-design/requirements/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Check that every FR/NFR is testable and that the non-goals list is real."
+      risk: "Untestable or missing requirements become silent scope disputes during implementation."
+
+  - id: design-doc
+    name: High-Level Design
+    phase: design
+    path: templates/design/design-doc.md
+    output: docs/technical-design/design/design-doc.md
+    requires: [prd]
+    requires_mode: all
+    reads: ["project-doc/**", "docs/technical-design/requirements/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Review non-goals and the rejected alternatives with the team."
+      risk: "Architecture decisions are expensive to reverse once implementation starts."
+
+  - id: design-doc-mini
+    name: Design Doc (Mini)
+    phase: design
+    path: templates/design/design-doc-mini.md
+    output: docs/technical-design/design/design-doc-mini.md
+    requires: []
+    requires_mode: all
+    reads: ["project-doc/**", "docs/technical-design/requirements/**"]
+    trigger: manual
+    human_review:
+      required: true
+      note: "Confirm the change really is incremental — if reviewers ask structural questions, escalate to the full design doc."
+      risk: "Using the short form for a structural change hides the trade-offs that most needed review."
+
+  - id: interface-sketch
+    name: Interface Sketch
+    phase: design
+    path: templates/design/interface-sketch.md
+    output: docs/technical-design/design/interface-sketch.md
+    requires: [design-doc]
+    requires_mode: all
+    reads: ["docs/technical-design/design/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Check the sketch stayed a sketch and that each shape names its consumer."
+      risk: "An interface published as settled gets built against before its callers have been sanity-checked."
+
+  - id: threat-model
+    name: Threat Model
+    phase: design
+    path: templates/design/threat-model.md
+    output: docs/technical-design/design/threat-model.md
+    requires: [design-doc]
+    requires_mode: all
+    reads: ["docs/technical-design/design/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Have someone outside the implementing team walk the trust boundaries and the accepted risks."
+      risk: "An accepted risk nobody senior actually agreed to accept is an unowned breach waiting to happen."
+
+  - id: rfc
+    name: Request for Comments
+    phase: design
+    path: templates/design/rfc.md
+    output: docs/technical-design/design/rfc.md
+    requires: []
+    requires_mode: all
+    reads: ["project-doc/**", "docs/technical-design/**"]
+    trigger: manual
+    human_review:
+      required: true
+      note: "Circulate for comment and record the determination, including who made it and when."
+      risk: "An RFC that closes without a stated determination leaves the question open and gets relitigated every quarter."
+
+  - id: detailed-design
+    name: Detailed Design
+    phase: detail
+    path: templates/detail/detailed-design.md
+    output: docs/technical-design/detail/detailed-design.md
+    requires: [design-doc]
+    requires_mode: all
+    reads: ["docs/technical-design/design/**", "docs/technical-design/requirements/**"]
+    trigger: phase
+    human_review:
+      required: true
+      note: "Verify the traceability table covers every requirement and that error handling is specified, not assumed."
+      risk: "Detail that contradicts the high-level design ships as-written and the divergence is only found in production."

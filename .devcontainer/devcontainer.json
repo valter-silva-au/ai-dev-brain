@@ -1,0 +1,64 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/go
+{
+	"name": "ADB",
+	// Go 1.25 to match go.mod (`go 1.25.5`) and CI (`go-version: '1.25'`).
+	// Ships golangci-lint 2.x, which is what .golangci.yml (`version: "2"`) needs,
+	// plus gofmt, git and make — so `make fmt/vet/lint/test/build` all work.
+	//
+	// Debian, not the previous alpine-3.22 base: the Go devcontainer feature and
+	// most other official features are apt-based and do not install on alpine.
+	"image": "mcr.microsoft.com/devcontainers/go:1.25-bookworm",
+
+	"containerEnv": {
+		// This network does not reach proxy.golang.org (verified: the macOS host
+		// gets HTTP 000 for it while github.com and mcr.microsoft.com are fine).
+		// The host works around it in ~/.config/go/env with GOPROXY=direct +
+		// GOSUMDB=off, fetching modules straight from source; without mirroring
+		// that here, every `go mod download` / `go install` in the container fails
+		// with "dial tcp: lookup proxy.golang.org: i/o timeout".
+		"GOPROXY": "direct",
+		"GOSUMDB": "off",
+		// Matches the host's GOPRIVATE so Amazon-internal imports are never sent
+		// to a public proxy or sumdb.
+		"GOPRIVATE": "*.amazon.com,code.amazon.com,*.aws.dev"
+	},
+
+	// Run as one command so a failure in any step fails create visibly.
+	//   1. safe.directory — the workspace is bind-mounted from macOS and owned by
+	//      the host UID, which differs from the container user; without this every
+	//      git command fails with "detected dubious ownership in repository".
+	//   2. govulncheck — required by `make security`; not in the base image.
+	//   3. pre-commit — the repo has .pre-commit-config.yaml. Installed from PyPI
+	//      rather than apt because Debian bookworm only offers 3.0.4 (Feb 2023),
+	//      old enough to trip minimum_pre_commit_version on the config's current
+	//      hook revs. The image has no pip or ensurepip module, hence python3-pip
+	//      first; --break-system-packages is required by PEP 668 on bookworm.
+	//      Installed with sudo (system-wide, /usr/local/bin) on purpose, NOT
+	//      `pip --user`: /etc/profile hard-resets PATH for non-root login shells,
+	//      and VS Code terminals are login shells, so a ~/.local/bin install is
+	//      easy to end up unresolvable.
+	//   4. go mod download — warms the module cache and proves deps resolve.
+	// Deliberately NOT running `pre-commit install`: .git is shared with the macOS
+	// host, so writing container-specific hook paths there would affect host commits.
+	"postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && go install golang.org/x/vuln/cmd/govulncheck@latest && sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-pip && sudo python3 -m pip install --break-system-packages --quiet pre-commit && go mod download",
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"golang.go"
+			],
+			"settings": {
+				// Use the golangci-lint already in the image, matching `make lint`.
+				"go.lintTool": "golangci-lint",
+				"go.lintOnSave": "package"
+			}
+		}
+	}
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}

@@ -1,0 +1,67 @@
+schema_version: aidb.profile/v1
+id: default
+version: v1
+work_types:
+  - feat
+  - fix
+  - docs
+  - build
+  - ci
+  - perf
+  - style
+  - revert
+  - chore
+  - refactor
+  - test
+artifacts:
+  - role: ticket.context
+    path: context.md
+    kind: file
+    authority: authored
+    required: true
+    append_only: false
+    search: semantic
+    retention: durable
+    git: tracked
+    template:
+      id: ticket/context
+      version: v1
+  - role: ticket.notes
+    path: notes.md
+    kind: file
+    authority: authored
+    required: true
+    append_only: true
+    search: lexical-semantic
+    retention: durable
+    git: tracked
+    template:
+      id: ticket/notes
+      version: v1
+  - role: ticket.status
+    path: status.yaml
+    kind: file
+    authority: structural
+    required: true
+    append_only: false
+    search: none
+    retention: durable
+    git: tracked
+  - role: ticket.artifacts
+    path: artifacts
+    kind: directory
+    authority: structural
+    required: true
+    append_only: false
+    search: none
+    retention: durable
+    git: tracked
+  - role: ticket.scratch
+    path: scratch
+    kind: directory
+    authority: structural
+    required: true
+    append_only: false
+    search: none
+    retention: durable
+    git: ignored

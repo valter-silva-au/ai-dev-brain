@@ -1,0 +1,17 @@
+{{/*
+Frontmatter contract (TASK-00049): user-supplied values (title, assignee,
+tags) MUST go through yamlq — a raw value containing ": " renders invalid
+YAML (plain scalars cannot hold ": "). Machine-generated keys (task_id,
+status, timestamps) stay raw on purpose; yamlq would emit them unchanged
+anyway. Do not remove yamlq when editing this template.
+*/}}task_id: {{.TaskID}}
+title: {{yamlq .Title}}
+status: {{.Status}}
+created_at: {{.CreatedAt}}
+updated_at: {{.UpdatedAt}}
+{{if .CompletedAt}}completed_at: {{.CompletedAt}}{{end}}
+{{if .Assignee}}assignee: {{yamlq .Assignee}}{{end}}
+{{if .Priority}}priority: {{.Priority}}{{end}}
+{{if .Tags}}tags:
+{{range .Tags}}  - {{yamlq .}}
+{{end}}{{end}}

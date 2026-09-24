@@ -1,0 +1,315 @@
+program:
+  id: product-discovery
+  name: Product Discovery
+  version: 1
+  description: >-
+    Phase-ordered discovery pack: frame the outcome, shape a bounded solution,
+    then align stakeholders on a communicable plan. Every artifact records the
+    inputs that informed it so the reasoning stays auditable.
+  lineage:
+    - "Lean Canvas — Ash Maurya (public)"
+    - "Value Proposition Canvas — Osterwalder / Strategyzer (public)"
+    - "Shape Up — Ryan Singer, 37signals (public, free online edition)"
+    - "Design thinking / How Might We — Stanford d.school, IDEO (public)"
+    - "Working Backwards press release and FAQ, as publicly described by AWS Executive Insights"
+    - "Power/interest stakeholder grid — Mendelow (public management literature)"
+    - "RACI responsibility assignment matrix (public project-management canon)"
+    - "RAID log — PMI / PRINCE2 project-management practice (public)"
+    - "SMART goal criteria and Objectives & Key Results (public)"
+    - "HEART framework and goals-signals-metrics — Rodden, Hutchinson, Fu, Google (public paper)"
+    - "Now / Next / Later roadmap — Janna Bastow, ProdPad (public)"
+    - "Design Sprint — Jake Knapp, Google Ventures (public)"
+
+phases:
+  - id: frame
+    name: Frame
+    description: >-
+      Establish who the customer is, what problem is worth solving, and who has
+      a stake in the answer. Nothing here commits to a solution.
+  - id: shape
+    name: Shape
+    description: >-
+      Bound the solution with an appetite, define how success will be measured,
+      and surface the risks that could invalidate it.
+  - id: align
+    name: Align
+    description: >-
+      Turn the shaped work into artifacts other people can read, challenge, and
+      plan against without a walkthrough.
+
+templates:
+  # ----------------------------------------------------------------- frame ---
+  - id: outcomes-canvas
+    name: Outcomes Canvas
+    phase: frame
+    path: templates/frame/outcomes-canvas.md
+    output: docs/product-discovery/frame/outcomes-canvas.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "project-doc/**"
+      - "docs/**"
+      - "README.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human who has spoken to a real customer must confirm the segment,
+        the problem, and the baseline metric are real and not inferred from
+        the repository.
+      risk: >-
+        Every downstream artifact inherits this canvas. A fabricated baseline
+        metric or an imagined customer segment silently invalidates the pitch,
+        the press release, the success metrics and the roadmap, and the error
+        is only discovered after the work ships to nobody.
+
+  - id: stakeholder-map
+    name: Stakeholder Map
+    phase: frame
+    path: templates/frame/stakeholder-map.md
+    output: docs/product-discovery/frame/stakeholder-map.md
+    requires:
+      - outcomes-canvas
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+      - "project-doc/**"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm named people, their real decision authority, and
+        anyone deliberately excluded. Titles inferred from documents are not
+        evidence of authority.
+      risk: >-
+        A missing blocker or a misjudged approver means the work is socialised
+        to the wrong audience and gets vetoed at the end by someone who was
+        never consulted, after the build budget is already spent.
+
+  - id: how-might-we
+    name: How Might We Questions
+    phase: frame
+    path: templates/frame/how-might-we.md
+    output: docs/product-discovery/frame/how-might-we.md
+    requires:
+      - outcomes-canvas
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+      - "docs/product-discovery/frame/workshop-summary.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must check the questions are genuinely open (not solutions in
+        disguise) and that the top three chosen for exploration reflect real
+        priority rather than the order they were generated in.
+      risk: >-
+        Questions that smuggle in a predetermined solution collapse the option
+        space before anyone has looked at it, so the team optimises a solution
+        it never actually chose.
+
+  - id: problem-solution-canvas
+    name: Problem / Solution Canvas
+    phase: frame
+    path: templates/frame/problem-solution-canvas.md
+    output: docs/product-discovery/frame/problem-solution-canvas.md
+    requires:
+      - how-might-we
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/how-might-we.md"
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must verify each pain point cites real evidence with a source
+        and a date, and that the evidence actually supports the claimed pain.
+      risk: >-
+        Unevidenced pain points are indistinguishable from guesses once the
+        author has moved on, so the team builds against an imagined problem and
+        cannot tell afterwards why it failed.
+
+  - id: workshop-summary
+    name: Workshop Summary
+    phase: frame
+    path: templates/frame/workshop-summary.md
+    output: docs/product-discovery/frame/workshop-summary.md
+    requires: []
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/**"
+    trigger: manual
+    human_review:
+      required: true
+      note: >-
+        Someone who was in the room must confirm the recorded decisions, the
+        action-item owners, and that dissent was captured rather than smoothed
+        over.
+      risk: >-
+        A summary that records agreement which did not happen manufactures
+        false consensus. The dissenter re-litigates the decision weeks later
+        and the team pays for the rework twice.
+
+  # ----------------------------------------------------------------- shape ---
+  - id: pitch
+    name: Pitch
+    phase: shape
+    path: templates/shape/pitch.md
+    output: docs/product-discovery/shape/pitch.md
+    requires:
+      - problem-solution-canvas
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/problem-solution-canvas.md"
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human with budget authority must set the appetite. The appetite is a
+        constraint the organisation is choosing, not a number an agent can
+        derive from the problem.
+      risk: >-
+        An appetite invented by an agent is an estimate wearing a constraint's
+        clothing. Scope then expands to fill it, the fixed-time discipline is
+        lost, and the project ends open-ended.
+
+  - id: success-metrics
+    name: Success Metrics
+    phase: shape
+    path: templates/shape/success-metrics.md
+    output: docs/product-discovery/shape/success-metrics.md
+    requires:
+      - outcomes-canvas
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+      - "docs/product-discovery/shape/pitch.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm each baseline figure is measurable today with a
+        named instrument, and that a named owner has accepted the target.
+      risk: >-
+        A metric with no working measurement method can never be evaluated, so
+        the project can neither be declared a success nor stopped, and it runs
+        on indefinitely consuming budget.
+
+  - id: measurement-framework
+    name: Measurement Framework
+    phase: shape
+    path: templates/shape/measurement-framework.md
+    output: docs/product-discovery/shape/measurement-framework.md
+    requires:
+      - success-metrics
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/shape/success-metrics.md"
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must check every signal is actually instrumented, and that no
+        proposed metric requires collecting data the organisation is not
+        permitted to collect.
+      risk: >-
+        Specifying metrics on data you cannot lawfully or technically collect
+        produces a dashboard that is empty at launch, exactly when the decision
+        it was built to inform has to be made.
+
+  - id: raid-log
+    name: RAID Log
+    phase: shape
+    path: templates/shape/raid-log.md
+    output: docs/product-discovery/shape/raid-log.md
+    requires:
+      - pitch
+      - stakeholder-map
+    requires_mode: any
+    reads:
+      - "docs/product-discovery/shape/pitch.md"
+      - "docs/product-discovery/frame/stakeholder-map.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must accept ownership of each risk and confirm the assumptions
+        list includes the ones nobody wants to write down.
+      risk: >-
+        An unowned risk is an unmanaged risk. The most damaging assumptions are
+        the unstated ones, and a log that omits them gives false assurance that
+        the project has been de-risked.
+
+  # ----------------------------------------------------------------- align ---
+  - id: press-release
+    name: Press Release
+    phase: align
+    path: templates/align/press-release.md
+    output: docs/product-discovery/align/press-release.md
+    requires:
+      - outcomes-canvas
+      - pitch
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/frame/outcomes-canvas.md"
+      - "docs/product-discovery/shape/pitch.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must strike out any benefit that is not yet true and not yet
+        funded, and any quote attributed to a person who never said it.
+      risk: >-
+        A press release read as a commitment creates external expectations the
+        team has not agreed to deliver. Invented customer quotes are worse:
+        they look like evidence and are cited as such.
+
+  - id: faq
+    name: FAQ
+    phase: align
+    path: templates/align/faq.md
+    output: docs/product-discovery/align/faq.md
+    requires:
+      - press-release
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/align/press-release.md"
+      - "docs/product-discovery/shape/raid-log.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm the hard questions are present and answered
+        honestly, including the ones with no good answer yet.
+      risk: >-
+        An FAQ that only asks easy questions is marketing. It gets approved,
+        and the unasked hard question surfaces in the first review meeting with
+        no prepared answer and no owner.
+
+  - id: roadmap
+    name: Roadmap
+    phase: align
+    path: templates/align/roadmap.md
+    output: docs/product-discovery/align/roadmap.md
+    requires:
+      - success-metrics
+      - pitch
+    requires_mode: all
+    reads:
+      - "docs/product-discovery/shape/success-metrics.md"
+      - "docs/product-discovery/shape/pitch.md"
+      - "docs/product-discovery/shape/raid-log.md"
+    trigger: phase
+    human_review:
+      required: true
+      note: >-
+        A human must confirm the Now column is genuinely resourced and that no
+        date has crept in, in any disguise, including quarter labels.
+      risk: >-
+        A date on a Now/Next/Later roadmap is read as a commitment by everyone
+        downstream. Planning, hiring and customer promises get built on it, and
+        the team is then held to an estimate it never made.
