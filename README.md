@@ -474,11 +474,15 @@ archive, MCP) and [L400 — Architecture](docs/learning/L400-architecture-and-ex
 | [**L600 — Document Programs**](docs/learning/L600-document-programs.md) | The `program.yaml` manifest, the readiness gate, the shipped packs, and authoring your own. |
 
 [`docs/claude/subsystems.md`](docs/claude/subsystems.md) is the per-command and per-package
-reference. [`CLAUDE.md`](CLAUDE.md) is the short version an agent reads first.
+reference. The generated instruction file your agent reads on startup is produced by
+`adb sync` (thin `AGENTS.md`/`CLAUDE.md` pointers, not part of this repo).
 
 ---
 
 ## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide (setup, test rules, commit
+convention, the template-provenance boundary). The short version:
 
 Work test-driven: red → green → refactor. Before opening a PR:
 
